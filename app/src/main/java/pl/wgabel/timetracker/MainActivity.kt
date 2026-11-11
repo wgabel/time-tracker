@@ -17,6 +17,7 @@ import android.os.Looper
 import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.view.MotionEvent
 import android.graphics.Typeface
@@ -470,9 +471,19 @@ class MainActivity : Activity() {
                 canvas.save()
                 canvas.translate(cx - dp(12), cy - dp(12))
                 if (kind == "edit") {
-                    canvas.drawLine(dp(5).toFloat(), dp(18).toFloat(), dp(18).toFloat(), dp(5).toFloat(), p)
-                    canvas.drawLine(dp(4).toFloat(), dp(20).toFloat(), dp(8).toFloat(), dp(19).toFloat(), p)
-                    canvas.drawLine(dp(17).toFloat(), dp(4).toFloat(), dp(20).toFloat(), dp(7).toFloat(), p)
+                    // Recognizable pencil: closed shaft, pointed nib and eraser cap.
+                    val pencil = Path().apply {
+                        moveTo(dp(4).toFloat(), dp(16).toFloat())
+                        lineTo(dp(15).toFloat(), dp(5).toFloat())
+                        lineTo(dp(19).toFloat(), dp(9).toFloat())
+                        lineTo(dp(8).toFloat(), dp(20).toFloat())
+                        close()
+                    }
+                    canvas.drawPath(pencil, p)
+                    canvas.drawLine(dp(13).toFloat(), dp(7).toFloat(), dp(17).toFloat(), dp(11).toFloat(), p)
+                    canvas.drawLine(dp(4).toFloat(), dp(16).toFloat(), dp(8).toFloat(), dp(20).toFloat(), p)
+                    canvas.drawLine(dp(4).toFloat(), dp(16).toFloat(), dp(3).toFloat(), dp(21).toFloat(), p)
+                    canvas.drawLine(dp(3).toFloat(), dp(21).toFloat(), dp(8).toFloat(), dp(20).toFloat(), p)
                 } else {
                     canvas.drawRoundRect(RectF(dp(6).toFloat(), dp(7).toFloat(), dp(18).toFloat(), dp(21).toFloat()),
                         dp(1).toFloat(), dp(1).toFloat(), p)
