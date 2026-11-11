@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape android:shape="rectangle"><corners android:radius="14dp"/><gradient android:startColor="#142131" android:endColor="#213A59" android:angle="0"/></shape></item>
+    <item android:gravity="right|center_vertical" android:right="-65dp" android:width="220dp" android:height="220dp">
+        <rotate android:fromDegrees="-20" android:toDegrees="-20" android:pivotX="50%" android:pivotY="50%">
+            <shape android:shape="oval"><solid android:color="#172B44"/><stroke android:width="8dp" android:color="#36587E"/></shape>
+        </rotate>
+    </item>
+</layer-list>
