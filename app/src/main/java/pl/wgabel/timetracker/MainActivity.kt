@@ -5,6 +5,9 @@ import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.widget.Toast
+import android.widget.Spinner
+import android.widget.ArrayAdapter
+import android.content.ContentValues
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -36,6 +39,7 @@ class MainActivity : Activity() {
     private var tab = 0
     private var dayOffset = 0
     private var statsPeriod = 0
+    private var historyPerson = 0
     private val blue = Color.rgb(34, 112, 237)
     private val green = Color.rgb(48, 158, 80)
     private val ink = Color.rgb(26, 34, 43)
@@ -221,6 +225,69 @@ class MainActivity : Activity() {
         addCard(c)
     }
 
+    private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
+        val cal = Calendar.getInstance().apply { timeInMillis = initial }
+        DatePickerDialog(this, { _, year, month, day ->
+            val selected = Calendar.getInstance().apply {
+                timeInMillis = initial
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, day)
+            }
+            TimePickerDialog(this, { _, hour, minute ->
+                selected.set(Calendar.HOUR_OF_DAY, hour)
+                selected.set(Calendar.MINUTE, minute)
+                selected.set(Calendar.SECOND, 0)
+                selected.set(Calendar.MILLISECOND, 0)
+                onChosen(selected.timeInMillis)
+            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), true).apply { setTitle(title) }.show()
+        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+            .apply { setTitle(title) }.show()
+    }
+
+    private fun addSession() {
+        val people = arrayOf(personName(1), personName(2))
+        AlertDialog.Builder(this).setTitle("Wybierz osobę")
+            .setItems(people) { _, which ->
+                val person = which + 1
+                val now = System.currentTimeMillis()
+                pickDateTime(now - 3600000L, "Początek pomiaru") { start ->
+                    pickDateTime(now, "Koniec pomiaru") { end ->
+                        if (start >= end || end > System.currentTimeMillis()) {
+                            Toast.makeText(this, "Koniec musi być później niż początek i nie może być w przyszłości.", Toast.LENGTH_LONG).show()
+                        } else {
+                            val values = ContentValues().apply {
+                                put("person", person)
+                                put("started_at", start)
+                                put("ended_at", end)
+                            }
+                            if (db.insert("sessions", null, values) != -1L) {
+                                dayOffset = 0
+                                while (dayStart(dayOffset) > selected.timeInMillis) dayOffset--
+                                while (dayStart(dayOffset + 1) <= selected.timeInMillis) dayOffset++
+                                renderContent()
+                                Toast.makeText(this, "Dodano pomiar.", Toast.LENGTH_SHORT).show()
+                            } else Toast.makeText(this, "Nie udało się dodać pomiaru.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }.setNegativeButton("Anuluj", null).show()
+    }
+
+    private fun deleteSession(id: Long) {
+        AlertDialog.Builder(this)
+            .setTitle("Usunąć pomiar?")
+            .setMessage("Usunięcie wpisu jest nieodwracalne. Zmieni również statystyki.")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Usuń") { _, _ ->
+                val deleted = db.delete("sessions", "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
+                if (deleted > 0) {
+                    renderContent()
+                    Toast.makeText(this, "Pomiar usunięty.", Toast.LENGTH_SHORT).show()
+                }
+            }.show()
+    }
+
     private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
         if (ended == null) {
             Toast.makeText(this, "Zatrzymaj licznik przed edycją sesji.", Toast.LENGTH_LONG).show()
@@ -279,8 +346,9 @@ class MainActivity : Activity() {
 
     private fun sessionList(start: Long, end: Long, limit: Int = 100) {
         var count = 0
+        val personClause = if (tab == 2 && historyPerson != 0) " AND person=$historyPerson" else ""
         db.rawQuery(
-            "SELECT id,person,started_at,ended_at FROM sessions WHERE started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at DESC LIMIT $limit",
+            "SELECT id,person,started_at,ended_at FROM sessions WHERE started_at<? AND (ended_at IS NULL OR ended_at>?)$personClause ORDER BY started_at DESC LIMIT $limit",
             arrayOf(end.toString(), start.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
@@ -303,6 +371,10 @@ class MainActivity : Activity() {
                     gap(row, 10)
                     row.addView(action("Edytuj wpis", Color.rgb(226, 235, 252), blue) {
                         editSession(id, person, originalStart, originalEnd)
+                    })
+                    gap(row, 6)
+                    row.addView(action("Usuń wpis", Color.rgb(252, 233, 233), Color.rgb(170, 42, 42)) {
+                        deleteSession(id)
                     })
                 }
                 addCard(row)
@@ -381,6 +453,21 @@ class MainActivity : Activity() {
     private fun renderHistory() {
         content.addView(label("Historia", 24f, true))
         gap(content, 10)
+        content.addView(action("+ Dodaj pomiar", blue) { addSession() })
+        gap(content, 12)
+        val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf("Wszyscy", personName(1), personName(2)).forEachIndexed { index, name ->
+            val button = action(name, if (historyPerson == index) blue else Color.rgb(229, 233, 239),
+                if (historyPerson == index) Color.WHITE else ink) {
+                historyPerson = index
+                renderContent()
+            }
+            filters.addView(button, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                setMargins(dp(2), 0, dp(2), 0)
+            })
+        }
+        content.addView(filters)
+        gap(content, 12)
         datePickerRow()
         sessionList(dayStart(dayOffset), dayStart(dayOffset + 1), 500)
     }
