@@ -63,6 +63,7 @@ class MainActivity : Activity() {
     private var projectId: Long? = null
     private var showArchived = false
     private var showAppSettings = false
+    private val timerUpdates = mutableListOf<(Long) -> Unit>()
     private val darkTheme get() = prefs.getString("app_theme", "light") == "dark"
     private val blue get() = if (darkTheme) Color.rgb(113, 169, 255) else Color.rgb(34, 112, 237)
     private val green get() = if (darkTheme) Color.rgb(101, 211, 142) else Color.rgb(48, 158, 80)
@@ -136,7 +137,10 @@ class MainActivity : Activity() {
         handler.post(object : Runnable {
             override fun run() {
                 if (!isFinishing) {
-                    if (tab == 0) renderContent()
+                    if (tab == 0 && projectId != null) {
+                        val now = System.currentTimeMillis()
+                        timerUpdates.forEach { it(now) }
+                    }
                     handler.postDelayed(this, 1000)
                 }
             }
@@ -763,12 +767,20 @@ class MainActivity : Activity() {
         val name = label("●  " + personName(person), 20f, true, personColor(person))
         c.addView(name)
         gap(c, 12)
-        c.addView(label(duration(total(person, start, end, now)), 37f, true))
+        val totalLabel = label(duration(total(person, start, end, now)), 37f, true)
+        c.addView(totalLabel)
+        if (active != null) timerUpdates.add { tick ->
+            totalLabel.text = duration(total(person, start, end, tick))
+        }
         gap(c, 5)
         c.addView(label(tr(R.string.selected_day_total), 14f, false, muted))
         if (dayOffset == 0 && !isArchived()) {
             gap(c, 14)
-            c.addView(label(if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active), 16f, false, muted))
+            val statusLabel = label(if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active), 16f, false, muted)
+            c.addView(statusLabel)
+            if (active != null) timerUpdates.add { tick ->
+                statusLabel.text = tr(R.string.running_prefix) + duration(tick - active)
+            }
             gap(c, 12)
             val button = action(if (active == null) "▶  START" else "■  STOP",
                 if (active == null) personColor(person) else Color.rgb(185, 48, 48)) { toggle(person) }
@@ -994,10 +1006,18 @@ class MainActivity : Activity() {
                 left.addView(heading)
                 gap(left, 5)
                 val running = if (originalEnd == null) "  • trwa" else ""
-                left.addView(label(clockFormat.format(Date(from)) + " – " +
-                    clockFormat.format(Date(until)) + running, 13f, false, muted))
+                val rangeLabel = label(clockFormat.format(Date(from)) + " – " +
+                    clockFormat.format(Date(until)) + running, 13f, false, muted)
+                left.addView(rangeLabel)
                 gap(left, 3)
-                left.addView(label(duration(until - from), 16f, true))
+                val elapsedLabel = label(duration(until - from), 16f, true)
+                left.addView(elapsedLabel)
+                if (originalEnd == null && tab == 0) timerUpdates.add { tick ->
+                    val currentEnd = minOf(end, tick)
+                    rangeLabel.text = clockFormat.format(Date(from)) + " – " +
+                        clockFormat.format(Date(currentEnd)) + running
+                    elapsedLabel.text = duration(currentEnd - from)
+                }
                 row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
                 if (tab == 2 && originalEnd != null && !isArchived()) {
                     val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -1562,6 +1582,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderContent() {
+        timerUpdates.clear()
         content.removeAllViews()
         if (projectId == null) {
             content.setBackgroundColor(background)
