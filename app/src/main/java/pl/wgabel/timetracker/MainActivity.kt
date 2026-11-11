@@ -1245,6 +1245,7 @@ class MainActivity : Activity() {
             info.addView(label(tr(R.string.locked_data), 14f, false, muted))
             addCard(info)
             content.addView(action(tr(R.string.export_csv), Color.rgb(245, 229, 209), ink) { exportCsv() })
+            content.addView(action("🌐  " + tr(R.string.language), Color.rgb(245, 229, 209), ink) { selectLanguage() })
             return
         }
         content.addView(label(tr(R.string.settings), 24f, true))
