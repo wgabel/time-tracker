@@ -82,8 +82,8 @@ class MainActivity : Activity() {
                     database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
                     database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
                     database.execSQL("INSERT INTO projects(name) VALUES ('Poprzednie pomiary')")
-                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (1,1,?)", arrayOf(prefs.getString("name_1", "Osoba 1")))
-                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (2,1,?)", arrayOf(prefs.getString("name_2", "Osoba 2")))
+                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (1,1,?)", arrayOf(prefs.getString("name_1", tr(R.string.legacy_person_1))))
+                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (2,1,?)", arrayOf(prefs.getString("name_2", tr(R.string.legacy_person_2))))
                     database.execSQL("ALTER TABLE sessions ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1")
                 }
                 if (oldVersion < 3) database.execSQL("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
@@ -98,7 +98,7 @@ class MainActivity : Activity() {
             setBackgroundColor(this@MainActivity.background)
         }
         val heading = TextView(this).apply {
-            text = "◷  Dwa Liczniki"
+            text = "◷  " + tr(R.string.app_title)
             textSize = 25f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
@@ -207,23 +207,23 @@ class MainActivity : Activity() {
     }
     private fun personName(person: Int): String {
         db.rawQuery("SELECT name FROM participants WHERE id=?", arrayOf(person.toString())).use { c ->
-            return if (c.moveToFirst()) c.getString(0) else "Osoba $person"
+            return if (c.moveToFirst()) c.getString(0) else tr(R.string.person_fallback) + person
         }
     }
     private fun projectName(): String {
         db.rawQuery("SELECT name FROM projects WHERE id=?", arrayOf(projectId.toString())).use { c ->
-            return if (c.moveToFirst()) c.getString(0) else "Projekt"
+            return if (c.moveToFirst()) c.getString(0) else tr(R.string.project_fallback)
         }
     }
     private fun createProject() {
         val input = EditText(this).apply { hint = tr(R.string.project_name_hint); setSingleLine(true) }
         val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
         val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_project)).setView(holder)
-            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton("Dodaj", null).create()
+            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.add), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = input.text.toString().trim()
-                if (name.isEmpty()) { input.error = "Podaj nazwę"; return@setOnClickListener }
+                if (name.isEmpty()) { input.error = tr(R.string.name_required); return@setOnClickListener }
                 val id = db.insert("projects", null, ContentValues().apply { put("name", name) })
                 if (id > 0) { projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; dialog.dismiss(); render() }
             }
@@ -234,11 +234,11 @@ class MainActivity : Activity() {
         val input = EditText(this).apply { hint = tr(R.string.participant_hint); setSingleLine(true) }
         val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
         val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_participant)).setView(holder)
-            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton("Dodaj", null).create()
+            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.add), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = input.text.toString().trim()
-                if (name.isEmpty()) { input.error = "Podaj nazwę"; return@setOnClickListener }
+                if (name.isEmpty()) { input.error = tr(R.string.name_required); return@setOnClickListener }
                 db.insert("participants", null, ContentValues().apply {
                     put("project_id", projectId); put("name", name)
                 })
@@ -446,7 +446,7 @@ class MainActivity : Activity() {
         }
     }.apply {
         layoutParams = LinearLayout.LayoutParams(dp(size), dp(size))
-        contentDescription = "Ikona projektu"
+        contentDescription = tr(R.string.icon_description)
     }
 
     private fun isArchived(): Boolean {
@@ -631,7 +631,7 @@ class MainActivity : Activity() {
         val previous = action("‹", Color.TRANSPARENT, ink) { dayOffset--; renderContent() }
         row.addView(previous, LinearLayout.LayoutParams(dp(54), dp(48)))
         val date = label(
-            if (dayOffset == 0) "Dzisiaj, " + dateFormat.format(Date(dayStart(0))) else dateFormat.format(Date(dayStart(dayOffset))),
+            if (dayOffset == 0) tr(R.string.today) + dateFormat.format(Date(dayStart(0))) else dateFormat.format(Date(dayStart(dayOffset))),
             16f, true
         ).apply { gravity = Gravity.CENTER }
         row.addView(date, LinearLayout.LayoutParams(0, dp(48), 1f))
@@ -654,7 +654,7 @@ class MainActivity : Activity() {
         c.addView(label(tr(R.string.selected_day_total), 14f, false, muted))
         if (dayOffset == 0 && !isArchived()) {
             gap(c, 14)
-            c.addView(label(if (active == null) "Licznik zatrzymany" else "Trwa: " + duration(now - active), 16f, false, muted))
+            c.addView(label(if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active), 16f, false, muted))
             gap(c, 12)
             val button = action(if (active == null) "▶  START" else "■  STOP",
                 if (active == null) personColor(person) else Color.rgb(185, 48, 48)) { toggle(person) }
@@ -691,10 +691,10 @@ class MainActivity : Activity() {
             .setItems(people) { _, which ->
                 val person = ids[which]
                 val now = System.currentTimeMillis()
-                pickDateTime(now - 3600000L, "Początek pomiaru") { start ->
-                    pickDateTime(now, "Koniec pomiaru") { end ->
+                pickDateTime(now - 3600000L, tr(R.string.start_measurement)) { start ->
+                    pickDateTime(now, tr(R.string.end_measurement)) { end ->
                         if (start >= end || end > System.currentTimeMillis()) {
-                            Toast.makeText(this, "Koniec musi być później niż początek i nie może być w przyszłości.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, tr(R.string.invalid_measurement), Toast.LENGTH_LONG).show()
                         } else {
                             val values = ContentValues().apply {
                                 put("person", person)
@@ -707,8 +707,8 @@ class MainActivity : Activity() {
                                 while (dayStart(dayOffset) > start) dayOffset--
                                 while (dayStart(dayOffset + 1) <= start) dayOffset++
                                 renderContent()
-                                Toast.makeText(this, "Dodano pomiar.", Toast.LENGTH_SHORT).show()
-                            } else Toast.makeText(this, "Nie udało się dodać pomiaru.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this, tr(R.string.measurement_added), Toast.LENGTH_SHORT).show()
+                            } else Toast.makeText(this, tr(R.string.measurement_add_failed), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -717,14 +717,14 @@ class MainActivity : Activity() {
 
     private fun deleteSession(id: Long) {
         AlertDialog.Builder(this)
-            .setTitle("Usunąć pomiar?")
-            .setMessage("Usunięcie wpisu jest nieodwracalne. Zmieni również statystyki.")
+            .setTitle(tr(R.string.delete_measurement))
+            .setMessage(tr(R.string.delete_measurement_warning))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.delete)) { _, _ ->
                 val deleted = db.delete("sessions", "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
                 if (deleted > 0) {
                     renderContent()
-                    Toast.makeText(this, "Pomiar usunięty.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, tr(R.string.measurement_deleted), Toast.LENGTH_SHORT).show()
                 }
             }.show()
     }
@@ -732,7 +732,7 @@ class MainActivity : Activity() {
     private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
         if (isArchived()) return
         if (ended == null) {
-            Toast.makeText(this, "Zatrzymaj licznik przed edycją sesji.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, tr(R.string.stop_before_edit), Toast.LENGTH_LONG).show()
             return
         }
         fun chooseDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
@@ -755,19 +755,19 @@ class MainActivity : Activity() {
             }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 .apply { setTitle(title) }.show()
         }
-        val format = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("pl", "PL"))
+        val format = SimpleDateFormat("dd.MM.yyyy HH:mm", resources.configuration.locales[0])
         AlertDialog.Builder(this)
-            .setTitle("Edytuj sesję: " + personName(person))
-            .setMessage("Od: " + format.format(Date(started)) + "\nDo: " + format.format(Date(ended)) +
+            .setTitle(tr(R.string.edit_session_prefix) + personName(person))
+            .setMessage(tr(R.string.from_prefix) + format.format(Date(started)) + "\n" + tr(R.string.to_prefix) + format.format(Date(ended)) +
                 "\n\nWybierz nowe daty i godziny rozpoczęcia oraz zakończenia.")
             .setNegativeButton(tr(R.string.cancel), null)
-            .setPositiveButton("Edytuj") { _, _ ->
-                chooseDateTime(started, "Nowy początek") { newStart ->
-                    chooseDateTime(ended, "Nowy koniec") { newEnd ->
+            .setPositiveButton(tr(R.string.edit)) { _, _ ->
+                chooseDateTime(started, tr(R.string.new_start)) { newStart ->
+                    chooseDateTime(ended, tr(R.string.new_end)) { newEnd ->
                         if (newEnd <= newStart) {
-                            Toast.makeText(this, "Koniec musi być później niż początek.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, tr(R.string.end_after_start), Toast.LENGTH_LONG).show()
                         } else if (newEnd > System.currentTimeMillis()) {
-                            Toast.makeText(this, "Koniec nie może być w przyszłości.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, tr(R.string.end_not_future), Toast.LENGTH_LONG).show()
                         } else {
                             val values = android.content.ContentValues().apply {
                                 put("started_at", newStart)
@@ -775,10 +775,10 @@ class MainActivity : Activity() {
                             }
                             val updated = db.update("sessions", values, "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
                             if (updated == 1) {
-                                Toast.makeText(this, "Sesja zaktualizowana.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show()
                                 renderContent()
                             } else {
-                                Toast.makeText(this, "Nie udało się zaktualizować sesji.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
                             }
                         }
                     }
@@ -800,7 +800,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
-            contentDescription = "Uczestnik: $name"
+            contentDescription = tr(R.string.participant_description_prefix) + name
         }
     }
 
@@ -843,7 +843,7 @@ class MainActivity : Activity() {
             background = shape(if (kind == "edit") Color.rgb(232, 239, 253) else Color.rgb(252, 233, 233), 9)
             stateListAnimator = null
             elevation = 0f
-            contentDescription = if (kind == "edit") "Edytuj wpis" else "Usuń wpis"
+            contentDescription = if (kind == "edit") tr(R.string.edit_entry) else tr(R.string.delete_entry)
             isClickable = true
             setOnClickListener { onClick() }
         }
@@ -991,9 +991,9 @@ class MainActivity : Activity() {
                 }
                 val finish = cal.timeInMillis
                 val name = when (statsPeriod) {
-                    1 -> SimpleDateFormat("EEE", Locale("pl", "PL")).format(Date(start))
-                    2 -> SimpleDateFormat("d", Locale("pl", "PL")).format(Date(start))
-                    else -> SimpleDateFormat("MM.yy", Locale("pl", "PL")).format(Date(start))
+                    1 -> SimpleDateFormat("EEE", resources.configuration.locales[0]).format(Date(start))
+                    2 -> SimpleDateFormat("d", resources.configuration.locales[0]).format(Date(start))
+                    else -> SimpleDateFormat("MM.yy", resources.configuration.locales[0]).format(Date(start))
                 }
                 points.add(name to intervals(start, finish).sumOf { it.third - it.second })
                 count++
@@ -1030,7 +1030,7 @@ class MainActivity : Activity() {
         }
         content.addView(chart, LinearLayout.LayoutParams(-1, dp(180)))
         val minutes = points.sumOf { it.second } / 60000L
-        content.addView(label("Łącznie: ${minutes / 60} h ${minutes % 60} min (osobogodziny)", 15f, true))
+        content.addView(label(getString(R.string.total_person_hours, minutes / 60, minutes % 60), 15f, true))
     }
 
     private fun renderParticipantPie(from: Long, to: Long) {
@@ -1085,7 +1085,7 @@ class MainActivity : Activity() {
             val timeText = if (seconds < 60L && duration > 0L) "${seconds} s"
                 else "${seconds / 3600} h ${(seconds % 3600) / 60} min"
             val percent = duration.toDouble() * 100.0 / total.toDouble()
-            row.addView(label(String.format(Locale("pl", "PL"), "%s  ·  %.1f%%", timeText, percent),
+            row.addView(label(String.format(resources.configuration.locales[0], "%s  ·  %.1f%%", timeText, percent),
                 13f, false, ink))
             c.addView(row)
             gap(c, 8)
@@ -1142,7 +1142,7 @@ class MainActivity : Activity() {
                                 val started = cur.getLong(0)
                                 val ended = if (cur.isNull(1)) null else cur.getLong(1)
                                 if (ended != null && !isArchived()) editSession(chosen.first, person, started, ended)
-                                else Toast.makeText(this@MainActivity, "Zatrzymaj licznik przed edycją.", Toast.LENGTH_SHORT).show()
+                                else Toast.makeText(this@MainActivity, tr(R.string.stop_before_edit_short), Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -1239,7 +1239,7 @@ class MainActivity : Activity() {
         gap(content, 12)
         val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         (listOf(0) + participants()).forEach { person ->
-            val name = if (person == 0) "Wszyscy" else personName(person)
+            val name = if (person == 0) tr(R.string.all_people) else personName(person)
             val button = action(name, if (historyPerson == person) blue else Color.rgb(229, 233, 239),
                 if (historyPerson == person) Color.WHITE else ink) {
                 historyPerson = person
@@ -1264,7 +1264,7 @@ class MainActivity : Activity() {
             setPadding(dp(20), 0, dp(20), 0)
             addView(input)
         }
-        AlertDialog.Builder(this).setTitle("Nazwa osoby $person")
+        AlertDialog.Builder(this).setTitle(tr(R.string.rename_person_prefix) + person)
             .setView(holder)
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.save)) { _, _ ->
@@ -1279,7 +1279,7 @@ class MainActivity : Activity() {
     private fun renameProject() {
         val id = projectId ?: return
         val input = EditText(this).apply { setText(projectName()); setSingleLine(true); selectAll() }
-        AlertDialog.Builder(this).setTitle("Zmień nazwę projektu").setView(input)
+        AlertDialog.Builder(this).setTitle(tr(R.string.rename_project_title)).setView(input)
             .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.save)) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
@@ -1295,14 +1295,14 @@ class MainActivity : Activity() {
             arrayOf(projectId.toString(), person.toString())).use { c ->
             c.moveToFirst()
             if (c.getLong(0) > 0L) {
-                AlertDialog.Builder(this).setTitle("Uczestnik ma pomiary")
-                    .setMessage("Nie można usunąć uczestnika z historią. Jego dane muszą pozostać przypisane do pomiarów.")
+                AlertDialog.Builder(this).setTitle(tr(R.string.participant_has_measurements))
+                    .setMessage(tr(R.string.cannot_delete_participant))
                     .setPositiveButton("OK", null).show()
                 return
             }
         }
-        AlertDialog.Builder(this).setTitle("Usunąć uczestnika?")
-            .setMessage("Usunąć ${personName(person)} z projektu?")
+        AlertDialog.Builder(this).setTitle(tr(R.string.delete_participant))
+            .setMessage(tr(R.string.delete_participant_prefix) + personName(person) + tr(R.string.delete_participant_suffix))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.delete)) { _, _ ->
                 db.delete("participants", "id=? AND project_id=?",
@@ -1334,7 +1334,7 @@ class MainActivity : Activity() {
             contentResolver.openOutputStream(uri)?.use { output ->
                 OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
                     writer.write("\uFEFF")
-                    writer.write("Uczestnik;Data;Od;Do;Czas (sekundy);Status\n")
+                    writer.write(tr(R.string.csv_header) + "\n")
                     val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
                     db.rawQuery(
                         "SELECT p.name,s.started_at,s.ended_at FROM sessions s JOIN participants p ON p.id=s.person WHERE s.project_id=? ORDER BY s.started_at",
@@ -1348,14 +1348,14 @@ class MainActivity : Activity() {
                             val endDate = end?.let { fmt.format(Date(it)) } ?: ""
                             val secs = ((end ?: System.currentTimeMillis()) - start).coerceAtLeast(0) / 1000
                             writer.write(listOf(csv(name), csv(date.take(10)), csv(date),
-                                csv(endDate), secs.toString(), if (end == null) "Trwa" else "Zakończony").joinToString(";") + "\n")
+                                csv(endDate), secs.toString(), if (end == null) tr(R.string.csv_running) else tr(R.string.csv_finished)).joinToString(";") + "\n")
                         }
                     }
                 }
-            } ?: throw IllegalStateException("Nie można otworzyć pliku")
-            Toast.makeText(this, "Wyeksportowano pomiary.", Toast.LENGTH_SHORT).show()
+            } ?: throw IllegalStateException(tr(R.string.export_file_error))
+            Toast.makeText(this, tr(R.string.export_done), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(this, "Błąd eksportu: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, tr(R.string.export_failed_prefix) + e.message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1368,7 +1368,7 @@ class MainActivity : Activity() {
             gap(info, 8)
             info.addView(label(projectName(), 17f, false))
             gap(info, 10)
-            info.addView(label("Uczestnicy: " + participants().joinToString(", ") { personName(it) }, 14f, false, muted))
+            info.addView(label(tr(R.string.participants_colon) + participants().joinToString(", ") { personName(it) }, 14f, false, muted))
             gap(info, 10)
             info.addView(label(tr(R.string.locked_data), 14f, false, muted))
             addCard(info)
@@ -1397,7 +1397,7 @@ class MainActivity : Activity() {
         addCard(project)
 
         val people = card()
-        people.addView(label("Uczestnicy · ${participants().size}", 19f, true))
+        people.addView(label(tr(R.string.participants_label) + participants().size, 19f, true))
         gap(people, 10)
         participants().forEach { person ->
             val row = LinearLayout(this).apply {
@@ -1449,7 +1449,7 @@ class MainActivity : Activity() {
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(label("←", 29f, false, ink).apply {
             gravity = Gravity.CENTER
-            contentDescription = "Wróć do listy projektów"
+            contentDescription = tr(R.string.back_to_projects_description)
             setOnClickListener { projectId = null; render() }
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         header.addView(projectIcon(projectId!!, 38))
@@ -1462,7 +1462,7 @@ class MainActivity : Activity() {
             if (it.moveToFirst()) it.getInt(0) else 0
         }
         if (active > 0) {
-            header.addView(label("● $active aktywne", 12f, true, green).apply {
+            header.addView(label("● $active " + tr(R.string.active_plural).trim(), 12f, true, green).apply {
                 setPadding(dp(8), dp(7), dp(8), dp(7))
                 background = GradientDrawable().apply {
                     setColor(Color.rgb(230, 241, 235))
