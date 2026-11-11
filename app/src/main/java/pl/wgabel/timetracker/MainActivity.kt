@@ -82,12 +82,13 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         applyLanguage()
         applyThemeToSystem()
-        db = object : SQLiteOpenHelper(this, "sessions.db", null, 4) {
+        db = object : SQLiteOpenHelper(this, "sessions.db", null, 5) {
             override fun onCreate(database: SQLiteDatabase) {
                 database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
                 database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
                 database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
                 database.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
+                database.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
             }
             override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
                 if (oldVersion < 2) {
@@ -100,6 +101,7 @@ class MainActivity : Activity() {
                 }
                 if (oldVersion < 3) database.execSQL("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
                 if (oldVersion < 4) database.execSQL("ALTER TABLE projects ADD COLUMN icon_variant INTEGER NOT NULL DEFAULT 0")
+                if (oldVersion < 5) database.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
             }
         }.writableDatabase
         applyThemeToSystem()
@@ -765,6 +767,100 @@ class MainActivity : Activity() {
         gap(content, 10)
     }
 
+
+    private fun addEvent(person: Int) {
+        val sessionId = db.rawQuery(
+            "SELECT id FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1",
+            arrayOf(projectId.toString(), person.toString())
+        ).use { if (it.moveToFirst()) it.getLong(0) else return }
+        val timestamp = System.currentTimeMillis()
+        editEvent(null, sessionId, person, timestamp, "Inne", "")
+    }
+
+    private fun editEvent(id: Long?, sessionId: Long, person: Int, timestamp: Long, currentType: String, currentNote: String) {
+        val types = arrayOf("Lek", "Posiłek", "Sen", "Spacer", "Inne")
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(8))
+        }
+        panel.addView(label("Godzina: " + clockFormat.format(Date(timestamp)), 14f, false, muted))
+        val picker = Spinner(this)
+        picker.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        picker.setSelection(types.indexOf(currentType).coerceAtLeast(0))
+        panel.addView(picker)
+        val note = EditText(this).apply {
+            hint = "Opis (dla leku: nazwa, stężenie, dawka)"
+            setText(currentNote)
+            minLines = 2
+        }
+        panel.addView(note)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (id == null) "Dodaj wydarzenie" else "Edytuj wydarzenie")
+            .setView(panel)
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(tr(R.string.save), null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val type = types[picker.selectedItemPosition]
+                val description = note.text.toString().trim()
+                if (type == "Lek" && description.isEmpty()) {
+                    note.error = "Wpisz nazwę i dawkę leku"
+                } else {
+                    val values = ContentValues().apply {
+                        put("project_id", projectId)
+                        put("session_id", sessionId)
+                        put("person", person)
+                        put("happened_at", timestamp)
+                        put("type", type)
+                        put("note", description)
+                    }
+                    if (id == null) db.insertOrThrow("events", null, values)
+                    else db.update("events", values, "id=? AND project_id=?", arrayOf(id.toString(), projectId.toString()))
+                    dialog.dismiss()
+                    renderContent()
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun eventList(sessionId: Long, person: Int, container: LinearLayout) {
+        db.rawQuery(
+            "SELECT id,happened_at,type,note FROM events WHERE project_id=? AND session_id=? ORDER BY happened_at",
+            arrayOf(projectId.toString(), sessionId.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val timestamp = cursor.getLong(1)
+                val type = cursor.getString(2)
+                val note = cursor.getString(3)
+                val item = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), dp(4), dp(8), dp(4))
+                }
+                val description = "⚑ " + clockFormat.format(Date(timestamp)) + " · " + type +
+                    (if (note.isBlank()) "" else " · " + note)
+                item.addView(label(description, 13f, false, muted), LinearLayout.LayoutParams(0, -2, 1f))
+                if (tab == 2 && !isArchived()) {
+                    item.addView(action("✎", subtleNeutral, ink) {
+                        editEvent(id, sessionId, person, timestamp, type, note)
+                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
+                    item.addView(action("×", subtleNeutral, ink) {
+                        AlertDialog.Builder(this).setTitle("Usunąć wydarzenie?")
+                            .setNegativeButton(tr(R.string.cancel), null)
+                            .setPositiveButton("Usuń") { _, _ ->
+                                db.delete("events", "id=? AND project_id=?", arrayOf(id.toString(), projectId.toString()))
+                                renderContent()
+                            }.show()
+                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
+                }
+                container.addView(item)
+            }
+        }
+    }
+
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
         val c = card()
         val active = activeStart(person)
@@ -789,7 +885,13 @@ class MainActivity : Activity() {
             gap(c, 12)
             val button = action(if (active == null) "▶  START" else "■  STOP",
                 if (active == null) personColor(person) else Color.rgb(185, 48, 48)) { toggle(person) }
-            c.addView(button, LinearLayout.LayoutParams(-1, dp(54)))
+            if (active != null) {
+                val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                controls.addView(button, LinearLayout.LayoutParams(0, dp(54), 2f))
+                controls.addView(action("⚑ EVENT", subtle, secondaryButtonText) { addEvent(person) },
+                    LinearLayout.LayoutParams(0, dp(54), 1f).apply { leftMargin = dp(8) })
+                c.addView(controls)
+            } else c.addView(button, LinearLayout.LayoutParams(-1, dp(54)))
         }
         addCard(c)
     }
@@ -1033,7 +1135,10 @@ class MainActivity : Activity() {
                     }, LinearLayout.LayoutParams(dp(42), dp(40)))
                     row.addView(controls)
                 }
-                content.addView(row, LinearLayout.LayoutParams(-1, -2))
+                val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                group.addView(row)
+                eventList(id, person, group)
+                content.addView(group, LinearLayout.LayoutParams(-1, -2))
                 gap(content, 7)
                 count++
             }
