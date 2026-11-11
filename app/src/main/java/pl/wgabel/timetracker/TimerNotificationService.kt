@@ -13,7 +13,7 @@ import java.util.Locale
 class TimerNotificationService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val notificationId = 42
-    private val channelId = "active_timers"
+    private val channelId = "active_timers_visible_v2"
     private val refresh = object : Runnable {
         override fun run() {
             updateNotification()
@@ -26,9 +26,12 @@ class TimerNotificationService : Service() {
     override fun onCreate() {
         super.onCreate()
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(channelId, "Aktywne pomiary", NotificationManager.IMPORTANCE_LOW).apply {
+        manager.createNotificationChannel(NotificationChannel(channelId, "Aktywne pomiary", NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "Informacja o czasie naliczanym w projektach"
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(false)
             setShowBadge(false)
         })
     }
@@ -85,11 +88,13 @@ class TimerNotificationService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("timetrkr · Trwa pomiar")
             .setContentText("$title · ${items.size} aktywne")
-            .setStyle(Notification.BigTextStyle().bigText(description))
             .setCustomBigContentView(layout)
+            .setStyle(Notification.DecoratedCustomViewStyle())
             .setCustomContentView(layout)
             .setContentIntent(open)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setCategory(Notification.CATEGORY_STATUS)
             .build()
