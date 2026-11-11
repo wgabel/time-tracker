@@ -464,7 +464,7 @@ class MainActivity : Activity() {
         if (count > 0) {
             AlertDialog.Builder(this).setTitle(tr(R.string.active_timers))
                 .setMessage(tr(R.string.stop_before_archive))
-                .setPositiveButton("OK", null).show()
+                .setPositiveButton(android.R.string.ok, null).show()
             return
         }
         AlertDialog.Builder(this).setTitle(tr(R.string.archive_confirm))
@@ -755,11 +755,11 @@ class MainActivity : Activity() {
             }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 .apply { setTitle(title) }.show()
         }
-        val format = SimpleDateFormat("dd.MM.yyyy HH:mm", resources.configuration.locales[0])
+        val format = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, resources.configuration.locales[0])
         AlertDialog.Builder(this)
             .setTitle(tr(R.string.edit_session_prefix) + personName(person))
             .setMessage(tr(R.string.from_prefix) + format.format(Date(started)) + "\n" + tr(R.string.to_prefix) + format.format(Date(ended)) +
-                "\n\nWybierz nowe daty i godziny rozpoczęcia oraz zakończenia.")
+                "\n\n" + tr(R.string.edit_dates_instruction))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.edit)) { _, _ ->
                 chooseDateTime(started, tr(R.string.new_start)) { newStart ->
