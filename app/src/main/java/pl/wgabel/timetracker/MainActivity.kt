@@ -1,6 +1,9 @@
 package pl.wgabel.timetracker
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import java.io.OutputStreamWriter
 import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
@@ -42,6 +45,7 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
+    private var pendingExportProject: Long? = null
     private var dayOffset = 0
     private var statsPeriod = 1
     private var statsOffset = 0
@@ -838,18 +842,144 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    private fun renameProject() {
+        val id = projectId ?: return
+        val input = EditText(this).apply { setText(projectName()); setSingleLine(true); selectAll() }
+        AlertDialog.Builder(this).setTitle("Zmień nazwę projektu").setView(input)
+            .setNegativeButton("Anuluj", null).setPositiveButton("Zapisz") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    db.update("projects", ContentValues().apply { put("name", name) }, "id=?",
+                        arrayOf(id.toString()))
+                    renderContent()
+                }
+            }.show()
+    }
+
+    private fun removeParticipant(person: Int) {
+        db.rawQuery("SELECT COUNT(*) FROM sessions WHERE project_id=? AND person=?",
+            arrayOf(projectId.toString(), person.toString())).use { c ->
+            c.moveToFirst()
+            if (c.getLong(0) > 0L) {
+                AlertDialog.Builder(this).setTitle("Uczestnik ma pomiary")
+                    .setMessage("Nie można usunąć uczestnika z historią. Jego dane muszą pozostać przypisane do pomiarów.")
+                    .setPositiveButton("OK", null).show()
+                return
+            }
+        }
+        AlertDialog.Builder(this).setTitle("Usunąć uczestnika?")
+            .setMessage("Usunąć ${personName(person)} z projektu?")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Usuń") { _, _ ->
+                db.delete("participants", "id=? AND project_id=?",
+                    arrayOf(person.toString(), projectId.toString()))
+                renderContent()
+            }.show()
+    }
+
+    private fun exportCsv() {
+        pendingExportProject = projectId
+        val name = projectName().replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "text/csv"
+            putExtra(Intent.EXTRA_TITLE, "timetrkr_${name}.csv")
+        }
+        startActivityForResult(intent, 301)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 301) return
+        val id = pendingExportProject
+        pendingExportProject = null
+        val uri: Uri = data?.data ?: return
+        if (resultCode != Activity.RESULT_OK || id == null) return
+        fun csv(value: String) = "\"" + value.replace("\"", "\"\"") + "\""
+        try {
+            contentResolver.openOutputStream(uri)?.use { output ->
+                OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
+                    writer.write("\\uFEFF")
+                    writer.write("Uczestnik;Data;Od;Do;Czas (sekundy);Status\\n")
+                    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+                    db.rawQuery(
+                        "SELECT p.name,s.started_at,s.ended_at FROM sessions s JOIN participants p ON p.id=s.person WHERE s.project_id=? ORDER BY s.started_at",
+                        arrayOf(id.toString())
+                    ).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val name = cursor.getString(0)
+                            val start = cursor.getLong(1)
+                            val end = if (cursor.isNull(2)) null else cursor.getLong(2)
+                            val date = fmt.format(Date(start))
+                            val endDate = end?.let { fmt.format(Date(it)) } ?: ""
+                            val secs = ((end ?: System.currentTimeMillis()) - start).coerceAtLeast(0) / 1000
+                            writer.write(listOf(csv(name), csv(date.take(10)), csv(date),
+                                csv(endDate), secs.toString(), if (end == null) "Trwa" else "Zakończony").joinToString(";") + "\\n")
+                        }
+                    }
+                }
+            } ?: throw IllegalStateException("Nie można otworzyć pliku")
+            Toast.makeText(this, "Wyeksportowano pomiary.", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Błąd eksportu: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun renderSettings() {
         content.addView(label("Ustawienia", 24f, true))
-        gap(content, 16)
-        val c = card()
-        c.addView(label("Nazwy liczników", 19f, true))
-        gap(c, 12)
-        for (person in participants()) {
-            c.addView(action("Zmień: " + personName(person), Color.rgb(226, 235, 252), blue) { rename(person) })
-            gap(c, 10)
+        gap(content, 12)
+        val project = card()
+        project.addView(label("PROJEKT", 13f, true, muted))
+        gap(project, 8)
+        project.addView(label(projectName(), 20f, true))
+        gap(project, 8)
+        project.addView(action("✎  Zmień nazwę projektu", Color.rgb(226, 235, 252), blue) {
+            renameProject()
+        })
+        addCard(project)
+
+        val people = card()
+        people.addView(label("Uczestnicy · ${participants().size}", 19f, true))
+        gap(people, 10)
+        participants().forEach { person ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(avatar(person), LinearLayout.LayoutParams(dp(36), dp(36)))
+            val name = label(personName(person), 15f, true).apply { setPadding(dp(10), 0, dp(4), 0) }
+            row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(iconButton("edit", blue) { rename(person) },
+                LinearLayout.LayoutParams(dp(42), dp(42)))
+            gap(row, 5)
+            row.addView(iconButton("delete", Color.rgb(170, 42, 42)) { removeParticipant(person) },
+                LinearLayout.LayoutParams(dp(42), dp(42)))
+            people.addView(row)
+            gap(people, 7)
         }
-        addCard(c)
-        content.addView(label("Dane sesji są przechowywane lokalnie na tym telefonie. Nie odinstalowuj aplikacji bez kopii zapasowej.", 14f, false, muted))
+        people.addView(action("+ Dodaj uczestnika", Color.rgb(226, 235, 252), blue) {
+            addParticipant()
+        })
+        addCard(people)
+
+        val data = card()
+        data.addView(label("Dane projektu", 19f, true))
+        gap(data, 12)
+        data.addView(action("↓  Eksport pomiarów (CSV)", Color.rgb(226, 235, 252), blue) {
+            exportCsv()
+        })
+        gap(data, 8)
+        data.addView(label("Archiwizacja i usuwanie projektów pojawią się w kolejnym etapie.", 13f, false, muted))
+        addCard(data)
+
+        val app = card()
+        app.addView(label("Aplikacja", 19f, true))
+        gap(app, 8)
+        val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "—" }
+        app.addView(label("Wersja: $version", 14f, false, muted))
+        gap(app, 8)
+        app.addView(label("Pomiary są zapisane lokalnie. Eksport CSV nie jest pełną kopią zapasową. Nie odinstalowuj aplikacji przed zabezpieczeniem danych.", 13f, false, muted))
+        addCard(app)
     }
 
     private fun renderContent() {
