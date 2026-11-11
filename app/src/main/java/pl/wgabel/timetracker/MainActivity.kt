@@ -17,6 +17,11 @@ import android.content.ContentValues
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.animation.ValueAnimator
+import android.graphics.LinearGradient
+import android.graphics.Shader
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -201,6 +206,58 @@ class MainActivity : Activity() {
         setPadding(dp(18), dp(18), dp(18), dp(18))
         background = shape(surface, 14).apply { setStroke(dp(1), if (darkTheme) Color.rgb(66, 77, 95) else Color.rgb(220, 225, 232)) }
         elevation = dp(2).toFloat()
+    }
+
+    private fun activeCardBackground(): Drawable = object : Drawable() {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var phase = 0f
+        private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 6500L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { phase = it.animatedValue as Float; invalidateSelf() }
+        }
+        override fun setCallback(cb: Callback?) {
+            super.setCallback(cb)
+            if (cb != null && android.provider.Settings.Global.getFloat(
+                    contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+                ) != 0f) animator.start()
+            else animator.cancel()
+        }
+        override fun draw(canvas: Canvas) {
+            val b = bounds
+            val w = b.width().toFloat()
+            val h = b.height().toFloat()
+            val radius = dp(13).toFloat()
+            val rect = RectF(b)
+            p.style = Paint.Style.FILL
+            p.shader = LinearGradient(0f, 0f, w, 0f,
+                intArrayOf(surface, surface, if (darkTheme) Color.rgb(31, 76, 53) else Color.rgb(216, 246, 226)),
+                floatArrayOf(0f, .65f, 1f), Shader.TileMode.CLAMP)
+            canvas.drawRoundRect(rect, radius, radius, p)
+            p.shader = null
+            canvas.save()
+            val clip = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
+            canvas.clipPath(clip)
+            for (i in 0 until 8) {
+                val x = w * (.71f + (i * .037f)) - dp(12) * phase
+                val y = ((i * .173f + phase * (.16f + i % 3 * .025f)) % 1f) * (h + dp(24)) - dp(12)
+                val side = dp(5 + i % 3).toFloat()
+                p.color = if (darkTheme) Color.argb(55, 114, 226, 154) else Color.argb(58, 47, 166, 93)
+                canvas.drawRoundRect(RectF(x, y, x + side, y + side), dp(1).toFloat(), dp(1).toFloat(), p)
+            }
+            canvas.restore()
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = resources.displayMetrics.density.coerceAtLeast(1f)
+            p.color = if (darkTheme) Color.rgb(78, 159, 106) else Color.rgb(121, 199, 146)
+            canvas.drawRoundRect(RectF(b.left + p.strokeWidth / 2, b.top + p.strokeWidth / 2,
+                b.right - p.strokeWidth / 2, b.bottom - p.strokeWidth / 2), radius, radius, p)
+            p.style = Paint.Style.FILL
+        }
+        override fun setAlpha(alpha: Int) { p.alpha = alpha }
+        override fun setColorFilter(filter: android.graphics.ColorFilter?) { p.colorFilter = filter }
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 
     private fun addCard(view: LinearLayout) {
@@ -684,6 +741,7 @@ class MainActivity : Activity() {
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
         val c = card()
         val active = activeStart(person)
+        if (active != null) c.background = activeCardBackground()
         val name = label("●  " + personName(person), 20f, true, personColor(person))
         c.addView(name)
         gap(c, 12)
@@ -905,7 +963,7 @@ class MainActivity : Activity() {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(dp(12), dp(10), dp(10), dp(10))
-                    background = shape(surface, 12)
+                    background = if (originalEnd == null) activeCardBackground() else shape(surface, 12)
                 }
                 val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 val heading = LinearLayout(this).apply {
