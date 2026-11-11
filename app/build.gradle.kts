@@ -9,8 +9,26 @@ android {
         applicationId = "pl.wgabel.timetracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
+    }
+    val signingFile = System.getenv("ANDROID_KEYSTORE_FILE")
+    val signingPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    if (!signingFile.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        signingConfigs {
+            create("releaseKey") {
+                storeFile = file(signingFile)
+                storePassword = signingPassword
+                keyAlias = "time-tracker"
+                keyPassword = signingPassword
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("releaseKey")
+                isMinifyEnabled = false
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
