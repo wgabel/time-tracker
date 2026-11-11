@@ -220,6 +220,41 @@ class MainActivity : Activity() {
         }
         dialog.show()
     }
+    private fun projectIcon(id: Long, size: Int = 40): View = object : View(this) {
+        private val colors = intArrayOf(0xFFE75A4A.toInt(), 0xFFF4BB52.toInt(), 0xFF3979BC.toInt(), 0xFF40A28B.toInt(), 0xFF8B70BD.toInt())
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        override fun onDraw(c: Canvas) {
+            super.onDraw(c)
+            val save = c.save()
+            c.scale(width / 100f, height / 100f)
+            val r = java.util.Random(id xor 0xBAA055L)
+            p.color = colors[r.nextInt(colors.size)]
+            c.drawRoundRect(0f, 0f, 100f, 100f, 20f, 20f, p)
+            c.save()
+            c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, 100f, 100f), 20f, 20f, Path.Direction.CW) })
+            repeat(4) { i ->
+                p.color = colors[(r.nextInt(colors.size) + i) % colors.size]
+                val x = r.nextInt(80).toFloat() - 15f
+                val y = r.nextInt(80).toFloat() - 15f
+                when (r.nextInt(3)) {
+                    0 -> c.drawCircle(x + 20f, y + 20f, 16f + r.nextInt(20), p)
+                    1 -> c.drawRect(x, y, x + 25f + r.nextInt(35), y + 20f + r.nextInt(30), p)
+                    else -> {
+                        p.style = Paint.Style.STROKE
+                        p.strokeWidth = 9f
+                        c.drawArc(RectF(x, y, x + 65f, y + 65f), r.nextInt(360).toFloat(), 190f, false, p)
+                        p.style = Paint.Style.FILL
+                    }
+                }
+            }
+            c.restore()
+            c.restoreToCount(save)
+        }
+    }.apply {
+        layoutParams = LinearLayout.LayoutParams(dp(size), dp(size))
+        contentDescription = "Ikona projektu"
+    }
+
     private fun renderProjects() {
         content.addView(label("Projekty", 24f, true))
         gap(content, 14)
@@ -233,7 +268,11 @@ class MainActivity : Activity() {
         }
         projects.forEach { (id, name) ->
             val item = card()
-            item.addView(label("▤   $name    ›", 19f, true))
+            val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            line.addView(projectIcon(id))
+            line.addView(label(name, 19f, true).apply { setPadding(dp(12), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            line.addView(label("›", 23f, false, muted))
+            item.addView(line)
             item.setOnClickListener {
                 projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; render()
             }
@@ -1094,9 +1133,31 @@ class MainActivity : Activity() {
     private fun renderContent() {
         content.removeAllViews()
         if (projectId == null) { renderProjects(); return }
-        content.addView(action("‹  Projekty  /  " + projectName(), Color.rgb(226, 235, 252), blue) {
-            projectId = null; render()
-        })
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(label("←", 29f, false, ink).apply {
+            gravity = Gravity.CENTER
+            contentDescription = "Wróć do listy projektów"
+            setOnClickListener { projectId = null; render() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(projectIcon(projectId!!, 38))
+        header.addView(label(projectName(), 21f, true, ink).apply {
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(dp(10), 0, dp(5), 0)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val active = db.rawQuery("SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL", arrayOf(projectId.toString())).use {
+            if (it.moveToFirst()) it.getInt(0) else 0
+        }
+        if (active > 0) {
+            header.addView(label("● $active aktywne", 12f, true, green).apply {
+                setPadding(dp(8), dp(7), dp(8), dp(7))
+                background = GradientDrawable().apply {
+                    setColor(Color.rgb(230, 241, 235))
+                    cornerRadius = dp(16).toFloat()
+                }
+            })
+        }
+        content.addView(header)
         gap(content, 12)
         when (tab) {
             0 -> renderTimers()
