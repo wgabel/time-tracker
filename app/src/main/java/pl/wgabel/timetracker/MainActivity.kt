@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private var dayOffset = 0
     private var statsPeriod = 0
     private var historyPerson = 0
+    private var projectId: Long? = null
     private val blue = Color.rgb(34, 112, 237)
     private val green = Color.rgb(48, 158, 80)
     private val ink = Color.rgb(26, 34, 43)
@@ -51,12 +52,23 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        db = object : SQLiteOpenHelper(this, "sessions.db", null, 1) {
+        db = object : SQLiteOpenHelper(this, "sessions.db", null, 2) {
             override fun onCreate(database: SQLiteDatabase) {
-                database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
+                database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
+                database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
+                database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
                 database.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
             }
-            override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+            override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+                if (oldVersion < 2) {
+                    database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
+                    database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
+                    database.execSQL("INSERT INTO projects(name) VALUES ('Poprzednie pomiary')")
+                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (1,1,?)", arrayOf(prefs.getString("name_1", "Osoba 1")))
+                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (2,1,?)", arrayOf(prefs.getString("name_2", "Osoba 2")))
+                    database.execSQL("ALTER TABLE sessions ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1")
+                }
+            }
         }.writableDatabase
         window.statusBarColor = Color.rgb(25, 34, 44)
         window.navigationBarColor = background
@@ -137,11 +149,81 @@ class MainActivity : Activity() {
             setOnClickListener { click() }
         }
 
-    private fun personName(person: Int): String = prefs.getString("name_$person", "Osoba $person") ?: "Osoba $person"
-    private fun personColor(person: Int) = if (person == 1) blue else green
+    private fun participants(): List<Int> {
+        val ids = mutableListOf<Int>()
+        db.rawQuery("SELECT id FROM participants WHERE project_id=? ORDER BY id", arrayOf(projectId.toString())).use { c ->
+            while (c.moveToNext()) ids.add(c.getInt(0))
+        }
+        return ids
+    }
+    private fun personName(person: Int): String {
+        db.rawQuery("SELECT name FROM participants WHERE id=?", arrayOf(person.toString())).use { c ->
+            return if (c.moveToFirst()) c.getString(0) else "Osoba $person"
+        }
+    }
+    private fun projectName(): String {
+        db.rawQuery("SELECT name FROM projects WHERE id=?", arrayOf(projectId.toString())).use { c ->
+            return if (c.moveToFirst()) c.getString(0) else "Projekt"
+        }
+    }
+    private fun createProject() {
+        val input = EditText(this).apply { hint = "Nazwa projektu"; setSingleLine(true) }
+        val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
+        val dialog = AlertDialog.Builder(this).setTitle("Nowy projekt").setView(holder)
+            .setNegativeButton("Anuluj", null).setPositiveButton("Dodaj", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val name = input.text.toString().trim()
+                if (name.isEmpty()) { input.error = "Podaj nazwę"; return@setOnClickListener }
+                val id = db.insert("projects", null, ContentValues().apply { put("name", name) })
+                if (id > 0) { projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; dialog.dismiss(); render() }
+            }
+        }
+        dialog.show()
+    }
+    private fun addParticipant() {
+        val input = EditText(this).apply { hint = "Imię lub nazwa uczestnika"; setSingleLine(true) }
+        val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
+        val dialog = AlertDialog.Builder(this).setTitle("Dodaj uczestnika").setView(holder)
+            .setNegativeButton("Anuluj", null).setPositiveButton("Dodaj", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val name = input.text.toString().trim()
+                if (name.isEmpty()) { input.error = "Podaj nazwę"; return@setOnClickListener }
+                db.insert("participants", null, ContentValues().apply {
+                    put("project_id", projectId); put("name", name)
+                })
+                dialog.dismiss()
+                renderContent()
+            }
+        }
+        dialog.show()
+    }
+    private fun renderProjects() {
+        content.addView(label("Projekty", 24f, true))
+        gap(content, 14)
+        val projects = mutableListOf<Pair<Long, String>>()
+        db.rawQuery("SELECT id,name FROM projects ORDER BY id DESC", null).use { c ->
+            while (c.moveToNext()) projects.add(c.getLong(0) to c.getString(1))
+        }
+        if (projects.isEmpty()) {
+            content.addView(label("Nie masz jeszcze żadnego projektu.", 16f, false, muted))
+            gap(content, 18)
+        }
+        projects.forEach { (id, name) ->
+            val item = card()
+            item.addView(label("▤   $name    ›", 19f, true))
+            item.setOnClickListener {
+                projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; render()
+            }
+            addCard(item)
+        }
+        content.addView(action("+ Dodaj projekt", blue) { createProject() })
+    }
+    private fun personColor(person: Int) = if (participants().indexOf(person) % 2 == 0) blue else green
 
     private fun activeStart(person: Int): Long? {
-        db.rawQuery("SELECT started_at FROM sessions WHERE person=? AND ended_at IS NULL LIMIT 1", arrayOf(person.toString())).use {
+        db.rawQuery("SELECT started_at FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1", arrayOf(projectId.toString(), person.toString())).use {
             return if (it.moveToFirst()) it.getLong(0) else null
         }
     }
@@ -151,9 +233,9 @@ class MainActivity : Activity() {
         db.beginTransaction()
         try {
             if (activeStart(person) == null) {
-                db.execSQL("INSERT INTO sessions(person,started_at) VALUES (?,?)", arrayOf(person, now))
+                db.execSQL("INSERT INTO sessions(project_id,person,started_at) VALUES (?,?,?)", arrayOf(projectId, person, now))
             } else {
-                db.execSQL("UPDATE sessions SET ended_at=? WHERE person=? AND ended_at IS NULL", arrayOf(now, person))
+                db.execSQL("UPDATE sessions SET ended_at=? WHERE project_id=? AND person=? AND ended_at IS NULL", arrayOf(now, projectId, person))
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
@@ -176,8 +258,8 @@ class MainActivity : Activity() {
     private fun total(person: Int, start: Long, end: Long, now: Long = System.currentTimeMillis()): Long {
         var sum = 0L
         db.rawQuery(
-            "SELECT started_at,ended_at FROM sessions WHERE person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)",
-            arrayOf(person.toString(), end.toString(), start.toString())
+            "SELECT started_at,ended_at FROM sessions WHERE project_id=? AND person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)",
+            arrayOf(projectId.toString(), person.toString(), end.toString(), start.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 val a = maxOf(start, cursor.getLong(0))
@@ -246,10 +328,12 @@ class MainActivity : Activity() {
     }
 
     private fun addSession() {
-        val people = arrayOf(personName(1), personName(2))
+        val ids = participants()
+        if (ids.isEmpty()) { addParticipant(); return }
+        val people = ids.map { personName(it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Wybierz osobę")
             .setItems(people) { _, which ->
-                val person = which + 1
+                val person = ids[which]
                 val now = System.currentTimeMillis()
                 pickDateTime(now - 3600000L, "Początek pomiaru") { start ->
                     pickDateTime(now, "Koniec pomiaru") { end ->
@@ -258,6 +342,7 @@ class MainActivity : Activity() {
                         } else {
                             val values = ContentValues().apply {
                                 put("person", person)
+                                put("project_id", projectId)
                                 put("started_at", start)
                                 put("ended_at", end)
                             }
@@ -348,8 +433,8 @@ class MainActivity : Activity() {
         var count = 0
         val personClause = if (tab == 2 && historyPerson != 0) " AND person=$historyPerson" else ""
         db.rawQuery(
-            "SELECT id,person,started_at,ended_at FROM sessions WHERE started_at<? AND (ended_at IS NULL OR ended_at>?)$personClause ORDER BY started_at DESC LIMIT $limit",
-            arrayOf(end.toString(), start.toString())
+            "SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)$personClause ORDER BY started_at DESC LIMIT $limit",
+            arrayOf(projectId.toString(), end.toString(), start.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(0)
@@ -389,8 +474,13 @@ class MainActivity : Activity() {
         val start = dayStart(dayOffset)
         val end = dayStart(dayOffset + 1)
         val now = System.currentTimeMillis()
-        timerCard(1, start, end, now)
-        timerCard(2, start, end, now)
+        content.addView(action("+ Dodaj osobę", Color.rgb(226, 235, 252), blue) { addParticipant() })
+        gap(content, 12)
+        if (participants().isEmpty()) {
+            content.addView(label("Dodaj pierwszą osobę, aby rozpocząć pomiary.", 16f, false, muted))
+            gap(content, 12)
+        }
+        participants().forEach { timerCard(it, start, end, now) }
         content.addView(label("Sesje z wybranego dnia", 21f, true))
         gap(content, 12)
         sessionList(start, end, 8)
@@ -431,20 +521,19 @@ class MainActivity : Activity() {
         }
         val from = cal.timeInMillis
         val to = now
-        val a = total(1, from, to, now)
-        val b = total(2, from, to, now)
-        val card = card()
-        card.addView(label("●  " + personName(1), 17f, true, blue))
-        gap(card, 5)
-        card.addView(label(duration(a), 31f, true))
-        gap(card, 16)
-        card.addView(label("●  " + personName(2), 17f, true, green))
-        gap(card, 5)
-        card.addView(label(duration(b), 31f, true))
-        gap(card, 18)
-        card.addView(label("Łącznie", 17f, false, muted))
-        card.addView(label(duration(a + b), 32f, true))
-        addCard(card)
+        val c = card()
+        var combined = 0L
+        participants().forEach { person ->
+            val amount = total(person, from, to, now)
+            combined += amount
+            c.addView(label("●  " + personName(person), 17f, true, personColor(person)))
+            gap(c, 5)
+            c.addView(label(duration(amount), 28f, true))
+            gap(c, 14)
+        }
+        c.addView(label("Łącznie (osobogodziny)", 17f, false, muted))
+        c.addView(label(duration(combined), 32f, true))
+        addCard(c)
         content.addView(label("Okres: " + dateFormat.format(Date(from)) + " – " + dateFormat.format(Date(to)), 14f, false, muted))
         gap(content, 20)
         content.addView(label("Wykresy i porównania dodamy w kolejnej wersji.", 14f, false, muted))
@@ -456,17 +545,20 @@ class MainActivity : Activity() {
         content.addView(action("+ Dodaj pomiar", blue) { addSession() })
         gap(content, 12)
         val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf("Wszyscy", personName(1), personName(2)).forEachIndexed { index, name ->
-            val button = action(name, if (historyPerson == index) blue else Color.rgb(229, 233, 239),
-                if (historyPerson == index) Color.WHITE else ink) {
-                historyPerson = index
+        (listOf(0) + participants()).forEach { person ->
+            val name = if (person == 0) "Wszyscy" else personName(person)
+            val button = action(name, if (historyPerson == person) blue else Color.rgb(229, 233, 239),
+                if (historyPerson == person) Color.WHITE else ink) {
+                historyPerson = person
                 renderContent()
             }
-            filters.addView(button, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            filters.addView(button, LinearLayout.LayoutParams(dp(130), dp(46)).apply {
                 setMargins(dp(2), 0, dp(2), 0)
             })
         }
-        content.addView(filters)
+        val filterScroll = HorizontalScrollView(this)
+        filterScroll.addView(filters)
+        content.addView(filterScroll)
         gap(content, 12)
         datePickerRow()
         sessionList(dayStart(dayOffset), dayStart(dayOffset + 1), 500)
@@ -484,7 +576,7 @@ class MainActivity : Activity() {
             .setPositiveButton("Zapisz") { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
-                    prefs.edit().putString("name_$person", name).apply()
+                    db.update("participants", ContentValues().apply { put("name", name) }, "id=? AND project_id=?", arrayOf(person.toString(), projectId.toString()))
                     renderContent()
                 }
             }.show()
@@ -496,7 +588,7 @@ class MainActivity : Activity() {
         val c = card()
         c.addView(label("Nazwy liczników", 19f, true))
         gap(c, 12)
-        for (person in 1..2) {
+        for (person in participants()) {
             c.addView(action("Zmień: " + personName(person), Color.rgb(226, 235, 252), blue) { rename(person) })
             gap(c, 10)
         }
@@ -506,6 +598,11 @@ class MainActivity : Activity() {
 
     private fun renderContent() {
         content.removeAllViews()
+        if (projectId == null) { renderProjects(); return }
+        content.addView(action("‹  Projekty  /  " + projectName(), Color.rgb(226, 235, 252), blue) {
+            projectId = null; render()
+        })
+        gap(content, 12)
         when (tab) {
             0 -> renderTimers()
             1 -> renderStats()
@@ -517,6 +614,8 @@ class MainActivity : Activity() {
     private fun render() {
         renderContent()
         navigation.removeAllViews()
+        if (projectId == null) { navigation.visibility = View.GONE; return }
+        navigation.visibility = View.VISIBLE
         listOf("◷\nLiczniki", "▥\nStatystyki", "☷\nHistoria", "⚙\nUstawienia").forEachIndexed { index, name ->
             val item = label(name, 12f, tab == index, if (tab == index) blue else muted).apply {
                 gravity = Gravity.CENTER
