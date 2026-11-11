@@ -1202,13 +1202,21 @@ class MainActivity : Activity() {
                             val name = personName(person)
                             canvas.drawText(if (name.length > 11) name.take(10) + "…" else name, dp(2).toFloat(), y + dp(15), paint)
                         }
-                        paint.color = Color.rgb(234, 237, 242)
+                        paint.color = if (darkTheme) Color.rgb(65, 75, 90) else Color.rgb(234, 237, 242)
                         canvas.drawRoundRect(RectF(left, y, right, y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
                         sessions.filter { it.first == person }.forEach { item ->
                             val x1 = left + ((item.second - day).toFloat() / (end - day)) * trackWidth
                             val x2 = left + ((item.third - day).toFloat() / (end - day)) * trackWidth
                             paint.color = personColor(person)
                             canvas.drawRoundRect(RectF(x1, y, maxOf(x1 + dp(2), x2), y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
+                        }
+                        // Hour ticks directly below each timeline track, with only a 1dp gap.
+                        paint.color = muted
+                        paint.strokeWidth = dp(1).toFloat()
+                        for (hour in 0..24) {
+                            val x = left + hour / 24f * trackWidth
+                            val tickLength = if (hour % 6 == 0) dp(7) else dp(4)
+                            canvas.drawLine(x, y + dp(22), x, y + dp(22) + tickLength, paint)
                         }
                     }
                     if (!inHistory) {
