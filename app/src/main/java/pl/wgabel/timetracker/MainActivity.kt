@@ -1,5 +1,8 @@
 package pl.wgabel.timetracker
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -112,6 +115,10 @@ class MainActivity : Activity() {
         outer.addView(navigation)
         setContentView(outer)
         render()
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+        }
+        syncTimerNotification()
         handler.post(object : Runnable {
             override fun run() {
                 if (!isFinishing) {
@@ -253,7 +260,18 @@ class MainActivity : Activity() {
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+        syncTimerNotification()
         renderContent()
+    }
+
+    private fun syncTimerNotification() {
+        val hasActive = db.rawQuery("SELECT 1 FROM sessions WHERE ended_at IS NULL LIMIT 1", null).use { it.moveToFirst() }
+        val intent = Intent(this, TimerNotificationService::class.java)
+        if (hasActive) {
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+        } else {
+            stopService(intent)
+        }
     }
 
     private fun duration(ms: Long): String {
