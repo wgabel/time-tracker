@@ -11,16 +11,8 @@ import android.database.sqlite.SQLiteDatabase
 import java.util.Locale
 
 class TimerNotificationService : Service() {
-    private val handler = Handler(Looper.getMainLooper())
     private val notificationId = 42
     private val channelId = "active_timers_visible_v2"
-    private val refresh = object : Runnable {
-        override fun run() {
-            updateNotification()
-            handler.postDelayed(this, 15000)
-        }
-    }
-
     override fun onBind(intent: Intent?) = null
 
     override fun onCreate() {
@@ -37,7 +29,6 @@ class TimerNotificationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        handler.removeCallbacks(refresh)
         val items = loadActive()
         if (items.isEmpty()) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -45,7 +36,6 @@ class TimerNotificationService : Service() {
             return START_NOT_STICKY
         }
         startForeground(notificationId, buildNotification(items))
-        handler.postDelayed(refresh, 15000)
         return START_STICKY
     }
 
@@ -67,15 +57,13 @@ class TimerNotificationService : Service() {
         } finally { database.close() }
     }
 
-    private fun elapsed(start: Long): String {
-        val seconds = ((System.currentTimeMillis() - start).coerceAtLeast(0)) / 1000
-        return String.format(Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60)
-    }
+    private fun startTime(start: Long): String =
+        java.text.SimpleDateFormat("HH:mm", Locale("pl", "PL")).format(java.util.Date(start))
 
     private fun buildNotification(items: List<Timer>): Notification {
         val projectCount = items.map { it.project }.distinct().size
         val title = if (projectCount == 1) items.first().project else "$projectCount aktywne projekty"
-        val lines = items.take(4).map { if (projectCount == 1) "${it.person}    ${elapsed(it.start)}" else "${it.project} · ${it.person}    ${elapsed(it.start)}" }
+        val lines = items.take(4).map { if (projectCount == 1) "${it.person}    od ${startTime(it.start)}" else "${it.project} · ${it.person}    od ${startTime(it.start)}" }
         val description = lines.joinToString("\n") + if (items.size > 4) "\n+ ${items.size - 4} kolejnych" else ""
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -88,6 +76,8 @@ class TimerNotificationService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("timetrkr · Trwa pomiar")
             .setContentText("$title · ${items.size} aktywne")
+            .setWhen(System.currentTimeMillis() - (System.currentTimeMillis() - items.minOf { it.start }).coerceAtLeast(0))
+            .setUsesChronometer(true)
             .setCustomBigContentView(layout)
             .setStyle(Notification.DecoratedCustomViewStyle())
             .setCustomContentView(layout)
@@ -100,18 +90,4 @@ class TimerNotificationService : Service() {
             .build()
     }
 
-    private fun updateNotification() {
-        val items = try { loadActive() } catch (_: Exception) { emptyList() }
-        if (items.isEmpty()) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        } else {
-            getSystemService(NotificationManager::class.java).notify(notificationId, buildNotification(items))
-        }
-    }
-
-    override fun onDestroy() {
-        handler.removeCallbacks(refresh)
-        super.onDestroy()
-    }
 }
