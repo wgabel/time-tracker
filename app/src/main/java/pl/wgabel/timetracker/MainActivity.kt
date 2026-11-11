@@ -348,8 +348,8 @@ class MainActivity : Activity() {
                             }
                             if (db.insert("sessions", null, values) != -1L) {
                                 dayOffset = 0
-                                while (dayStart(dayOffset) > selected.timeInMillis) dayOffset--
-                                while (dayStart(dayOffset + 1) <= selected.timeInMillis) dayOffset++
+                                while (dayStart(dayOffset) > start) dayOffset--
+                                while (dayStart(dayOffset + 1) <= start) dayOffset++
                                 renderContent()
                                 Toast.makeText(this, "Dodano pomiar.", Toast.LENGTH_SHORT).show()
                             } else Toast.makeText(this, "Nie udało się dodać pomiaru.", Toast.LENGTH_LONG).show()
