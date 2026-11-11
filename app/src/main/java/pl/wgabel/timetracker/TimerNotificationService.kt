@@ -18,8 +18,8 @@ class TimerNotificationService : Service() {
     override fun onCreate() {
         super.onCreate()
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(channelId, "Aktywne pomiary", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "Informacja o czasie naliczanym w projektach"
+        manager.createNotificationChannel(NotificationChannel(channelId, getString(R.string.notification_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = getString(R.string.notification_channel_description)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setSound(null, null)
             enableVibration(false)
@@ -58,13 +58,13 @@ class TimerNotificationService : Service() {
     }
 
     private fun startTime(start: Long): String =
-        java.text.SimpleDateFormat("HH:mm", Locale("pl", "PL")).format(java.util.Date(start))
+        java.text.SimpleDateFormat("HH:mm", resources.configuration.locales[0]).format(java.util.Date(start))
 
     private fun buildNotification(items: List<Timer>): Notification {
         val projectCount = items.map { it.project }.distinct().size
-        val title = if (projectCount == 1) items.first().project else "$projectCount aktywne projekty"
-        val lines = items.take(4).map { if (projectCount == 1) "${it.person}    od ${startTime(it.start)}" else "${it.project} · ${it.person}    od ${startTime(it.start)}" }
-        val description = lines.joinToString("\n") + if (items.size > 4) "\n+ ${items.size - 4} kolejnych" else ""
+        val title = if (projectCount == 1) items.first().project else getString(R.string.notification_active_projects, projectCount)
+        val lines = items.take(4).map { if (projectCount == 1) getString(R.string.notification_since, it.person, startTime(it.start)) else getString(R.string.notification_project_since, it.project, it.person, startTime(it.start)) }
+        val description = lines.joinToString("\n") + if (items.size > 4) "\n" + getString(R.string.notification_more, items.size - 4) else ""
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -74,8 +74,8 @@ class TimerNotificationService : Service() {
         }
         return Notification.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("timetrkr · Trwa pomiar")
-            .setContentText("$title · ${items.size} aktywne")
+            .setContentTitle(getString(R.string.notification_tracking))
+            .setContentText(getString(R.string.notification_active_count, title, items.size))
             .setWhen(System.currentTimeMillis() - (System.currentTimeMillis() - items.minOf { it.start }).coerceAtLeast(0))
             .setUsesChronometer(true)
             .setCustomBigContentView(layout)
