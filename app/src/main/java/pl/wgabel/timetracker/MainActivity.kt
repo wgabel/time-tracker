@@ -66,8 +66,8 @@ class MainActivity : Activity() {
     private val surface get() = if (darkTheme) Color.rgb(35, 42, 54) else Color.WHITE
     private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(242, 244, 247)
     private val subtle get() = if (darkTheme) Color.rgb(52, 62, 79) else Color.rgb(226, 235, 252)
-    private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else subtleNeutral
-    private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else subtleWarm
+    private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else Color.rgb(229, 233, 239)
+    private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else Color.rgb(245, 229, 209)
     private val secondaryButtonText get() = if (darkTheme) ink else blue
     private val dateFormat get() = SimpleDateFormat("dd MMM yyyy", resources.configuration.locales[0])
     private val clockFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
