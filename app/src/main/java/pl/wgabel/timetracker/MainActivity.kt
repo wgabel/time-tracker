@@ -68,9 +68,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        db = object : SQLiteOpenHelper(this, "sessions.db", null, 3) {
+        db = object : SQLiteOpenHelper(this, "sessions.db", null, 4) {
             override fun onCreate(database: SQLiteDatabase) {
-                database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0)")
+                database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
                 database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
                 database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
                 database.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
@@ -85,6 +85,7 @@ class MainActivity : Activity() {
                     database.execSQL("ALTER TABLE sessions ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1")
                 }
                 if (oldVersion < 3) database.execSQL("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+                if (oldVersion < 4) database.execSQL("ALTER TABLE projects ADD COLUMN icon_variant INTEGER NOT NULL DEFAULT 0")
             }
         }.writableDatabase
         window.statusBarColor = Color.rgb(25, 34, 44)
@@ -223,6 +224,17 @@ class MainActivity : Activity() {
         dialog.show()
     }
     // Deterministic, entirely offline miniature landscapes.
+    private fun iconVariant(id: Long): Long =
+        db.rawQuery("SELECT icon_variant FROM projects WHERE id=?", arrayOf(id.toString())).use {
+            if (it.moveToFirst()) it.getLong(0) else 0L
+        }
+
+    private fun regenerateProjectIcon() {
+        if (isArchived()) return
+        db.execSQL("UPDATE projects SET icon_variant=icon_variant+1 WHERE id=? AND archived=0", arrayOf(projectId))
+        renderContent()
+    }
+
     private fun projectIcon(id: Long, size: Int = 40): View = object : View(this) {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private fun color(value: Long) { p.color = value.toInt(); p.style = Paint.Style.FILL }
@@ -231,7 +243,7 @@ class MainActivity : Activity() {
             if (width == 0 || height == 0) return
             val save = c.save()
             c.scale(width / 100f, height / 100f)
-            val r = java.util.Random(id xor 0xBAA055L)
+            val r = java.util.Random((id xor 0xBAA055L) + iconVariant(id) * 0x5DEECE66DL)
             val biome = r.nextInt(8) // meadow, beach, forest, desert, snow, lake, coast, hills
             val night = r.nextInt(4) == 0
             val sunset = !night && r.nextInt(4) == 0
@@ -1220,6 +1232,15 @@ class MainActivity : Activity() {
         gap(project, 8)
         project.addView(action("✎  Zmień nazwę projektu", Color.rgb(226, 235, 252), blue) {
             renameProject()
+        })
+        gap(project, 14)
+        val iconRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        iconRow.addView(projectIcon(projectId!!, 60))
+        iconRow.addView(label("Ikona projektu", 16f, true).apply { setPadding(dp(14), 0, 0, 0) })
+        project.addView(iconRow)
+        gap(project, 10)
+        project.addView(action("⟳  Wygeneruj inną ikonę", Color.rgb(226, 235, 252), blue) {
+            regenerateProjectIcon()
         })
         addCard(project)
 
