@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var timelineOffset = 0
     private var historyPerson = 0
     private var projectId: Long? = null
+    private var showArchived = false
     private val blue = Color.rgb(34, 112, 237)
     private val green = Color.rgb(48, 158, 80)
     private val ink = Color.rgb(26, 34, 43)
@@ -67,9 +68,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        db = object : SQLiteOpenHelper(this, "sessions.db", null, 2) {
+        db = object : SQLiteOpenHelper(this, "sessions.db", null, 3) {
             override fun onCreate(database: SQLiteDatabase) {
-                database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
+                database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0)")
                 database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
                 database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
                 database.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
@@ -83,6 +84,7 @@ class MainActivity : Activity() {
                     database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (2,1,?)", arrayOf(prefs.getString("name_2", "Osoba 2")))
                     database.execSQL("ALTER TABLE sessions ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1")
                 }
+                if (oldVersion < 3) database.execSQL("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
             }
         }.writableDatabase
         window.statusBarColor = Color.rgb(25, 34, 44)
@@ -334,11 +336,40 @@ class MainActivity : Activity() {
         contentDescription = "Pejzaż projektu"
     }
 
+    private fun isArchived(): Boolean {
+        val id = projectId ?: return false
+        return db.rawQuery("SELECT archived FROM projects WHERE id=?", arrayOf(id.toString())).use {
+            it.moveToFirst() && it.getInt(0) == 1
+        }
+    }
+
+    private fun archiveProject() {
+        if (isArchived()) return
+        val count = db.rawQuery("SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL", arrayOf(projectId.toString())).use {
+            if (it.moveToFirst()) it.getInt(0) else 0
+        }
+        if (count > 0) {
+            AlertDialog.Builder(this).setTitle("Aktywne liczniki")
+                .setMessage("Zatrzymaj wszystkie liczniki w projekcie przed archiwizacją.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        AlertDialog.Builder(this).setTitle("Archiwizować projekt?")
+            .setMessage("Projekt zostanie przeniesiony do archiwum. Zachowasz pomiary i statystyki, ale nie będzie można zmieniać jego danych.")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Archiwizuj") { _, _ ->
+                db.execSQL("UPDATE projects SET archived=1 WHERE id=? AND archived=0", arrayOf(projectId))
+                projectId = null
+                showArchived = false
+                render()
+            }.show()
+    }
+
     private fun renderProjects() {
-        content.addView(label("Projekty", 24f, true))
+        content.addView(label(if (showArchived) "Projekty archiwalne" else "Projekty", 24f, true))
         gap(content, 14)
         val projects = mutableListOf<Pair<Long, String>>()
-        db.rawQuery("SELECT id,name FROM projects ORDER BY id DESC", null).use { c ->
+        db.rawQuery("SELECT id,name FROM projects WHERE archived=? ORDER BY id DESC", arrayOf(if (showArchived) "1" else "0")).use { c ->
             while (c.moveToNext()) projects.add(c.getLong(0) to c.getString(1))
         }
         if (projects.isEmpty()) {
@@ -352,12 +383,23 @@ class MainActivity : Activity() {
             line.addView(label(name, 19f, true).apply { setPadding(dp(12), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             line.addView(label("›", 23f, false, muted))
             item.addView(line)
+            if (showArchived) item.addView(label("ARCHIWALNE", 11f, true, Color.rgb(166, 99, 34)))
             item.setOnClickListener {
                 projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; render()
             }
             addCard(item)
         }
-        content.addView(action("+ Dodaj projekt", blue) { createProject() })
+        if (showArchived) {
+            content.addView(action("← Wróć do projektów", Color.rgb(245, 229, 209), ink) {
+                showArchived = false; render()
+            })
+        } else {
+            content.addView(action("+ Dodaj projekt", blue) { createProject() })
+            gap(content, 16)
+            content.addView(action("Projekty archiwalne  ›", Color.rgb(245, 229, 209), Color.rgb(133, 76, 27)) {
+                showArchived = true; render()
+            })
+        }
     }
     private fun personColor(person: Int) = if (participants().indexOf(person) % 2 == 0) blue else green
 
@@ -446,7 +488,7 @@ class MainActivity : Activity() {
         c.addView(label(duration(total(person, start, end, now)), 37f, true))
         gap(c, 5)
         c.addView(label("Suma wybranego dnia", 14f, false, muted))
-        if (dayOffset == 0) {
+        if (dayOffset == 0 && !isArchived()) {
             gap(c, 14)
             c.addView(label(if (active == null) "Licznik zatrzymany" else "Trwa: " + duration(now - active), 16f, false, muted))
             gap(c, 12)
@@ -524,6 +566,7 @@ class MainActivity : Activity() {
     }
 
     private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
+        if (isArchived()) return
         if (ended == null) {
             Toast.makeText(this, "Zatrzymaj licznik przed edycją sesji.", Toast.LENGTH_LONG).show()
             return
@@ -677,7 +720,7 @@ class MainActivity : Activity() {
                 gap(left, 3)
                 left.addView(label(duration(until - from), 16f, true))
                 row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
-                if (tab == 2 && originalEnd != null) {
+                if (tab == 2 && originalEnd != null && !isArchived()) {
                     val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                     controls.addView(iconButton("edit", blue) {
                         editSession(id, person, originalStart, originalEnd)
@@ -701,7 +744,7 @@ class MainActivity : Activity() {
         val start = dayStart(dayOffset)
         val end = dayStart(dayOffset + 1)
         val now = System.currentTimeMillis()
-        content.addView(action("+ Dodaj osobę", Color.rgb(226, 235, 252), blue) { addParticipant() })
+        if (!isArchived()) content.addView(action("+ Dodaj osobę", Color.rgb(226, 235, 252), blue) { addParticipant() })
         gap(content, 12)
         if (participants().isEmpty()) {
             content.addView(label("Dodaj pierwszą osobę, aby rozpocząć pomiary.", 16f, false, muted))
@@ -934,7 +977,7 @@ class MainActivity : Activity() {
                             if (cur.moveToFirst()) {
                                 val started = cur.getLong(0)
                                 val ended = if (cur.isNull(1)) null else cur.getLong(1)
-                                if (ended != null) editSession(chosen.first, person, started, ended)
+                                if (ended != null && !isArchived()) editSession(chosen.first, person, started, ended)
                                 else Toast.makeText(this@MainActivity, "Zatrzymaj licznik przed edycją.", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -1028,7 +1071,7 @@ class MainActivity : Activity() {
     private fun renderHistory() {
         content.addView(label("Historia", 24f, true))
         gap(content, 10)
-        content.addView(action("+ Dodaj pomiar", blue) { addSession() })
+        if (!isArchived()) content.addView(action("+ Dodaj pomiar", blue) { addSession() })
         gap(content, 12)
         val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         (listOf(0) + participants()).forEach { person ->
@@ -1153,6 +1196,21 @@ class MainActivity : Activity() {
     }
 
     private fun renderSettings() {
+        if (isArchived()) {
+            content.addView(label("Archiwum · tylko do odczytu", 23f, true, Color.rgb(151, 87, 31)))
+            gap(content, 12)
+            val info = card()
+            info.addView(label("Projekt archiwalny", 19f, true))
+            gap(info, 8)
+            info.addView(label(projectName(), 17f, false))
+            gap(info, 10)
+            info.addView(label("Uczestnicy: " + participants().joinToString(", ") { personName(it) }, 14f, false, muted))
+            gap(info, 10)
+            info.addView(label("Dane są zablokowane przed edycją.", 14f, false, muted))
+            addCard(info)
+            content.addView(action("↓  Eksport pomiarów (CSV)", Color.rgb(245, 229, 209), ink) { exportCsv() })
+            return
+        }
         content.addView(label("Ustawienia", 24f, true))
         gap(content, 12)
         val project = card()
@@ -1196,7 +1254,7 @@ class MainActivity : Activity() {
             exportCsv()
         })
         gap(data, 8)
-        data.addView(label("Archiwizacja i usuwanie projektów pojawią się w kolejnym etapie.", 13f, false, muted))
+        data.addView(action("Archiwizuj projekt", Color.rgb(245, 229, 209), Color.rgb(143, 80, 28)) { archiveProject() })
         addCard(data)
 
         val app = card()
@@ -1211,7 +1269,17 @@ class MainActivity : Activity() {
 
     private fun renderContent() {
         content.removeAllViews()
-        if (projectId == null) { renderProjects(); return }
+        if (projectId == null) {
+            content.setBackgroundColor(background)
+            renderProjects()
+            return
+        }
+        val archived = isArchived()
+        content.setBackgroundColor(if (archived) Color.rgb(252, 239, 219) else background)
+        if (archived) {
+            content.addView(label("▣  ARCHIWALNE · TYLKO DO ODCZYTU", 13f, true, Color.rgb(147, 82, 27)))
+            gap(content, 7)
+        }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(label("←", 29f, false, ink).apply {
             gravity = Gravity.CENTER
