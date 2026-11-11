@@ -520,7 +520,7 @@ class MainActivity : Activity() {
             1 -> cal.add(Calendar.WEEK_OF_YEAR, 1)
             else -> cal.add(Calendar.MONTH, 1)
         }
-        return from to minOf(cal.timeInMillis, System.currentTimeMillis())
+        return from to cal.timeInMillis
     }
 
     private fun intervals(start: Long, end: Long): List<Triple<Int, Long, Long>> {
@@ -547,7 +547,10 @@ class MainActivity : Activity() {
                 val start = Calendar.getInstance().apply {
                     timeInMillis = from; set(Calendar.HOUR_OF_DAY, h)
                 }.timeInMillis
-                points.add(String.format(Locale.ROOT, "%02d", h) to intervals(start, minOf(start + 3600000L, endLimit)).sumOf { it.third - it.second })
+                val nextHour = Calendar.getInstance().apply {
+                    timeInMillis = start; add(Calendar.HOUR_OF_DAY, 1)
+                }.timeInMillis
+                points.add(String.format(Locale.ROOT, "%02d", h) to intervals(start, nextHour).sumOf { it.third - it.second })
             }
         } else {
             var count = 0
@@ -558,7 +561,7 @@ class MainActivity : Activity() {
                     2 -> cal.add(Calendar.DAY_OF_YEAR, 1)
                     else -> cal.add(Calendar.MONTH, 1)
                 }
-                val finish = minOf(cal.timeInMillis, endLimit)
+                val finish = cal.timeInMillis
                 val name = when (statsPeriod) {
                     1 -> SimpleDateFormat("EEE", Locale("pl", "PL")).format(Date(start))
                     2 -> SimpleDateFormat("d", Locale("pl", "PL")).format(Date(start))
