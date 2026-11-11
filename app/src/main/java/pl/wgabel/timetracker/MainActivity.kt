@@ -748,7 +748,7 @@ class MainActivity : Activity() {
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
-                    val left = dp(80).toFloat()
+                    val left = if (inHistory) 0f else dp(80).toFloat()
                     val right = width.toFloat() - dp(5)
                     val trackWidth = (right - left).coerceAtLeast(1f)
                     val rowHeight = dp(32).toFloat()
