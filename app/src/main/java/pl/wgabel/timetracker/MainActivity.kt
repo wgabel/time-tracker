@@ -68,6 +68,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyLanguage()
         db = object : SQLiteOpenHelper(this, "sessions.db", null, 4) {
             override fun onCreate(database: SQLiteDatabase) {
                 database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
@@ -152,7 +153,7 @@ class MainActivity : Activity() {
 
     private fun applyLanguage() {
         val code = prefs.getString("app_language", "") ?: ""
-        val locale = if (code.isEmpty()) resources.configuration.locales[0] else Locale(code)
+        val locale = if (code.isEmpty()) android.content.res.Resources.getSystem().configuration.locales[0] else Locale(code)
         Locale.setDefault(locale)
         val config = android.content.res.Configuration(resources.configuration)
         config.setLocale(locale)
@@ -1303,6 +1304,8 @@ class MainActivity : Activity() {
 
         val app = card()
         app.addView(label(tr(R.string.application), 19f, true))
+        gap(app, 10)
+        app.addView(action("🌐  " + tr(R.string.language), Color.rgb(226, 235, 252), blue) { selectLanguage() })
         gap(app, 8)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "—" }
         app.addView(label("Wersja: $version", 14f, false, muted))
@@ -1363,7 +1366,7 @@ class MainActivity : Activity() {
         navigation.removeAllViews()
         if (projectId == null) { navigation.visibility = View.GONE; return }
         navigation.visibility = View.VISIBLE
-        listOf("◷\nLiczniki", "▥\nStatystyki", "☷\nHistoria", "⚙\nUstawienia").forEachIndexed { index, name ->
+        listOf("◷\n" + tr(R.string.timers), "▥\n" + tr(R.string.statistics), "☷\n" + tr(R.string.history), "⚙\n" + tr(R.string.settings)).forEachIndexed { index, name ->
             val item = label(name, 12f, tab == index, if (tab == index) blue else muted).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(2), dp(10), dp(2), dp(10))
