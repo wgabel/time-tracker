@@ -24,23 +24,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          name: time-tracker-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-      - name: Prepare release signing
-        if: ${{ env.KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' }}
+      - name: Verify signing secrets and prepare keystore
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/time-tracker-release.jks
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/time-tracker-release.jks"
-          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/time-tracker-release.jks" >> "$GITHUB_ENV"
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "::error::Set ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD in repository Actions secrets."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+          keytool -list -keystore "$ANDROID_KEYSTORE_FILE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias time-tracker > /dev/null
+          echo "ANDROID_KEYSTORE_FILE=$ANDROID_KEYSTORE_FILE" >> "$GITHUB_ENV"
       - name: Build signed release APK
-        if: ${{ env.KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' }}
         run: gradle :app:assembleRelease --no-daemon
       - name: Upload signed release APK
-        if: ${{ env.KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: time-tracker-signed-release-apk
