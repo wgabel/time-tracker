@@ -129,4 +129,7 @@
     <string name="notification_more">+ %1$d kolejnych</string>
     <string name="notification_tracking">timetrkr · Trwa pomiar</string>
     <string name="notification_active_count">%1$s · %2$d aktywne</string>
+    <string name="theme">Wygląd aplikacji</string>
+    <string name="theme_light">Jasny motyw</string>
+    <string name="theme_dark">Ciemny motyw</string>
 </resources>
