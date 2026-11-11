@@ -1211,11 +1211,16 @@ class MainActivity : Activity() {
                             canvas.drawRoundRect(RectF(x1, y, maxOf(x1 + dp(2), x2), y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
                         }
                         // Hour ticks directly below each timeline track, with only a 1dp gap.
-                        paint.color = muted
-                        paint.strokeWidth = dp(1).toFloat()
+                        paint.strokeWidth = resources.displayMetrics.density.coerceAtLeast(1f)
                         for (hour in 0..24) {
                             val x = left + hour / 24f * trackWidth
-                            val tickLength = if (hour % 6 == 0) dp(7) else dp(4)
+                            val major = hour % 6 == 0
+                            paint.color = if (darkTheme) {
+                                if (major) Color.rgb(172, 186, 207) else Color.rgb(116, 132, 153)
+                            } else {
+                                if (major) Color.rgb(100, 113, 132) else Color.rgb(157, 169, 184)
+                            }
+                            val tickLength = if (major) dp(7) else dp(4)
                             canvas.drawLine(x, y + dp(22), x, y + dp(22) + tickLength, paint)
                         }
                     }
