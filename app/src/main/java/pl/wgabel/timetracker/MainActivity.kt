@@ -12,6 +12,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
+import android.view.MotionEvent
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -38,7 +42,9 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
     private var dayOffset = 0
-    private var statsPeriod = 0
+    private var statsPeriod = 1
+    private var statsOffset = 0
+    private var timelineOffset = 0
     private var historyPerson = 0
     private var projectId: Long? = null
     private val blue = Color.rgb(34, 112, 237)
@@ -491,52 +497,203 @@ class MainActivity : Activity() {
         })
     }
 
-    private fun renderStats() {
-        content.addView(label("Statystyki", 24f, true))
-        gap(content, 14)
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val periods = listOf("Dzień", "Tydzień", "Miesiąc", "Rok")
-        periods.forEachIndexed { index, title ->
-            val button = action(title, if (statsPeriod == index) blue else Color.rgb(229, 233, 239),
-                if (statsPeriod == index) Color.WHITE else ink) {
-                statsPeriod = index
-                renderContent()
-            }
-            val params = LinearLayout.LayoutParams(0, dp(48), 1f)
-            params.setMargins(dp(2), 0, dp(2), 0)
-            row.addView(button, params)
+    private fun periodRange(): Pair<Long, Long> {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }
-        content.addView(row)
-        gap(content, 16)
-        val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
         when (statsPeriod) {
-            1 -> { cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek) }
-            2 -> { cal.set(Calendar.DAY_OF_MONTH, 1) }
-            3 -> { cal.set(Calendar.DAY_OF_YEAR, 1) }
+            0 -> cal.add(Calendar.DAY_OF_YEAR, statsOffset)
+            1 -> { cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek); cal.add(Calendar.WEEK_OF_YEAR, statsOffset) }
+            2 -> { cal.set(Calendar.DAY_OF_MONTH, 1); cal.add(Calendar.MONTH, statsOffset) }
+            else -> {
+                var earliest = System.currentTimeMillis()
+                db.rawQuery("SELECT MIN(started_at) FROM sessions WHERE project_id=?", arrayOf(projectId.toString())).use { c ->
+                    if (c.moveToFirst() && !c.isNull(0)) earliest = c.getLong(0)
+                }
+                return earliest to System.currentTimeMillis()
+            }
         }
         val from = cal.timeInMillis
-        val to = now
-        val c = card()
-        var combined = 0L
-        participants().forEach { person ->
-            val amount = total(person, from, to, now)
-            combined += amount
-            c.addView(label("●  " + personName(person), 17f, true, personColor(person)))
-            gap(c, 5)
-            c.addView(label(duration(amount), 28f, true))
-            gap(c, 14)
+        when (statsPeriod) {
+            0 -> cal.add(Calendar.DAY_OF_YEAR, 1)
+            1 -> cal.add(Calendar.WEEK_OF_YEAR, 1)
+            else -> cal.add(Calendar.MONTH, 1)
         }
-        c.addView(label("Łącznie (osobogodziny)", 17f, false, muted))
-        c.addView(label(duration(combined), 32f, true))
+        return from to minOf(cal.timeInMillis, System.currentTimeMillis())
+    }
+
+    private fun intervals(start: Long, end: Long): List<Triple<Int, Long, Long>> {
+        val result = mutableListOf<Triple<Int, Long, Long>>()
+        db.rawQuery(
+            "SELECT person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
+            arrayOf(projectId.toString(), end.toString(), start.toString())
+        ).use { c ->
+            while (c.moveToNext()) {
+                val from = maxOf(start, c.getLong(1))
+                val until = minOf(end, if (c.isNull(2)) System.currentTimeMillis() else c.getLong(2))
+                if (until > from) result.add(Triple(c.getInt(0), from, until))
+            }
+        }
+        return result
+    }
+
+    private fun barChart(from: Long, to: Long) {
+        val points = mutableListOf<Pair<String, Long>>()
+        val cal = Calendar.getInstance().apply { timeInMillis = from }
+        val endLimit = if (statsPeriod == 3) System.currentTimeMillis() else to
+        if (statsPeriod == 0) {
+            for (h in 0..23) {
+                val start = Calendar.getInstance().apply {
+                    timeInMillis = from; set(Calendar.HOUR_OF_DAY, h)
+                }.timeInMillis
+                points.add(String.format(Locale.ROOT, "%02d", h) to intervals(start, minOf(start + 3600000L, endLimit)).sumOf { it.third - it.second })
+            }
+        } else {
+            var count = 0
+            while (cal.timeInMillis < endLimit && count < 1000) {
+                val start = cal.timeInMillis
+                when (statsPeriod) {
+                    1 -> cal.add(Calendar.DAY_OF_YEAR, 1)
+                    2 -> cal.add(Calendar.DAY_OF_YEAR, 1)
+                    else -> cal.add(Calendar.MONTH, 1)
+                }
+                val finish = minOf(cal.timeInMillis, endLimit)
+                val name = when (statsPeriod) {
+                    1 -> SimpleDateFormat("EEE", Locale("pl", "PL")).format(Date(start))
+                    2 -> SimpleDateFormat("d", Locale("pl", "PL")).format(Date(start))
+                    else -> SimpleDateFormat("MM.yy", Locale("pl", "PL")).format(Date(start))
+                }
+                points.add(name to intervals(start, finish).sumOf { it.third - it.second })
+                count++
+            }
+        }
+        if (points.isEmpty()) {
+            content.addView(label("Brak pomiarów w tym okresie.", 14f, false, muted))
+            return
+        }
+        val maxValue = (points.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+        val chart = object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val w = width.toFloat()
+                val h = height.toFloat()
+                val top = dp(12).toFloat()
+                val bottom = h - dp(28)
+                val plotH = bottom - top
+                val step = (w - dp(8)) / points.size
+                points.forEachIndexed { index, point ->
+                    val bh = (point.second.toFloat() / maxValue * plotH).coerceAtLeast(if (point.second > 0) dp(2).toFloat() else 0f)
+                    paint.color = blue
+                    val x = dp(4) + index * step + step * 0.12f
+                    canvas.drawRoundRect(RectF(x, bottom - bh, x + step * 0.76f, bottom), dp(3).toFloat(), dp(3).toFloat(), paint)
+                    if (points.size <= 12 || index % ((points.size + 7) / 8) == 0) {
+                        paint.color = muted
+                        paint.textSize = dp(10).toFloat()
+                        paint.textAlign = Paint.Align.CENTER
+                        canvas.drawText(point.first, x + step * 0.38f, h - dp(8), paint)
+                    }
+                }
+            }
+        }
+        content.addView(chart, LinearLayout.LayoutParams(-1, dp(180)))
+        val hours = points.sumOf { it.second } / 3600000.0
+        content.addView(label(String.format(Locale("pl", "PL"), "Łącznie: %.1f h (osobogodziny)", hours), 15f, true))
+    }
+
+    private fun renderTimeline() {
+        val c = card()
+        c.addView(label("Oś czasu dnia", 20f, true))
+        gap(c, 8)
+        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        nav.addView(action("‹", Color.rgb(229, 233, 239), ink) { timelineOffset--; renderContent() },
+            LinearLayout.LayoutParams(dp(50), dp(44)))
+        val day = dayStart(timelineOffset)
+        nav.addView(label(dateFormat.format(Date(day)), 15f, true).apply { gravity = Gravity.CENTER },
+            LinearLayout.LayoutParams(0, dp(44), 1f))
+        nav.addView(action("›", Color.rgb(229, 233, 239), ink) {
+            if (timelineOffset < 0) { timelineOffset++; renderContent() }
+        }, LinearLayout.LayoutParams(dp(50), dp(44)))
+        c.addView(nav)
+        val people = participants()
+        if (people.isEmpty()) {
+            c.addView(label("Dodaj uczestnika, aby zobaczyć oś czasu.", 14f, false, muted))
+        } else {
+            val end = dayStart(timelineOffset + 1)
+            val sessions = intervals(day, end)
+            val timeline = object : View(this) {
+                private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
+                    val left = dp(80).toFloat()
+                    val right = width.toFloat() - dp(5)
+                    val trackWidth = (right - left).coerceAtLeast(1f)
+                    val rowHeight = dp(32).toFloat()
+                    people.forEachIndexed { index, person ->
+                        val y = dp(7) + index * rowHeight
+                        paint.color = ink
+                        paint.textSize = dp(11).toFloat()
+                        paint.textAlign = Paint.Align.LEFT
+                        val name = personName(person)
+                        canvas.drawText(if (name.length > 11) name.take(10) + "…" else name, dp(2).toFloat(), y + dp(15), paint)
+                        paint.color = Color.rgb(234, 237, 242)
+                        canvas.drawRoundRect(RectF(left, y, right, y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
+                        sessions.filter { it.first == person }.forEach { item ->
+                            val x1 = left + ((item.second - day).toFloat() / (end - day)) * trackWidth
+                            val x2 = left + ((item.third - day).toFloat() / (end - day)) * trackWidth
+                            paint.color = personColor(person)
+                            canvas.drawRoundRect(RectF(x1, y, maxOf(x1 + dp(2), x2), y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
+                        }
+                    }
+                    paint.color = muted
+                    paint.textSize = dp(10).toFloat()
+                    paint.textAlign = Paint.Align.CENTER
+                    for (hour in listOf(0, 6, 12, 18, 24)) {
+                        val x = left + hour / 24f * trackWidth
+                        canvas.drawText(String.format(Locale.ROOT, "%02d", hour), x, height - dp(3).toFloat(), paint)
+                    }
+                }
+            }
+            c.addView(timeline, LinearLayout.LayoutParams(-1, dp(32) * people.size + dp(25)))
+        }
         addCard(c)
-        content.addView(label("Okres: " + dateFormat.format(Date(from)) + " – " + dateFormat.format(Date(to)), 14f, false, muted))
-        gap(content, 20)
-        content.addView(label("Wykresy i porównania dodamy w kolejnej wersji.", 14f, false, muted))
+    }
+
+    private fun renderStats() {
+        content.addView(label("Statystyki", 24f, true))
+        gap(content, 12)
+        val c = card()
+        c.addView(label("Czas w projekcie", 20f, true))
+        gap(c, 12)
+        val selector = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf("Dzień", "Tydzień", "Miesiąc", "Całość").forEachIndexed { index, name ->
+            selector.addView(action(name, if (statsPeriod == index) blue else Color.rgb(229, 233, 239),
+                if (statsPeriod == index) Color.WHITE else ink) {
+                statsPeriod = index
+                statsOffset = 0
+                renderContent()
+            }, LinearLayout.LayoutParams(0, dp(43), 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
+        }
+        c.addView(selector)
+        gap(c, 8)
+        if (statsPeriod != 3) {
+            val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            nav.addView(action("‹", Color.rgb(229, 233, 239), ink) { statsOffset--; renderContent() },
+                LinearLayout.LayoutParams(dp(50), dp(42)))
+            val range = periodRange()
+            nav.addView(label(dateFormat.format(Date(range.first)), 14f, true).apply { gravity = Gravity.CENTER },
+                LinearLayout.LayoutParams(0, dp(42), 1f))
+            nav.addView(action("›", Color.rgb(229, 233, 239), ink) {
+                if (statsOffset < 0) { statsOffset++; renderContent() }
+            }, LinearLayout.LayoutParams(dp(50), dp(42)))
+            c.addView(nav)
+        }
+        addCard(c)
+        val (from, to) = periodRange()
+        if (to > from) barChart(from, to)
+        gap(content, 18)
+        renderTimeline()
     }
 
     private fun renderHistory() {
