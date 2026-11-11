@@ -58,18 +58,24 @@ class MainActivity : Activity() {
     private var projectId: Long? = null
     private var showArchived = false
     private var showAppSettings = false
-    private val blue = Color.rgb(34, 112, 237)
-    private val green = Color.rgb(48, 158, 80)
-    private val ink = Color.rgb(26, 34, 43)
-    private val muted = Color.rgb(99, 109, 120)
-    private val surface = Color.WHITE
-    private val background = Color.rgb(242, 244, 247)
+    private val darkTheme get() = prefs.getString("app_theme", "light") == "dark"
+    private val blue get() = if (darkTheme) Color.rgb(113, 169, 255) else Color.rgb(34, 112, 237)
+    private val green get() = if (darkTheme) Color.rgb(101, 211, 142) else Color.rgb(48, 158, 80)
+    private val ink get() = if (darkTheme) Color.rgb(238, 241, 248) else Color.rgb(26, 34, 43)
+    private val muted get() = if (darkTheme) Color.rgb(171, 181, 196) else Color.rgb(99, 109, 120)
+    private val surface get() = if (darkTheme) Color.rgb(35, 42, 54) else Color.WHITE
+    private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(242, 244, 247)
+    private val subtle get() = if (darkTheme) Color.rgb(52, 62, 79) else Color.rgb(226, 235, 252)
+    private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else subtleNeutral
+    private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else subtleWarm
+    private val secondaryButtonText get() = if (darkTheme) ink else blue
     private val dateFormat get() = SimpleDateFormat("dd MMM yyyy", resources.configuration.locales[0])
     private val clockFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyLanguage()
+        applyThemeToSystem()
         db = object : SQLiteOpenHelper(this, "sessions.db", null, 4) {
             override fun onCreate(database: SQLiteDatabase) {
                 database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
@@ -90,9 +96,7 @@ class MainActivity : Activity() {
                 if (oldVersion < 4) database.execSQL("ALTER TABLE projects ADD COLUMN icon_variant INTEGER NOT NULL DEFAULT 0")
             }
         }.writableDatabase
-        window.statusBarColor = Color.rgb(25, 34, 44)
-        window.navigationBarColor = background
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        applyThemeToSystem()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(this@MainActivity.background)
@@ -102,7 +106,7 @@ class MainActivity : Activity() {
             textSize = 25f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setBackgroundColor(Color.rgb(25, 34, 44))
+            setBackgroundColor(if (darkTheme) Color.rgb(13, 17, 25) else Color.rgb(25, 34, 44))
             setPadding(dp(20), dp(18), dp(20), dp(18))
         }
         outer.addView(heading)
@@ -139,6 +143,24 @@ class MainActivity : Activity() {
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
     private fun tr(id: Int): String = getString(id)
+
+    private fun applyThemeToSystem() {
+        window.statusBarColor = if (darkTheme) Color.rgb(13, 17, 25) else Color.rgb(25, 34, 44)
+        window.navigationBarColor = background
+        window.decorView.systemUiVisibility = if (darkTheme) 0 else View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+    }
+
+    private fun selectTheme() {
+        val choices = arrayOf(tr(R.string.theme_light), tr(R.string.theme_dark))
+        val selected = if (darkTheme) 1 else 0
+        AlertDialog.Builder(this).setTitle(tr(R.string.theme))
+            .setSingleChoiceItems(choices, selected) { dialog, which ->
+                prefs.edit().putString("app_theme", if (which == 1) "dark" else "light").apply()
+                dialog.dismiss()
+                recreate()
+            }.setNegativeButton(tr(R.string.cancel), null).show()
+    }
 
     private fun selectLanguage() {
         val choices = arrayOf(tr(R.string.system_language), tr(R.string.polish), tr(R.string.english))
@@ -177,7 +199,7 @@ class MainActivity : Activity() {
     private fun card(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(18), dp(18), dp(18), dp(18))
-        background = shape(surface, 14).apply { setStroke(dp(1), Color.rgb(220, 225, 232)) }
+        background = shape(surface, 14).apply { setStroke(dp(1), if (darkTheme) Color.rgb(66, 77, 95) else Color.rgb(220, 225, 232)) }
         elevation = dp(2).toFloat()
     }
 
@@ -489,7 +511,9 @@ class MainActivity : Activity() {
         val app = card()
         app.addView(label(tr(R.string.application), 19f, true))
         gap(app, 12)
-        app.addView(action("🌐  " + tr(R.string.language), Color.rgb(226, 235, 252), blue) { selectLanguage() })
+        app.addView(action("🌐  " + tr(R.string.language), subtle, secondaryButtonText) { selectLanguage() })
+        gap(app, 10)
+        app.addView(action("◐  " + tr(R.string.theme), subtle, secondaryButtonText) { selectTheme() })
         gap(app, 12)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "—" } catch (_: Exception) { "—" }
         app.addView(label(tr(R.string.version) + version, 14f, false, muted))
@@ -542,7 +566,7 @@ class MainActivity : Activity() {
                 line.addView(label("● ${counts.second} " + tr(R.string.active_suffix).trim(), 12f, true, green).apply {
                     setPadding(dp(8), dp(7), dp(8), dp(7))
                     background = GradientDrawable().apply {
-                        setColor(Color.rgb(230, 241, 235))
+                        setColor(if (darkTheme) Color.rgb(35, 71, 54) else Color.rgb(230, 241, 235))
                         cornerRadius = dp(16).toFloat()
                     }
                 })
@@ -564,11 +588,11 @@ class MainActivity : Activity() {
             addCard(item)
         }
         if (showArchived) {
-            content.addView(action(tr(R.string.back_projects), Color.rgb(245, 229, 209), ink) {
+            content.addView(action(tr(R.string.back_projects), subtleWarm, ink) {
                 showArchived = false; render()
             })
         } else {
-            content.addView(action(tr(R.string.archived_link), Color.rgb(245, 229, 209), Color.rgb(133, 76, 27)) {
+            content.addView(action(tr(R.string.archived_link), subtleWarm, Color.rgb(133, 76, 27)) {
                 showArchived = true; render()
             })
             gap(content, 18)
@@ -854,7 +878,7 @@ class MainActivity : Activity() {
                 canvas.restore()
             }
         }.apply {
-            background = shape(if (kind == "edit") Color.rgb(232, 239, 253) else Color.rgb(252, 233, 233), 9)
+            background = shape(if (kind == "edit") if (darkTheme) Color.rgb(43, 60, 83) else Color.rgb(232, 239, 253) else if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 9)
             stateListAnimator = null
             elevation = 0f
             contentDescription = if (kind == "edit") tr(R.string.edit_entry) else tr(R.string.delete_entry)
@@ -922,7 +946,7 @@ class MainActivity : Activity() {
         val start = dayStart(dayOffset)
         val end = dayStart(dayOffset + 1)
         val now = System.currentTimeMillis()
-        if (!isArchived()) content.addView(action(tr(R.string.add_person), Color.rgb(226, 235, 252), blue) { addParticipant() })
+        if (!isArchived()) content.addView(action(tr(R.string.add_person), subtle, secondaryButtonText) { addParticipant() })
         gap(content, 12)
         if (participants().isEmpty()) {
             content.addView(label(tr(R.string.first_person), 16f, false, muted))
@@ -933,7 +957,7 @@ class MainActivity : Activity() {
         gap(content, 12)
         sessionList(start, end, 8)
         gap(content, 8)
-        content.addView(action(tr(R.string.full_history), Color.rgb(226, 235, 252), blue) {
+        content.addView(action(tr(R.string.full_history), subtle, secondaryButtonText) {
             tab = 2
             render()
         })
@@ -1116,11 +1140,11 @@ class MainActivity : Activity() {
         val day = dayStart(if (inHistory) dayOffset else timelineOffset)
         if (!inHistory) {
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        nav.addView(action("‹", Color.rgb(229, 233, 239), ink) { timelineOffset--; renderContent() },
+        nav.addView(action("‹", subtleNeutral, ink) { timelineOffset--; renderContent() },
             LinearLayout.LayoutParams(dp(50), dp(44)))
         nav.addView(label(dateFormat.format(Date(day)), 15f, true).apply { gravity = Gravity.CENTER },
             LinearLayout.LayoutParams(0, dp(44), 1f))
-        nav.addView(action("›", Color.rgb(229, 233, 239), ink) {
+        nav.addView(action("›", subtleNeutral, ink) {
             if (timelineOffset < 0) { timelineOffset++; renderContent() }
         }, LinearLayout.LayoutParams(dp(50), dp(44)))
         c.addView(nav)
@@ -1214,7 +1238,7 @@ class MainActivity : Activity() {
         gap(c, 12)
         val selector = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(tr(R.string.day), tr(R.string.week), tr(R.string.month), tr(R.string.all)).forEachIndexed { index, name ->
-            selector.addView(action(name, if (statsPeriod == index) blue else Color.rgb(229, 233, 239),
+            selector.addView(action(name, if (statsPeriod == index) blue else subtleNeutral,
                 if (statsPeriod == index) Color.WHITE else ink) {
                 statsPeriod = index
                 statsOffset = 0
@@ -1225,12 +1249,12 @@ class MainActivity : Activity() {
         gap(c, 8)
         if (statsPeriod != 3) {
             val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            nav.addView(action("‹", Color.rgb(229, 233, 239), ink) { statsOffset--; renderContent() },
+            nav.addView(action("‹", subtleNeutral, ink) { statsOffset--; renderContent() },
                 LinearLayout.LayoutParams(dp(50), dp(42)))
             val range = periodRange()
             nav.addView(label(dateFormat.format(Date(range.first)), 14f, true).apply { gravity = Gravity.CENTER },
                 LinearLayout.LayoutParams(0, dp(42), 1f))
-            nav.addView(action("›", Color.rgb(229, 233, 239), ink) {
+            nav.addView(action("›", subtleNeutral, ink) {
                 if (statsOffset < 0) { statsOffset++; renderContent() }
             }, LinearLayout.LayoutParams(dp(50), dp(42)))
             c.addView(nav)
@@ -1254,7 +1278,7 @@ class MainActivity : Activity() {
         val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         (listOf(0) + participants()).forEach { person ->
             val name = if (person == 0) tr(R.string.all_people) else personName(person)
-            val button = action(name, if (historyPerson == person) blue else Color.rgb(229, 233, 239),
+            val button = action(name, if (historyPerson == person) blue else subtleNeutral,
                 if (historyPerson == person) Color.WHITE else ink) {
                 historyPerson = person
                 renderContent()
@@ -1386,7 +1410,7 @@ class MainActivity : Activity() {
             gap(info, 10)
             info.addView(label(tr(R.string.locked_data), 14f, false, muted))
             addCard(info)
-            content.addView(action(tr(R.string.export_csv), Color.rgb(245, 229, 209), ink) { exportCsv() })
+            content.addView(action(tr(R.string.export_csv), subtleWarm, ink) { exportCsv() })
             return
         }
         content.addView(label(tr(R.string.settings), 24f, true))
@@ -1396,7 +1420,7 @@ class MainActivity : Activity() {
         gap(project, 8)
         project.addView(label(projectName(), 20f, true))
         gap(project, 8)
-        project.addView(action(tr(R.string.rename_project), Color.rgb(226, 235, 252), blue) {
+        project.addView(action(tr(R.string.rename_project), subtle, secondaryButtonText) {
             renameProject()
         })
         gap(project, 14)
@@ -1405,7 +1429,7 @@ class MainActivity : Activity() {
         iconRow.addView(label(tr(R.string.project_icon), 16f, true).apply { setPadding(dp(14), 0, 0, 0) })
         project.addView(iconRow)
         gap(project, 10)
-        project.addView(action(tr(R.string.regenerate_icon), Color.rgb(226, 235, 252), blue) {
+        project.addView(action(tr(R.string.regenerate_icon), subtle, secondaryButtonText) {
             regenerateProjectIcon()
         })
         addCard(project)
@@ -1429,7 +1453,7 @@ class MainActivity : Activity() {
             people.addView(row)
             gap(people, 7)
         }
-        people.addView(action(tr(R.string.add_participant), Color.rgb(226, 235, 252), blue) {
+        people.addView(action(tr(R.string.add_participant), subtle, secondaryButtonText) {
             addParticipant()
         })
         addCard(people)
@@ -1437,11 +1461,11 @@ class MainActivity : Activity() {
         val data = card()
         data.addView(label(tr(R.string.project_data), 19f, true))
         gap(data, 12)
-        data.addView(action(tr(R.string.export_csv), Color.rgb(226, 235, 252), blue) {
+        data.addView(action(tr(R.string.export_csv), subtle, secondaryButtonText) {
             exportCsv()
         })
         gap(data, 8)
-        data.addView(action(tr(R.string.archive_project), Color.rgb(245, 229, 209), Color.rgb(143, 80, 28)) { archiveProject() })
+        data.addView(action(tr(R.string.archive_project), subtleWarm, Color.rgb(143, 80, 28)) { archiveProject() })
         addCard(data)
 
 
@@ -1455,7 +1479,7 @@ class MainActivity : Activity() {
             return
         }
         val archived = isArchived()
-        content.setBackgroundColor(if (archived) Color.rgb(252, 239, 219) else background)
+        content.setBackgroundColor(if (archived) if (darkTheme) Color.rgb(53, 41, 34) else Color.rgb(252, 239, 219) else background)
         if (archived) {
             content.addView(label(tr(R.string.archive_banner), 13f, true, Color.rgb(147, 82, 27)))
             gap(content, 7)
@@ -1479,7 +1503,7 @@ class MainActivity : Activity() {
             header.addView(label("● $active " + tr(R.string.active_plural).trim(), 12f, true, green).apply {
                 setPadding(dp(8), dp(7), dp(8), dp(7))
                 background = GradientDrawable().apply {
-                    setColor(Color.rgb(230, 241, 235))
+                    setColor(if (darkTheme) Color.rgb(35, 71, 54) else Color.rgb(230, 241, 235))
                     cornerRadius = dp(16).toFloat()
                 }
             })
