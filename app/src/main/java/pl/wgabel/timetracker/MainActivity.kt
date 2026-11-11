@@ -414,12 +414,37 @@ class MainActivity : Activity() {
         }
         projects.forEach { (id, name) ->
             val item = card()
+            val counts = db.rawQuery(
+                "SELECT (SELECT COUNT(*) FROM participants WHERE project_id=?), (SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL)",
+                arrayOf(id.toString(), id.toString())
+            ).use { c -> if (c.moveToFirst()) c.getInt(0) to c.getInt(1) else 0 to 0 }
             val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             line.addView(projectIcon(id))
-            line.addView(label(name, 19f, true).apply { setPadding(dp(12), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            line.addView(label("›", 23f, false, muted))
+            line.addView(label(name, 19f, true).apply {
+                setPadding(dp(12), 0, dp(6), 0)
+                setSingleLine(true)
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            if (counts.second > 0) {
+                line.addView(label("● ${counts.second} " + tr(R.string.active_suffix).trim(), 12f, true, green).apply {
+                    setPadding(dp(8), dp(7), dp(8), dp(7))
+                    background = GradientDrawable().apply {
+                        setColor(Color.rgb(230, 241, 235))
+                        cornerRadius = dp(16).toFloat()
+                    }
+                })
+            }
+            line.addView(label("›", 23f, false, muted).apply { setPadding(dp(7), 0, 0, 0) })
             item.addView(line)
-            if (showArchived) item.addView(label(tr(R.string.archived), 11f, true, Color.rgb(166, 99, 34)))
+            val footer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            if (showArchived) footer.addView(label(tr(R.string.archived), 11f, true, Color.rgb(166, 99, 34)))
+            footer.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            footer.addView(label("${counts.first} " + tr(R.string.participants_count), 12f, false, muted))
+            gap(item, 7)
+            item.addView(footer)
             item.setOnClickListener {
                 projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; render()
             }
