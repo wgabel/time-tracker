@@ -694,11 +694,11 @@ class MainActivity : Activity() {
         val c = card()
         c.addView(label("Oś czasu dnia", 20f, true))
         gap(c, 8)
+        val day = dayStart(if (inHistory) dayOffset else timelineOffset)
         if (!inHistory) {
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         nav.addView(action("‹", Color.rgb(229, 233, 239), ink) { timelineOffset--; renderContent() },
             LinearLayout.LayoutParams(dp(50), dp(44)))
-        val day = dayStart(if (inHistory) dayOffset else timelineOffset)
         nav.addView(label(dateFormat.format(Date(day)), 15f, true).apply { gravity = Gravity.CENTER },
             LinearLayout.LayoutParams(0, dp(44), 1f))
         nav.addView(action("›", Color.rgb(229, 233, 239), ink) {
