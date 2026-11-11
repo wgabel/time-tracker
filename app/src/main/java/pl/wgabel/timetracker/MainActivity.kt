@@ -27,6 +27,7 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.ImageButton
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.text.SimpleDateFormat
@@ -435,6 +436,57 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    private fun avatar(person: Int): View {
+        val name = personName(person).trim()
+        val initials = name.split(Regex("\\s+")).filter { it.isNotBlank() }
+            .take(2).map { it.take(1).uppercase(Locale.getDefault()) }.joinToString("")
+        val palette = intArrayOf(0xFF356AC3.toInt(), 0xFF21896F.toInt(), 0xFF9B59B6.toInt(),
+            0xFFD47A25.toInt(), 0xFFC34F69.toInt(), 0xFF526E83.toInt())
+        val color = palette[Math.floorMod(person, palette.size)]
+        return TextView(this).apply {
+            text = initials.ifEmpty { "?" }
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+            contentDescription = "Uczestnik: $name"
+        }
+    }
+
+    private fun iconButton(kind: String, color: Int, onClick: () -> Unit): View {
+        return object : View(this) {
+            private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE; strokeWidth = dp(2).toFloat()
+                strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; this.color = color
+            }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val cx = width / 2f; val cy = height / 2f
+                canvas.save()
+                canvas.translate(cx - dp(12), cy - dp(12))
+                if (kind == "edit") {
+                    canvas.drawLine(dp(5).toFloat(), dp(18).toFloat(), dp(18).toFloat(), dp(5).toFloat(), p)
+                    canvas.drawLine(dp(4).toFloat(), dp(20).toFloat(), dp(8).toFloat(), dp(19).toFloat(), p)
+                    canvas.drawLine(dp(17).toFloat(), dp(4).toFloat(), dp(20).toFloat(), dp(7).toFloat(), p)
+                } else {
+                    canvas.drawRoundRect(RectF(dp(6).toFloat(), dp(7).toFloat(), dp(18).toFloat(), dp(21).toFloat()),
+                        dp(1).toFloat(), dp(1).toFloat(), p)
+                    canvas.drawLine(dp(4).toFloat(), dp(5).toFloat(), dp(20).toFloat(), dp(5).toFloat(), p)
+                    canvas.drawLine(dp(9).toFloat(), dp(3).toFloat(), dp(15).toFloat(), dp(3).toFloat(), p)
+                    canvas.drawLine(dp(10).toFloat(), dp(10).toFloat(), dp(10).toFloat(), dp(17).toFloat(), p)
+                    canvas.drawLine(dp(14).toFloat(), dp(10).toFloat(), dp(14).toFloat(), dp(17).toFloat(), p)
+                }
+                canvas.restore()
+            }
+        }.apply {
+            background = shape(if (kind == "edit") Color.rgb(232, 239, 253) else Color.rgb(252, 233, 233), 10)
+            contentDescription = if (kind == "edit") "Edytuj wpis" else "Usuń wpis"
+            isClickable = true
+            setOnClickListener { onClick() }
+        }
+    }
+
     private fun sessionList(start: Long, end: Long, limit: Int = 100) {
         var count = 0
         val personClause = if (tab == 2 && historyPerson != 0) " AND person=$historyPerson" else ""
@@ -449,26 +501,40 @@ class MainActivity : Activity() {
                 val originalEnd = if (cursor.isNull(3)) null else cursor.getLong(3)
                 val from = maxOf(start, originalStart)
                 val until = minOf(end, originalEnd ?: System.currentTimeMillis())
-                val row = card()
-                row.addView(label("●  " + personName(person), 15f, true, personColor(person)))
-                gap(row, 6)
-                row.addView(label("Data: " + dateFormat.format(Date(originalStart)), 14f, true, muted))
-                gap(row, 6)
-                val running = if (originalEnd == null) "  • trwa" else ""
-                row.addView(label(clockFormat.format(Date(from)) + " – " + clockFormat.format(Date(until)) + running, 14f, false, muted))
-                gap(row, 5)
-                row.addView(label(duration(until - from), 19f, true))
-                if (tab == 2 && originalEnd != null) {
-                    gap(row, 10)
-                    row.addView(action("Edytuj wpis", Color.rgb(226, 235, 252), blue) {
-                        editSession(id, person, originalStart, originalEnd)
-                    })
-                    gap(row, 6)
-                    row.addView(action("Usuń wpis", Color.rgb(252, 233, 233), Color.rgb(170, 42, 42)) {
-                        deleteSession(id)
-                    })
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), dp(10), dp(10), dp(10))
+                    background = shape(surface, 12)
                 }
-                addCard(row)
+                val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                val heading = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                }
+                heading.addView(avatar(person), LinearLayout.LayoutParams(dp(29), dp(29)))
+                heading.addView(label("  " + personName(person) + "  •  " +
+                    dateFormat.format(Date(originalStart)), 13f, true), LinearLayout.LayoutParams(-2, -2))
+                left.addView(heading)
+                gap(left, 5)
+                val running = if (originalEnd == null) "  • trwa" else ""
+                left.addView(label(clockFormat.format(Date(from)) + " – " +
+                    clockFormat.format(Date(until)) + running, 13f, false, muted))
+                gap(left, 3)
+                left.addView(label(duration(until - from), 16f, true))
+                row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
+                if (tab == 2 && originalEnd != null) {
+                    val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                    controls.addView(iconButton("edit", blue) {
+                        editSession(id, person, originalStart, originalEnd)
+                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
+                    gap(controls, 4)
+                    controls.addView(iconButton("delete", Color.rgb(170, 42, 42)) {
+                        deleteSession(id)
+                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
+                    row.addView(controls)
+                }
+                content.addView(row, LinearLayout.LayoutParams(-1, -2))
+                gap(content, 7)
                 count++
             }
         }
@@ -601,8 +667,8 @@ class MainActivity : Activity() {
             }
         }
         content.addView(chart, LinearLayout.LayoutParams(-1, dp(180)))
-        val hours = points.sumOf { it.second } / 3600000.0
-        content.addView(label(String.format(Locale("pl", "PL"), "Łącznie: %.1f h (osobogodziny)", hours), 15f, true))
+        val minutes = points.sumOf { it.second } / 60000L
+        content.addView(label("Łącznie: ${minutes / 60} h ${minutes % 60} min (osobogodziny)", 15f, true))
     }
 
     private fun renderTimeline() {
