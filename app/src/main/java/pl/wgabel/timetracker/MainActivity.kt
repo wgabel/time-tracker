@@ -691,9 +691,11 @@ class MainActivity : Activity() {
     }
 
     private fun renderTimeline(inHistory: Boolean = false) {
-        val c = card()
-        c.addView(label("Oś czasu dnia", 20f, true))
-        gap(c, 8)
+        val c = if (inHistory) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else card()
+        if (!inHistory) {
+            c.addView(label("Oś czasu dnia", 20f, true))
+            gap(c, 8)
+        }
         val day = dayStart(if (inHistory) dayOffset else timelineOffset)
         if (!inHistory) {
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -710,7 +712,7 @@ class MainActivity : Activity() {
         if (people.isEmpty()) {
             c.addView(label("Dodaj uczestnika, aby zobaczyć oś czasu.", 14f, false, muted))
         } else {
-            val end = dayStart(timelineOffset + 1)
+            val end = dayStart((if (inHistory) dayOffset else timelineOffset) + 1)
             val sessions = intervals(day, end)
             val detailSessions = mutableListOf<Triple<Long, Int, Pair<Long, Long>>>()
             db.rawQuery("SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)",
@@ -725,7 +727,7 @@ class MainActivity : Activity() {
                     if (event.action != MotionEvent.ACTION_UP) return true
                     val row = ((event.y - dp(7)) / dp(32)).toInt()
                     if (row !in people.indices) return true
-                    val left = dp(80).toFloat()
+                    val left = if (inHistory) 0f else dp(80).toFloat()
                     val widthScale = (width.toFloat() - dp(5) - left).coerceAtLeast(1f)
                     val fraction = ((event.x - left) / widthScale).coerceIn(0f, 1f)
                     val moment = day + ((end - day) * fraction).toLong()
@@ -755,8 +757,10 @@ class MainActivity : Activity() {
                         paint.color = ink
                         paint.textSize = dp(11).toFloat()
                         paint.textAlign = Paint.Align.LEFT
-                        val name = personName(person)
-                        canvas.drawText(if (name.length > 11) name.take(10) + "…" else name, dp(2).toFloat(), y + dp(15), paint)
+                        if (!inHistory) {
+                            val name = personName(person)
+                            canvas.drawText(if (name.length > 11) name.take(10) + "…" else name, dp(2).toFloat(), y + dp(15), paint)
+                        }
                         paint.color = Color.rgb(234, 237, 242)
                         canvas.drawRoundRect(RectF(left, y, right, y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
                         sessions.filter { it.first == person }.forEach { item ->
@@ -766,6 +770,7 @@ class MainActivity : Activity() {
                             canvas.drawRoundRect(RectF(x1, y, maxOf(x1 + dp(2), x2), y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
                         }
                     }
+                    if (!inHistory) {
                     paint.color = muted
                     paint.textSize = dp(10).toFloat()
                     paint.textAlign = Paint.Align.CENTER
@@ -773,11 +778,15 @@ class MainActivity : Activity() {
                         val x = left + hour / 24f * trackWidth
                         canvas.drawText(String.format(Locale.ROOT, "%02d", hour), x, height - dp(3).toFloat(), paint)
                     }
+                    }
                 }
             }
-            c.addView(timeline, LinearLayout.LayoutParams(-1, dp(32) * people.size + dp(25)))
+            c.addView(timeline, LinearLayout.LayoutParams(-1, dp(32) * people.size + (if (inHistory) dp(4) else dp(25))))
         }
-        addCard(c)
+        if (inHistory) {
+            content.addView(c, LinearLayout.LayoutParams(-1, -2))
+            gap(content, 8)
+        } else addCard(c)
     }
 
     private fun renderStats() {
