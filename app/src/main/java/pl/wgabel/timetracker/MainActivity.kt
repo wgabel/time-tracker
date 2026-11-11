@@ -208,7 +208,7 @@ class MainActivity : Activity() {
         elevation = dp(2).toFloat()
     }
 
-    private fun activeCardBackground(): Drawable = object : Drawable() {
+    private fun activeCardBackground(): Drawable = object : Drawable(), android.graphics.drawable.Animatable {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var phase = 0f
         private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -217,13 +217,18 @@ class MainActivity : Activity() {
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { phase = it.animatedValue as Float; invalidateSelf() }
         }
-        override fun setCallback(cb: Callback?) {
-            super.setCallback(cb)
-            if (cb != null && android.provider.Settings.Global.getFloat(
-                    contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
-                ) != 0f) animator.start()
-            else animator.cancel()
+        override fun setVisible(visible: Boolean, restart: Boolean): Boolean {
+            val changed = super.setVisible(visible, restart)
+            if (!visible) animator.cancel()
+            return changed
         }
+        override fun start() {
+            if (android.provider.Settings.Global.getFloat(contentResolver,
+                    android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f &&
+                !animator.isRunning) animator.start()
+        }
+        override fun stop() { animator.cancel() }
+        override fun isRunning(): Boolean = animator.isRunning
         override fun draw(canvas: Canvas) {
             val b = bounds
             val w = b.width().toFloat()
@@ -258,6 +263,19 @@ class MainActivity : Activity() {
         override fun setColorFilter(filter: android.graphics.ColorFilter?) { p.colorFilter = filter }
         @Deprecated("Deprecated in Java")
         override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+    }
+
+    private fun markActive(view: LinearLayout) {
+        val animated = activeCardBackground()
+        view.background = animated
+        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                (animated as android.graphics.drawable.Animatable).start()
+            }
+            override fun onViewDetachedFromWindow(v: View) {
+                (animated as android.graphics.drawable.Animatable).stop()
+            }
+        })
     }
 
     private fun addCard(view: LinearLayout) {
@@ -741,7 +759,7 @@ class MainActivity : Activity() {
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
         val c = card()
         val active = activeStart(person)
-        if (active != null) c.background = activeCardBackground()
+        if (active != null) markActive(c)
         val name = label("●  " + personName(person), 20f, true, personColor(person))
         c.addView(name)
         gap(c, 12)
@@ -963,8 +981,9 @@ class MainActivity : Activity() {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(dp(12), dp(10), dp(10), dp(10))
-                    background = if (originalEnd == null) activeCardBackground() else shape(surface, 12)
+                    background = shape(surface, 12)
                 }
+                if (originalEnd == null) markActive(row)
                 val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 val heading = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
