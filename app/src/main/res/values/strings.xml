@@ -64,4 +64,5 @@
     <string name="version">Version: </string>
     <string name="participants_prefix">Participants · </string>
     <string name="active_suffix"> active</string>
+    <string name="participants_count">participants</string>
 </resources>
