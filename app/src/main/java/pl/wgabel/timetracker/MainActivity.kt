@@ -58,7 +58,7 @@ class MainActivity : Activity() {
     private val ink = Color.rgb(26, 34, 43)
     private val muted = Color.rgb(99, 109, 120)
     private val surface = Color.WHITE
-    private val background = Color.rgb(246, 248, 251)
+    private val background = Color.rgb(242, 244, 247)
     private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("pl", "PL"))
     private val clockFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
@@ -142,7 +142,7 @@ class MainActivity : Activity() {
     private fun card(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(18), dp(18), dp(18), dp(18))
-        background = shape(surface)
+        background = shape(surface, 14).apply { setStroke(dp(1), Color.rgb(220, 225, 232)) }
         elevation = dp(2).toFloat()
     }
 
@@ -157,7 +157,9 @@ class MainActivity : Activity() {
             textSize = 16f
             isAllCaps = false
             setTextColor(fg)
-            background = shape(bg, 12)
+            background = shape(bg, 10)
+            stateListAnimator = null
+            elevation = 0f
             setOnClickListener { click() }
         }
 
@@ -495,7 +497,9 @@ class MainActivity : Activity() {
                 canvas.restore()
             }
         }.apply {
-            background = shape(if (kind == "edit") Color.rgb(232, 239, 253) else Color.rgb(252, 233, 233), 10)
+            background = shape(if (kind == "edit") Color.rgb(232, 239, 253) else Color.rgb(252, 233, 233), 9)
+            stateListAnimator = null
+            elevation = 0f
             contentDescription = if (kind == "edit") "Edytuj wpis" else "Usuń wpis"
             isClickable = true
             setOnClickListener { onClick() }
