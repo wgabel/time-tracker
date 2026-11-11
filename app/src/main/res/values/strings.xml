@@ -129,4 +129,7 @@
     <string name="notification_more">+ %1$d more</string>
     <string name="notification_tracking">timetrkr · Tracking time</string>
     <string name="notification_active_count">%1$s · %2$d active</string>
+    <string name="theme">Appearance</string>
+    <string name="theme_light">Light theme</string>
+    <string name="theme_dark">Dark theme</string>
 </resources>
