@@ -259,6 +259,76 @@ class MainActivity : Activity() {
         renderContent()
     }
 
+    private fun drawCreatureIcon(c: Canvas, r: java.util.Random) {
+        val palettes = arrayOf(
+            intArrayOf(0xFFFCE9CB.toInt(), 0xFFDA916E.toInt(), 0xFF633E44.toInt()),
+            intArrayOf(0xFFD8F0E4.toInt(), 0xFF6AB5A1.toInt(), 0xFF264C57.toInt()),
+            intArrayOf(0xFFE9E2FB.toInt(), 0xFF9B89D6.toInt(), 0xFF43365F.toInt()),
+            intArrayOf(0xFFFFE3E8.toInt(), 0xFFE7A2B3.toInt(), 0xFF6D4656.toInt()),
+            intArrayOf(0xFFE0EDFF.toInt(), 0xFF729ED4.toInt(), 0xFF304C76.toInt()),
+            intArrayOf(0xFFFFF0BA.toInt(), 0xFFD9AF50.toInt(), 0xFF65503A.toInt())
+        )
+        val palette = palettes[r.nextInt(palettes.size)]
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        fun fill(color: Int) { paint.color = color; paint.style = Paint.Style.FILL }
+        fun circle(x: Float, y: Float, radius: Float) = c.drawCircle(x, y, radius, paint)
+        fun oval(left: Float, top: Float, right: Float, bottom: Float) =
+            c.drawOval(RectF(left, top, right, bottom), paint)
+        fun triangle(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) {
+            c.drawPath(Path().apply {
+                moveTo(x1, y1); lineTo(x2, y2); lineTo(x3, y3); close()
+            }, paint)
+        }
+        fill(palette[0])
+        c.drawRoundRect(0f, 0f, 100f, 100f, 20f, 20f, paint)
+        c.save()
+        c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, 100f, 100f), 20f, 20f, Path.Direction.CW) })
+        val shape = r.nextInt(8)
+        val ears = r.nextInt(7)
+        fill(palette[1])
+        when (ears) {
+            0 -> { triangle(19f, 39f, 22f, 8f, 47f, 29f); triangle(53f, 29f, 78f, 8f, 81f, 39f) }
+            1 -> { oval(24f, 2f, 40f, 48f); oval(60f, 2f, 76f, 48f) }
+            2 -> { circle(25f, 29f, 17f); circle(75f, 29f, 17f) }
+            3 -> { triangle(15f, 35f, 9f, 13f, 38f, 28f); triangle(62f, 28f, 91f, 13f, 85f, 35f) }
+            4 -> { oval(5f, 31f, 36f, 52f); oval(64f, 31f, 95f, 52f) }
+            5 -> { triangle(31f, 34f, 28f, 7f, 45f, 32f); triangle(55f, 32f, 72f, 7f, 69f, 34f) }
+            else -> { circle(30f, 24f, 9f); circle(70f, 24f, 9f) }
+        }
+        when (shape) {
+            0 -> circle(50f, 58f, 37f)
+            1 -> oval(17f, 23f, 83f, 93f)
+            2 -> c.drawRoundRect(17f, 25f, 83f, 91f, 24f, 24f, paint)
+            3 -> oval(10f, 34f, 90f, 86f)
+            4 -> { circle(50f, 57f, 34f); oval(18f, 60f, 82f, 95f) }
+            5 -> { triangle(13f, 35f, 87f, 35f, 50f, 96f); circle(50f, 52f, 28f) }
+            6 -> oval(22f, 17f, 78f, 96f)
+            else -> { c.drawRoundRect(12f, 32f, 88f, 90f, 33f, 33f, paint) }
+        }
+        val eyeY = 51f + r.nextInt(10)
+        val spacing = 12f + r.nextInt(9)
+        val eyeType = r.nextInt(5)
+        fill(palette[2])
+        when (eyeType) {
+            0 -> { circle(50f-spacing, eyeY, 3.5f); circle(50f+spacing, eyeY, 3.5f) }
+            1 -> { oval(46f-spacing, eyeY-6f, 54f-spacing, eyeY+6f); oval(46f+spacing, eyeY-6f, 54f+spacing, eyeY+6f) }
+            2 -> { oval(45f-spacing, eyeY-2f, 55f-spacing, eyeY+2f); oval(45f+spacing, eyeY-2f, 55f+spacing, eyeY+2f) }
+            3 -> { circle(50f-spacing, eyeY, 5f); circle(50f+spacing, eyeY, 5f); fill(0xFFFFFFFF.toInt()); circle(48f-spacing, eyeY-2f, 2f); circle(48f+spacing, eyeY-2f, 2f) }
+            else -> { circle(50f-spacing, eyeY, 2.5f); circle(50f+spacing, eyeY, 2.5f) }
+        }
+        fill(palette[0])
+        if (r.nextBoolean()) oval(34f, 65f, 66f, 85f)
+        fill(palette[2])
+        when (r.nextInt(5)) {
+            0 -> triangle(44f, 68f, 56f, 68f, 50f, 77f)
+            1 -> oval(44f, 70f, 56f, 75f)
+            2 -> { circle(44f, 74f, 3f); circle(56f, 74f, 3f) }
+            3 -> c.drawArc(RectF(41f, 68f, 59f, 82f), 0f, 180f, false, paint)
+            else -> c.drawRoundRect(47f, 68f, 53f, 80f, 3f, 3f, paint)
+        }
+        c.restore()
+    }
+
     private fun projectIcon(id: Long, size: Int = 40): View = object : View(this) {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private fun color(value: Long) { p.color = value.toInt(); p.style = Paint.Style.FILL }
@@ -268,6 +338,12 @@ class MainActivity : Activity() {
             val save = c.save()
             c.scale(width / 100f, height / 100f)
             val r = java.util.Random((id xor 0xBAA055L) + iconVariant(id) * 0x5DEECE66DL)
+            // Alternate icon families on regeneration, so the next result looks distinctly different.
+            if (((id + iconVariant(id)) and 1L) == 1L) {
+                drawCreatureIcon(c, r)
+                c.restoreToCount(save)
+                return
+            }
             val biome = r.nextInt(8) // meadow, beach, forest, desert, snow, lake, coast, hills
             val night = r.nextInt(4) == 0
             val sunset = !night && r.nextInt(4) == 0
@@ -369,7 +445,7 @@ class MainActivity : Activity() {
         }
     }.apply {
         layoutParams = LinearLayout.LayoutParams(dp(size), dp(size))
-        contentDescription = "Pejzaż projektu"
+        contentDescription = "Ikona projektu"
     }
 
     private fun isArchived(): Boolean {
