@@ -220,30 +220,109 @@ class MainActivity : Activity() {
         }
         dialog.show()
     }
+    // Deterministic, entirely offline miniature landscapes.
     private fun projectIcon(id: Long, size: Int = 40): View = object : View(this) {
-        private val colors = intArrayOf(0xFFE75A4A.toInt(), 0xFFF4BB52.toInt(), 0xFF3979BC.toInt(), 0xFF40A28B.toInt(), 0xFF8B70BD.toInt())
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        private fun color(value: Long) { p.color = value.toInt(); p.style = Paint.Style.FILL }
         override fun onDraw(c: Canvas) {
             super.onDraw(c)
+            if (width == 0 || height == 0) return
             val save = c.save()
             c.scale(width / 100f, height / 100f)
             val r = java.util.Random(id xor 0xBAA055L)
-            p.color = colors[r.nextInt(colors.size)]
+            val biome = r.nextInt(8) // meadow, beach, forest, desert, snow, lake, coast, hills
+            val night = r.nextInt(4) == 0
+            val sunset = !night && r.nextInt(4) == 0
+            val sky = if (night) 0xFF192C52L else if (sunset) 0xFFF5A782L else 0xFF8EC9E8L
+            color(sky)
             c.drawRoundRect(0f, 0f, 100f, 100f, 20f, 20f, p)
             c.save()
             c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, 100f, 100f), 20f, 20f, Path.Direction.CW) })
-            repeat(4) { i ->
-                p.color = colors[(r.nextInt(colors.size) + i) % colors.size]
-                val x = r.nextInt(80).toFloat() - 15f
-                val y = r.nextInt(80).toFloat() - 15f
-                when (r.nextInt(3)) {
-                    0 -> c.drawCircle(x + 20f, y + 20f, 16f + r.nextInt(20), p)
-                    1 -> c.drawRect(x, y, x + 25f + r.nextInt(35), y + 20f + r.nextInt(30), p)
-                    else -> {
-                        p.style = Paint.Style.STROKE
-                        p.strokeWidth = 9f
-                        c.drawArc(RectF(x, y, x + 65f, y + 65f), r.nextInt(360).toFloat(), 190f, false, p)
-                        p.style = Paint.Style.FILL
+            val sunX = 18f + r.nextInt(62)
+            val sunY = 16f + r.nextInt(20)
+            color(if (night) 0xFFF4EDCFL else 0xFFFFE19AL)
+            c.drawCircle(sunX, sunY, if (night) 8f else 12f, p)
+            if (night) {
+                color(sky)
+                c.drawCircle(sunX + 4f, sunY - 3f, 8f, p)
+                color(0xFFE9EAF5L)
+                repeat(5) {
+                    val x = 9f + r.nextInt(83)
+                    val y = 8f + r.nextInt(38)
+                    c.drawCircle(x, y, 1f + r.nextInt(2), p)
+                }
+            } else if (r.nextBoolean()) {
+                color(0xFFF7F5EAL)
+                c.drawOval(RectF(9f, 20f, 36f, 29f), p)
+                c.drawOval(RectF(53f, 12f, 77f, 20f), p)
+            }
+            val mountain = biome == 0 || biome == 3 || biome == 4 || biome == 7 || (biome == 5 && r.nextBoolean())
+            if (mountain) {
+                color(if (night) 0xFF34466BL else if (biome == 4) 0xFFB6CBD8L else 0xFF7B9CA0L)
+                val peaks = Path().apply {
+                    moveTo(-12f, 69f)
+                    lineTo(20f, 30f + r.nextInt(16))
+                    lineTo(45f, 64f)
+                    lineTo(70f, 27f + r.nextInt(17))
+                    lineTo(115f, 72f)
+                    lineTo(115f, 100f)
+                    lineTo(-12f, 100f)
+                    close()
+                }
+                c.drawPath(peaks, p)
+            }
+            val ground = when (biome) {
+                1 -> 0xFFF4D28AL // sand
+                3 -> 0xFFE9AE68L // desert
+                4 -> 0xFFE8F3F4L // snow
+                5 -> 0xFF4E9FC0L // lake
+                6 -> 0xFF4A9FB6L // coast
+                2 -> 0xFF356D58L // forest
+                else -> 0xFF75B77AL // meadow / hills
+            }
+            color(ground)
+            val horizon = if (biome == 1 || biome == 5 || biome == 6) 62f else 70f
+            c.drawOval(RectF(-25f, horizon, 130f, 139f), p)
+            if (biome == 1 || biome == 6) {
+                color(0xFF4FABC5L)
+                c.drawRect(0f, 51f, 100f, 70f, p)
+                color(if (biome == 1) 0xFFF4D28AL else 0xFFE7C38BL)
+                c.drawOval(RectF(-25f, 67f, 130f, 138f), p)
+            }
+            if (biome == 5) {
+                color(0xFFB1DEE0L)
+                c.drawRoundRect(20f, 81f, 75f, 84f, 2f, 2f, p)
+            }
+            val treeX = 22f + r.nextInt(56)
+            when (biome) {
+                1, 6 -> { // palm
+                    color(0xFF7B5B3EL)
+                    c.drawRect(treeX, 57f, treeX + 5f, 91f, p)
+                    color(0xFF297D66L)
+                    c.drawOval(RectF(treeX - 21f, 46f, treeX + 5f, 57f), p)
+                    c.drawOval(RectF(treeX, 44f, treeX + 27f, 57f), p)
+                }
+                3 -> { // cactus
+                    color(0xFF327E5BL)
+                    c.drawRoundRect(treeX, 61f, treeX + 11f, 94f, 5f, 5f, p)
+                    c.drawRoundRect(treeX - 9f, 69f, treeX - 2f, 82f, 3f, 3f, p)
+                    c.drawRoundRect(treeX + 13f, 66f, treeX + 20f, 81f, 3f, 3f, p)
+                }
+                else -> {
+                    color(0xFF70533CL)
+                    c.drawRect(treeX - 3f, 67f, treeX + 4f, 94f, p)
+                    color(if (biome == 4) 0xFF2D6966L else if (night) 0xFF275A56L else 0xFF2F8766L)
+                    if (biome == 2 || biome == 4 || r.nextBoolean()) {
+                        val pine = Path().apply {
+                            moveTo(treeX, 39f)
+                            lineTo(treeX - 19f, 80f)
+                            lineTo(treeX + 19f, 80f)
+                            close()
+                        }
+                        c.drawPath(pine, p)
+                    } else {
+                        c.drawCircle(treeX, 59f, 19f, p)
+                        c.drawCircle(treeX - 10f, 66f, 13f, p)
                     }
                 }
             }
@@ -252,7 +331,7 @@ class MainActivity : Activity() {
         }
     }.apply {
         layoutParams = LinearLayout.LayoutParams(dp(size), dp(size))
-        contentDescription = "Ikona projektu"
+        contentDescription = "Pejzaż projektu"
     }
 
     private fun renderProjects() {
