@@ -1146,7 +1146,7 @@ class MainActivity : Activity() {
                 }
                 val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 group.addView(row)
-                eventList(id, person, group)
+                if (tab == 2) eventList(id, person, group)
                 content.addView(group, LinearLayout.LayoutParams(-1, -2))
                 gap(content, 7)
                 count++
@@ -1155,11 +1155,58 @@ class MainActivity : Activity() {
         if (count == 0) content.addView(label(tr(R.string.no_sessions), 15f, false, muted))
     }
 
+    // A quiet section heading, inspired by the approved mockup without changing timer controls.
+    private fun sectionHeading(title: String) {
+        gap(content, 12)
+        content.addView(label(title, 21f, true, ink).apply {
+            letterSpacing = -0.02f
+        })
+        gap(content, 12)
+    }
+
+    private fun selectedDayEvents(start: Long, end: Long) {
+        val events = mutableListOf<Triple<Int, String, String>>()
+        db.rawQuery(
+            "SELECT person,happened_at,type,note FROM events WHERE project_id=? AND happened_at>=? AND happened_at<? ORDER BY happened_at DESC",
+            arrayOf(projectId.toString(), start.toString(), end.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val person = cursor.getInt(0)
+                val time = clockFormat.format(Date(cursor.getLong(1)))
+                val type = cursor.getString(2)
+                val note = cursor.getString(3)
+                events.add(Triple(person, time, type + if (note.isBlank()) "" else " · " + note))
+            }
+        }
+        if (events.isEmpty()) {
+            content.addView(label("Brak wydarzeń w wybranym dniu", 14f, false, muted))
+            return
+        }
+        events.forEach { (person, time, description) ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = shape(surface, 16)
+            }
+            row.addView(label("⚑", 22f, true, personColor(person)),
+                LinearLayout.LayoutParams(dp(34), -2))
+            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            details.addView(label(description, 15f, true))
+            gap(details, 3)
+            details.addView(label(time + "  ·  " + personName(person), 13f, false, muted))
+            row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+            content.addView(row, LinearLayout.LayoutParams(-1, -2))
+            gap(content, 8)
+        }
+    }
+
     private fun renderTimers() {
         datePickerRow()
         val start = dayStart(dayOffset)
         val end = dayStart(dayOffset + 1)
         val now = System.currentTimeMillis()
+        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants")
         if (!isArchived()) content.addView(action(tr(R.string.add_person), subtle, secondaryButtonText) { addParticipant() })
         gap(content, 12)
         if (participants().isEmpty()) {
@@ -1167,9 +1214,10 @@ class MainActivity : Activity() {
             gap(content, 12)
         }
         participants().forEach { timerCard(it, start, end, now) }
-        content.addView(label(tr(R.string.selected_day_sessions), 21f, true))
-        gap(content, 12)
+        sectionHeading(tr(R.string.selected_day_sessions))
         sessionList(start, end, 8)
+        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Wydarzenia" else "Events")
+        selectedDayEvents(start, end)
         gap(content, 8)
         content.addView(action(tr(R.string.full_history), subtle, secondaryButtonText) {
             tab = 2
