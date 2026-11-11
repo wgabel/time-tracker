@@ -38,10 +38,10 @@ jobs:
       - name: Build signed release APK
         run: gradle :app:assembleRelease --no-daemon
       - name: Rename APK for download
-        run: cp app/build/outputs/apk/release/app-release.apk Liczniki.apk
+        run: cp app/build/outputs/apk/release/app-release.apk timetrkr-release.apk
       - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: APK
-          path: Liczniki.apk
+          name: timetrkr-release
+          path: timetrkr-release.apk
           if-no-files-found: error
