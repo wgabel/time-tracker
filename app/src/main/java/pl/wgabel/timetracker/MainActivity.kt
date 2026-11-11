@@ -622,7 +622,37 @@ class MainActivity : Activity() {
         } else {
             val end = dayStart(timelineOffset + 1)
             val sessions = intervals(day, end)
+            val detailSessions = mutableListOf<Triple<Long, Int, Pair<Long, Long>>>()
+            db.rawQuery("SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)",
+                arrayOf(projectId.toString(), end.toString(), day.toString())).use { cur ->
+                while (cur.moveToNext()) {
+                    detailSessions.add(Triple(cur.getLong(0), cur.getInt(1),
+                        maxOf(day, cur.getLong(2)) to minOf(end, if (cur.isNull(3)) System.currentTimeMillis() else cur.getLong(3))))
+                }
+            }
             val timeline = object : View(this) {
+                override fun onTouchEvent(event: MotionEvent): Boolean {
+                    if (event.action != MotionEvent.ACTION_UP) return true
+                    val row = ((event.y - dp(7)) / dp(32)).toInt()
+                    if (row !in people.indices) return true
+                    val left = dp(80).toFloat()
+                    val widthScale = (width.toFloat() - dp(5) - left).coerceAtLeast(1f)
+                    val fraction = ((event.x - left) / widthScale).coerceIn(0f, 1f)
+                    val moment = day + ((end - day) * fraction).toLong()
+                    val person = people[row]
+                    val chosen = detailSessions.lastOrNull { it.second == person && moment >= it.third.first && moment <= it.third.second }
+                    if (chosen != null) {
+                        db.rawQuery("SELECT started_at,ended_at FROM sessions WHERE id=?", arrayOf(chosen.first.toString())).use { cur ->
+                            if (cur.moveToFirst()) {
+                                val started = cur.getLong(0)
+                                val ended = if (cur.isNull(1)) null else cur.getLong(1)
+                                if (ended != null) editSession(chosen.first, person, started, ended)
+                                else Toast.makeText(this@MainActivity, "Zatrzymaj licznik przed edycją.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    return true
+                }
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
