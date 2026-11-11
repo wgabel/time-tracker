@@ -17,6 +17,12 @@ class TimerNotificationService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        val code = getSharedPreferences("preferences", MODE_PRIVATE).getString("app_language", "") ?: ""
+        if (code.isNotEmpty()) {
+            val config = android.content.res.Configuration(resources.configuration)
+            config.setLocale(Locale(code))
+            resources.updateConfiguration(config, resources.displayMetrics)
+        }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(channelId, getString(R.string.notification_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = getString(R.string.notification_channel_description)
