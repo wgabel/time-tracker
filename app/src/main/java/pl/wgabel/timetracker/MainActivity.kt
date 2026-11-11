@@ -70,9 +70,9 @@ class MainActivity : Activity() {
     private val ink get() = if (darkTheme) Color.rgb(238, 241, 248) else Color.rgb(26, 34, 43)
     private val muted get() = if (darkTheme) Color.rgb(171, 181, 196) else Color.rgb(99, 109, 120)
     private val surface get() = if (darkTheme) Color.rgb(35, 42, 54) else Color.WHITE
-    private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(242, 244, 247)
+    private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(246, 247, 251)
     private val subtle get() = if (darkTheme) Color.rgb(52, 62, 79) else Color.rgb(226, 235, 252)
-    private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else Color.rgb(229, 233, 239)
+    private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else Color.rgb(235, 238, 244)
     private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else Color.rgb(245, 229, 209)
     private val secondaryButtonText get() = if (darkTheme) ink else blue
     private val dateFormat get() = SimpleDateFormat("dd MMM yyyy", resources.configuration.locales[0])
@@ -114,8 +114,9 @@ class MainActivity : Activity() {
             textSize = 25f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setBackgroundColor(if (darkTheme) Color.rgb(13, 17, 25) else Color.rgb(25, 34, 44))
-            setPadding(dp(20), dp(18), dp(20), dp(18))
+            setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else Color.rgb(37, 49, 72))
+            letterSpacing = -0.02f
+            setPadding(dp(22), dp(17), dp(22), dp(17))
         }
         outer.addView(heading)
         val scroll = ScrollView(this).apply { isFillViewport = true }
@@ -128,6 +129,8 @@ class MainActivity : Activity() {
         navigation = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(surface)
+            setPadding(dp(8), dp(5), dp(8), dp(7))
+            elevation = dp(7).toFloat()
         }
         outer.addView(navigation)
         setContentView(outer)
@@ -210,8 +213,8 @@ class MainActivity : Activity() {
     private fun card(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(18), dp(18), dp(18), dp(18))
-        background = shape(surface, 14).apply { setStroke(dp(1), if (darkTheme) Color.rgb(66, 77, 95) else Color.rgb(220, 225, 232)) }
-        elevation = dp(2).toFloat()
+        background = shape(surface, 22).apply { setStroke(dp(1), if (darkTheme) Color.rgb(63, 73, 91) else Color.rgb(231, 234, 241)) }
+        elevation = dp(1).toFloat()
     }
 
     private fun activeCardBackground(): Drawable = object : Drawable(), android.graphics.drawable.Animatable {
@@ -292,10 +295,12 @@ class MainActivity : Activity() {
     private fun action(text: String, bg: Int, fg: Int = Color.WHITE, click: () -> Unit): Button =
         Button(this).apply {
             this.text = text
-            textSize = 16f
+            textSize = 15f
+            setTypeface(null, Typeface.BOLD)
+            minHeight = dp(48)
             isAllCaps = false
             setTextColor(fg)
-            background = shape(bg, 10)
+            background = shape(bg, 16)
             stateListAnimator = null
             elevation = 0f
             setOnClickListener { click() }
@@ -865,10 +870,14 @@ class MainActivity : Activity() {
         val c = card()
         val active = activeStart(person)
         if (active != null) markActive(c)
-        val name = label("●  " + personName(person), 20f, true, personColor(person))
+        val name = label("●  " + personName(person), 19f, true, personColor(person)).apply { letterSpacing = -0.01f }
         c.addView(name)
         gap(c, 12)
-        val totalLabel = label(duration(total(person, start, end, now)), 37f, true)
+        val totalLabel = label(duration(total(person, start, end, now)), 38f, true).apply {
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            letterSpacing = -0.035f
+            setFontFeatureSettings("tnum")
+        }
         c.addView(totalLabel)
         if (active != null) timerUpdates.add { tick ->
             totalLabel.text = duration(total(person, start, end, tick))
@@ -1745,10 +1754,15 @@ class MainActivity : Activity() {
         listOf("◷\n" + tr(R.string.timers), "▥\n" + tr(R.string.statistics), "☷\n" + tr(R.string.history), "⚙\n" + tr(R.string.settings)).forEachIndexed { index, name ->
             val item = label(name, 12f, tab == index, if (tab == index) blue else muted).apply {
                 gravity = Gravity.CENTER
-                setPadding(dp(2), dp(10), dp(2), dp(10))
+                setPadding(dp(2), dp(8), dp(2), dp(8))
+                background = if (tab == index) shape(subtle, 16) else shape(Color.TRANSPARENT, 16)
+                contentDescription = name.replace("\n", " ")
                 setOnClickListener { tab = index; render() }
             }
-            navigation.addView(item, LinearLayout.LayoutParams(0, dp(66), 1f))
+            navigation.addView(item, LinearLayout.LayoutParams(0, dp(58), 1f).apply {
+                leftMargin = dp(3)
+                rightMargin = dp(3)
+            })
         }
     }
 
