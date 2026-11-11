@@ -56,7 +56,7 @@ class MainActivity : Activity() {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(background)
+            setBackgroundColor(this@MainActivity.background)
         }
         val heading = TextView(this).apply {
             text = "◷  Dwa Liczniki"
@@ -67,7 +67,7 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(18), dp(20), dp(18))
         }
         outer.addView(heading)
-        val scroll = ScrollView(this).apply { fillViewport = true }
+        val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(20))
