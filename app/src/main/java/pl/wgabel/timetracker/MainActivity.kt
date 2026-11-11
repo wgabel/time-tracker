@@ -57,6 +57,7 @@ class MainActivity : Activity() {
     private var historyPerson = 0
     private var projectId: Long? = null
     private var showArchived = false
+    private var showAppSettings = false
     private val blue = Color.rgb(34, 112, 237)
     private val green = Color.rgb(48, 158, 80)
     private val ink = Color.rgb(26, 34, 43)
@@ -477,6 +478,26 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    private fun renderAppSettings() {
+        val back = label("←  " + tr(R.string.back_projects).removePrefix("← "), 16f, true, blue).apply {
+            setPadding(0, dp(8), 0, dp(16))
+            setOnClickListener { showAppSettings = false; render() }
+        }
+        content.addView(back)
+        content.addView(label(tr(R.string.settings), 24f, true))
+        gap(content, 16)
+        val app = card()
+        app.addView(label(tr(R.string.application), 19f, true))
+        gap(app, 12)
+        app.addView(action("🌐  " + tr(R.string.language), Color.rgb(226, 235, 252), blue) { selectLanguage() })
+        gap(app, 12)
+        val version = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "—" } catch (_: Exception) { "—" }
+        app.addView(label(tr(R.string.version) + version, 14f, false, muted))
+        gap(app, 12)
+        app.addView(label(tr(R.string.local_data), 13f, false, muted))
+        addCard(app)
+    }
+
     private fun renderProjects() {
         content.addView(label(if (showArchived) tr(R.string.archived_projects) else tr(R.string.projects), 24f, true))
         gap(content, 14)
@@ -535,6 +556,12 @@ class MainActivity : Activity() {
             gap(content, 16)
             content.addView(action(tr(R.string.archived_link), Color.rgb(245, 229, 209), Color.rgb(133, 76, 27)) {
                 showArchived = true; render()
+            })
+            gap(content, 18)
+            content.addView(label("⚙  " + tr(R.string.settings), 14f, false, muted).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(12), dp(14), dp(12), dp(14))
+                setOnClickListener { showAppSettings = true; render() }
             })
         }
     }
@@ -1346,7 +1373,6 @@ class MainActivity : Activity() {
             info.addView(label(tr(R.string.locked_data), 14f, false, muted))
             addCard(info)
             content.addView(action(tr(R.string.export_csv), Color.rgb(245, 229, 209), ink) { exportCsv() })
-            content.addView(action("🌐  " + tr(R.string.language), Color.rgb(245, 229, 209), ink) { selectLanguage() })
             return
         }
         content.addView(label(tr(R.string.settings), 24f, true))
@@ -1404,23 +1430,14 @@ class MainActivity : Activity() {
         data.addView(action(tr(R.string.archive_project), Color.rgb(245, 229, 209), Color.rgb(143, 80, 28)) { archiveProject() })
         addCard(data)
 
-        val app = card()
-        app.addView(label(tr(R.string.application), 19f, true))
-        gap(app, 10)
-        app.addView(action("🌐  " + tr(R.string.language), Color.rgb(226, 235, 252), blue) { selectLanguage() })
-        gap(app, 8)
-        val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "—" }
-        app.addView(label("Wersja: $version", 14f, false, muted))
-        gap(app, 8)
-        app.addView(label(tr(R.string.local_data), 13f, false, muted))
-        addCard(app)
+
     }
 
     private fun renderContent() {
         content.removeAllViews()
         if (projectId == null) {
             content.setBackgroundColor(background)
-            renderProjects()
+            if (showAppSettings) renderAppSettings() else renderProjects()
             return
         }
         val archived = isArchived()
