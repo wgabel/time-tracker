@@ -1,55 +1,101 @@
-# AGENTS.md — Time Tracker
+# AGENTS.md — timetrkr (time-tracker)
 
-## Project purpose
-Native Android app for tracking time spent on one activity by two people on **one phone**, offline. Each person has an independent START/STOP button. Every session records its start and end timestamps, and the UI shows daily totals and session history. Data should remain available across the year and beyond.
+## Mission and product
+Native, offline-first Android app for recording how long different caregivers spend caring for a child (also usable for other activities). The user works mainly from an Android phone and expects agents to **implement requested changes directly in this GitHub repository**, not merely describe how to do them. Communicate with the user in Polish. Prioritize factual accuracy, preservation of data, minimal friction, and working builds over speculative improvements.
 
-## Current repository state
-- Kotlin Android project, module `app`, package/application ID `pl.wgabel.timetracker`.
-- Currently a minimal native Android Activity using programmatic views (not Jetpack Compose yet).
-- Local SQLite database via `SQLiteOpenHelper` in `MainActivity.kt` (not Room yet).
-- Database: `sessions.db`, table `sessions(id, person, started_at, ended_at)`; timestamps are Unix epoch **milliseconds**; `ended_at = NULL` denotes an active session.
-- Partial unique index prevents more than one active session per person.
-- UI shows two independent toggles, live elapsed time, today's totals and sessions.
-- `.github/workflows/android.yml` builds a debug APK with Gradle and uploads it as a workflow artifact.
-- The first GitHub Actions build has **not been verified**. Do not claim the APK builds or works until CI proves it.
+Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetrkr**; package/application ID: `pl.wgabel.timetracker`.
 
-## Product requirements and invariants
-1. Exactly two independently operable people for the MVP; both timers may run simultaneously.
-2. START creates a persisted session immediately; STOP closes that same session. Never create overlapping active sessions for the same person.
-3. Keep the complete event/session history; never replace it with daily aggregates only.
-4. Derive daily, monthly and annual totals from sessions. Sessions spanning midnight must contribute the correct duration to each local calendar day.
-5. Timers must remain logically active while the screen is off or the app process is killed; calculate elapsed time from persisted timestamps rather than relying on periodic ticks.
-6. Never silently discard or reset sessions on app updates, crashes or database migrations.
-7. UI must remain simple: one button per person, clear active state, daily total and accessible history.
-8. Work offline without accounts, backend or cloud synchronization.
-9. Prioritize correct timing, persistence and data integrity over visual polish.
+## Actual implementation (inspect code; this document is a guide, not a substitute)
+- Android app in Kotlin, programmatic native Views (not XML screen layouts, Compose, or React).
+- Primary Activity and most business logic: `app/src/main/java/pl/wgabel/timetracker/MainActivity.kt`.
+- Persistent foreground timer notification: `app/src/main/java/pl/wgabel/timetracker/TimerNotificationService.kt`; notification layout in `app/src/main/res/layout/notification_timer.xml`.
+- SQLite via `SQLiteOpenHelper` in `MainActivity.onCreate`, database file `sessions.db`, **schema version 5** as of 2026-11-11.
+- SharedPreferences `preferences` store UI choices including theme and language.
+- Android resource strings in `app/src/main/res/values/strings.xml` and `values-pl/strings.xml`. Existing code also contains hard-coded Polish labels, especially for the new EVENT feature; localize these before expanding language support.
+- Gradle Kotlin DSL: `app/build.gradle.kts`, root `build.gradle.kts`, `settings.gradle.kts`. As currently configured: compileSdk/targetSdk 35, minSdk 26, Java/Kotlin JVM target 17, versionName 0.3.
+- GitHub Actions: `.github/workflows/android.yml`. Push to main or workflow_dispatch builds **signed release** APK with Java 17, Gradle 8.9 and Android SDK 35. Artifact `timetrkr-release` contains `timetrkr-release.apk`. Secrets: `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`; keystore alias `time-tracker`. VersionCode uses `1000 + GITHUB_RUN_NUMBER` in CI.
+- Check latest workflow run and its logs after committing code. A successful commit is not proof of a successful build. The EVENT implementation commit `93f4e1d` had a successful GitHub Actions build; device behavior is not thereby proven.
 
-## Planned improvements (not yet implemented)
-- Calendar/day navigation, monthly/yearly summaries and comparison views.
-- Rename people and optionally name the tracked activity.
-- Manual correction of mistaken sessions with clear validation.
-- CSV export and reliable backup/restore.
-- Consider migration to Room, ViewModel and Jetpack Compose only with a tested database migration and preserved data.
-- Proper release signing and update strategy. Debug APKs signed by different build environments may not install as updates; **do not tell users to uninstall** without explaining data-loss risks.
+## Existing product behavior
+- Projects: create, rename, archive, and choose a generated project icon. A project has multiple participants (not limited to two). Archived projects are viewable with restrictions on edits.
+- Participants: add, rename and remove subject to code's safeguards; each has a stable numeric database ID.
+- Timers tab: independent START/STOP for each participant; multiple people may be active simultaneously. Displays selected day's total, live running duration, and recent sessions. Navigation across calendar days.
+- Statistics tab: period navigation and visualizations including bar chart, participant comparison/pie, and timeline. Consult code for exact periods and aggregation.
+- History tab: day navigation, participant filtering, timeline, session list, manual session creation, session editing/deletion (when permitted).
+- Settings: theme (light/dark), language, CSV export, project/participant controls. Inspect `renderSettings` and `renderAppSettings` for exact behavior.
+- Active cards use an animated green-tinted gradient and floating squares. Drawable implements `Animatable`; animation must not restart every second.
+- Each participant's avatar initials, timer START button, chart/timeline markings use the same `personColor(person)` palette derived from participant ID, not participant list order. STOP is red. Palette is defined once in `MainActivity.kt`.
+- Events (introduced 2026-11-11): while a timer is active, EVENT beside STOP captures timestamp **immediately**, then opens an editor for type and note. Types currently hardcoded: `Lek`, `Posiłek`, `Sen`, `Spacer`, `Inne`. Medication type requires a nonempty free-text note (intended for name, concentration and administered dose). Events display beneath sessions in Timers and History; History allows editing type/note and deletion with confirmation. Events are **not** included in timing statistics/charts. Event editing currently does **not** change timestamp; adding events outside active sessions is not implemented. Do not claim otherwise.
 
-## Implementation guidance
-- Work primarily in `app/src/main/java/pl/wgabel/timetracker/MainActivity.kt` until refactoring is justified.
-- Use epoch milliseconds for persisted instants and the device's local time zone for daily grouping. Handle daylight-saving changes correctly by using calendar-day boundaries, not fixed 24-hour offsets.
-- Keep database writes transactional. Validate `ended_at >= started_at`.
-- Use parameterized SQL for values.
-- Keep UI responsive; as the app grows, move DB work off the main thread.
-- Avoid destructive schema migrations. Preserve the existing `sessions` data and index.
-- Avoid unnecessary permissions, analytics, tracking SDKs and network access.
-- Add tests for simultaneous timers, repeated taps, process recreation, midnight crossing, DST boundaries and session aggregation.
-- Before changing Gradle or dependencies, check compatibility with the Android Gradle Plugin, Kotlin, JDK and CI runner.
-- Keep GitHub Actions building an installable APK and publishing a downloadable artifact.
+## Database schema (v5)
+```sql
+CREATE TABLE projects (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ name TEXT NOT NULL,
+ archived INTEGER NOT NULL DEFAULT 0,
+ icon_variant INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE participants (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ project_id INTEGER NOT NULL,
+ name TEXT NOT NULL
+);
+CREATE TABLE sessions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ project_id INTEGER NOT NULL,
+ person INTEGER NOT NULL,
+ started_at INTEGER NOT NULL,
+ ended_at INTEGER
+);
+CREATE UNIQUE INDEX one_active_per_person ON sessions(person)
+ WHERE ended_at IS NULL;
+CREATE TABLE events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ project_id INTEGER NOT NULL,
+ session_id INTEGER NOT NULL,
+ person INTEGER NOT NULL,
+ happened_at INTEGER NOT NULL,
+ type TEXT NOT NULL,
+ note TEXT NOT NULL
+);
+```
+All timestamps are Unix epoch **milliseconds**. `ended_at IS NULL` means active. `person` is a participant ID. Current schema does not declare foreign keys or ON DELETE CASCADE. **Review event referential integrity** when deleting sessions, participants, or projects: the initial EVENT implementation does not automatically remove/reattach dependent events. Avoid orphaned data and accidental loss. If extending to standalone events, make `session_id` nullable via a safe migration; it is currently NOT NULL.
 
-## Agent workflow
-1. Read this file and inspect the current code before editing.
-2. Make the smallest coherent change that fulfills the request.
-3. Build/test where tools permit; clearly report what was and wasn't verified.
-4. Document behavior changes and any migration or signing implications.
-5. Never fabricate successful CI results, APKs or completed tests.
+Database upgrades are incremental in `onUpgrade` (legacy versions 1–4 to v5). Never drop/recreate existing tables to add a feature. Existing installations and their data must survive updates. Preserve uniqueness constraint and project isolation. Parameterize SQL values; validate start/end times and session associations.
 
-## Development environment
-The owner currently works from an Android phone, without a computer. Prefer workflows that can be executed from GitHub on mobile, with GitHub Actions building the APK. Avoid requiring Android Studio for routine updates.
+## Timing and rendering invariants
+1. START persists a session; STOP persists `ended_at`. Never allow two active sessions for the same participant. Simultaneous sessions for different participants are supported.
+2. Timers derive elapsed time from persisted epoch timestamps, not from counting Handler ticks. Timers must remain accurate after app backgrounding, process death, and screen-off.
+3. Local calendar boundaries matter. Use `Calendar`/time-zone-aware boundaries for midnight and DST, not a fixed 86,400,000 ms day.
+4. `MainActivity` has a one-second Handler tick. It updates existing text labels via `timerUpdates` callbacks, rather than rebuilding the whole view every second. `renderContent()` clears/recreates views for actual state/navigation changes. **Do not reintroduce a once-per-second `renderContent()` call**: that restarts animated active-card backgrounds and causes visible jitter.
+5. `activeCardBackground()` uses an animated Drawable; `Drawable.setCallback` is final and MUST NOT be overridden. Its `Animatable` lifecycle is coordinated with view attachment/detachment.
+6. Maintain participant color consistency via `personColor(person)` in avatar, timers, charts and timeline; do not revert to alternating blue/green by position.
+7. Never silently reset or delete existing sessions/events, even when changing visual UI or database schema.
+
+## Events: design and safety considerations
+- Events are point-in-time annotations attached to a specific care session and participant. Adding an event must not pause, stop, reset, split, or otherwise alter the running timer.
+- Capture `happened_at` at the button press, **before** the user types details.
+- Medication logging is a record of **what was actually administered**, not a dosing calculator, clinical recommendation, or automatic confirmation that administration was safe. Avoid implying that any dose or interval is medically approved.
+- The current medication description is unstructured free text. Future structured medication fields, history checks, duplicate-dose warnings and multi-device synchronization require explicit design, schema migrations, and tests.
+- The app is currently local-only, single-device, without accounts or synchronization. Do not imply one caregiver's phone automatically receives another's entries.
+- Current limitations to consider when relevant: no standalone event creation; no manual event timestamp adjustment; no event export verified; no automatic orphan cleanup; event editor labels are hard-coded Polish. Treat these as limitations, not completed features.
+
+## CSV export and backup
+`exportCsv()` exists; inspect its SQL and output columns before changing it. **Do not assume EVENT entries are exported**: they were added after the export implementation. CSV export is not equivalent to a complete database backup. Be cautious with reinstall/uninstall and signing key changes: uninstalling may erase the local SQLite database. Never advise uninstalling as a casual fix.
+
+## Agent execution workflow
+1. Read `AGENTS.md`, `MainActivity.kt`, relevant service/resources, Gradle config and workflow **at the current main HEAD** before editing. Check existing implementation and don't assume old summaries are current.
+2. Identify the user-facing behavior, invariants, data migration and edge cases. Prefer the smallest coherent change; avoid broad refactors unless justified.
+3. Edit the connected GitHub repository directly when asked to implement a change. Use the exact current file blob SHA for update; avoid concurrent writes to the same file. Write clear commit messages.
+4. Check Kotlin compilation and GitHub Actions run associated with **your commit**, not an older successful run. Inspect failed job logs and fix compiler errors. If a run is queued, state that verification is pending; never invent successful tests.
+5. For DB changes, verify both fresh install and upgrade paths; consider existing active sessions, archived projects, and older databases. Add tests when possible (timer concurrency, rapid taps, midnight/DST, aggregation, events and migration).
+6. Preserve UI consistency, themes, both supported languages, and existing notification behavior. Avoid unnecessary network permissions, analytics or SDKs.
+7. Tell the user in Polish what changed, what was not implemented, commit SHA, build status, and link to the relevant Actions run/APK when available.
+
+## Known technical debt / risks
+- `MainActivity.kt` is monolithic and performs SQLite work on the UI thread; a future refactor into repository/database/UI layers would help but must not break migrations.
+- Events may become orphaned after session deletion; inspect delete paths before making changes involving data integrity.
+- Event notes contain potentially sensitive child health information: keep offline, minimize data exposure and avoid exposing details in notifications/logs without clear intent.
+- Tests are limited; successful CI compilation is not an emulator/device functional test.
+- Android 13+ notification permission is requested; foreground service and notification implementation must be reviewed if Android target requirements change.
+- Signed APK update continuity depends on stable signing secrets/keystore. Keep versionCode monotonic.
