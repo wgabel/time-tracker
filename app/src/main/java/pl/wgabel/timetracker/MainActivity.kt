@@ -675,21 +675,23 @@ class MainActivity : Activity() {
         content.addView(label("Łącznie: ${minutes / 60} h ${minutes % 60} min (osobogodziny)", 15f, true))
     }
 
-    private fun renderTimeline() {
+    private fun renderTimeline(inHistory: Boolean = false) {
         val c = card()
         c.addView(label("Oś czasu dnia", 20f, true))
         gap(c, 8)
+        if (!inHistory) {
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         nav.addView(action("‹", Color.rgb(229, 233, 239), ink) { timelineOffset--; renderContent() },
             LinearLayout.LayoutParams(dp(50), dp(44)))
-        val day = dayStart(timelineOffset)
+        val day = dayStart(if (inHistory) dayOffset else timelineOffset)
         nav.addView(label(dateFormat.format(Date(day)), 15f, true).apply { gravity = Gravity.CENTER },
             LinearLayout.LayoutParams(0, dp(44), 1f))
         nav.addView(action("›", Color.rgb(229, 233, 239), ink) {
             if (timelineOffset < 0) { timelineOffset++; renderContent() }
         }, LinearLayout.LayoutParams(dp(50), dp(44)))
         c.addView(nav)
-        val people = participants()
+        }
+        val people = if (inHistory && historyPerson != 0) participants().filter { it == historyPerson } else participants()
         if (people.isEmpty()) {
             c.addView(label("Dodaj uczestnika, aby zobaczyć oś czasu.", 14f, false, muted))
         } else {
@@ -821,6 +823,7 @@ class MainActivity : Activity() {
         content.addView(filterScroll)
         gap(content, 12)
         datePickerRow()
+        renderTimeline(inHistory = true)
         sessionList(dayStart(dayOffset), dayStart(dayOffset + 1), 500)
     }
 
