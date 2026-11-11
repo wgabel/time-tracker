@@ -9,8 +9,9 @@ android {
         applicationId = "pl.wgabel.timetracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2"
+        // Every CI run must have a higher versionCode than the previous release.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 1000 + it } ?: 1000
+        versionName = "0.3"
     }
     val signingFile = System.getenv("ANDROID_KEYSTORE_FILE")
     val signingPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
