@@ -121,4 +121,12 @@
     <string name="csv_running">Trwa</string>
     <string name="csv_finished">Zakończony</string>
     <string name="csv_running_segment"> (trwa)</string>
+    <string name="notification_channel">Aktywne pomiary</string>
+    <string name="notification_channel_description">Informacja o czasie naliczanym w projektach</string>
+    <string name="notification_active_projects">%1$d aktywne projekty</string>
+    <string name="notification_since">%1$s    od %2$s</string>
+    <string name="notification_project_since">%1$s · %2$s    od %3$s</string>
+    <string name="notification_more">+ %1$d kolejnych</string>
+    <string name="notification_tracking">timetrkr · Trwa pomiar</string>
+    <string name="notification_active_count">%1$s · %2$d aktywne</string>
 </resources>
