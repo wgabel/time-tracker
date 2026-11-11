@@ -690,6 +690,66 @@ class MainActivity : Activity() {
         content.addView(label("Łącznie: ${minutes / 60} h ${minutes % 60} min (osobogodziny)", 15f, true))
     }
 
+    private fun renderParticipantPie(from: Long, to: Long) {
+        val c = card()
+        c.addView(label("Porównanie czasu uczestników", 20f, true))
+        gap(c, 6)
+        c.addView(label("Udział w łącznym czasie wybranego okresu", 13f, false, muted))
+        gap(c, 12)
+        val people = participants()
+        val totals = mutableMapOf<Int, Long>()
+        intervals(from, minOf(to, System.currentTimeMillis())).forEach { (person, start, end) ->
+            totals[person] = (totals[person] ?: 0L) + (end - start)
+        }
+        val entries = people.map { it to (totals[it] ?: 0L) }
+        val total = entries.sumOf { it.second }
+        if (total <= 0L) {
+            c.addView(label("Brak pomiarów w wybranym okresie.", 14f, false, muted))
+            addCard(c)
+            return
+        }
+        val pie = object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val diameter = minOf(width.toFloat() - dp(16), height.toFloat() - dp(8))
+                val x = (width - diameter) / 2f
+                val y = (height - diameter) / 2f
+                val bounds = RectF(x, y, x + diameter, y + diameter)
+                var angle = -90f
+                entries.filter { it.second > 0L }.forEach { (person, duration) ->
+                    val sweep = duration.toDouble() / total.toDouble() * 360.0
+                    paint.color = personColor(person)
+                    paint.style = Paint.Style.FILL
+                    canvas.drawArc(bounds, angle, sweep.toFloat(), true, paint)
+                    angle += sweep.toFloat()
+                }
+            }
+        }
+        c.addView(pie, LinearLayout.LayoutParams(-1, dp(205)))
+        gap(c, 10)
+        entries.forEach { (person, duration) ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(View(this).apply {
+                background = shape(personColor(person), 5)
+            }, LinearLayout.LayoutParams(dp(13), dp(13)))
+            row.addView(label("  " + personName(person), 14f, true),
+                LinearLayout.LayoutParams(0, -2, 1f))
+            val seconds = duration / 1000L
+            val timeText = if (seconds < 60L && duration > 0L) "${seconds} s"
+                else "${seconds / 3600} h ${(seconds % 3600) / 60} min"
+            val percent = duration.toDouble() * 100.0 / total.toDouble()
+            row.addView(label(String.format(Locale("pl", "PL"), "%s  ·  %.1f%%", timeText, percent),
+                13f, false, ink))
+            c.addView(row)
+            gap(c, 8)
+        }
+        addCard(c)
+    }
+
     private fun renderTimeline(inHistory: Boolean = false) {
         val c = if (inHistory) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else card()
         if (!inHistory) {
@@ -820,7 +880,11 @@ class MainActivity : Activity() {
         }
         addCard(c)
         val (from, to) = periodRange()
-        if (to > from) barChart(from, to)
+        if (to > from) {
+            barChart(from, to)
+            gap(content, 18)
+            renderParticipantPie(from, to)
+        }
         gap(content, 18)
         renderTimeline()
     }
