@@ -499,7 +499,23 @@ class MainActivity : Activity() {
     }
 
     private fun renderProjects() {
-        content.addView(label(if (showArchived) tr(R.string.archived_projects) else tr(R.string.projects), 24f, true))
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        heading.addView(label(if (showArchived) tr(R.string.archived_projects) else tr(R.string.projects), 24f, true))
+        if (!showArchived) {
+            val addButton = label("+", 27f, true, Color.WHITE).apply {
+                gravity = Gravity.CENTER
+                contentDescription = tr(R.string.add_project)
+                background = shape(blue, 12)
+                setOnClickListener { createProject() }
+            }
+            heading.addView(addButton, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+                setMargins(dp(12), 0, 0, 0)
+            })
+        }
+        content.addView(heading)
         gap(content, 14)
         val projects = mutableListOf<Pair<Long, String>>()
         db.rawQuery("SELECT id,name FROM projects WHERE archived=? ORDER BY id DESC", arrayOf(if (showArchived) "1" else "0")).use { c ->
@@ -552,8 +568,6 @@ class MainActivity : Activity() {
                 showArchived = false; render()
             })
         } else {
-            content.addView(action(tr(R.string.add_project), blue) { createProject() })
-            gap(content, 16)
             content.addView(action(tr(R.string.archived_link), Color.rgb(245, 229, 209), Color.rgb(133, 76, 27)) {
                 showArchived = true; render()
             })
