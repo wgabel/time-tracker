@@ -682,7 +682,12 @@ class MainActivity : Activity() {
             })
         }
     }
-    private fun personColor(person: Int) = if (participants().indexOf(person) % 2 == 0) blue else green
+    private val participantPalette = intArrayOf(
+        0xFF356AC3.toInt(), 0xFF21896F.toInt(), 0xFF9B59B6.toInt(),
+        0xFFD47A25.toInt(), 0xFFC34F69.toInt(), 0xFF526E83.toInt()
+    )
+    private fun personColor(person: Int): Int =
+        participantPalette[Math.floorMod(person, participantPalette.size)]
 
     private fun activeStart(person: Int): Long? {
         db.rawQuery("SELECT started_at FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1", arrayOf(projectId.toString(), person.toString())).use {
@@ -916,9 +921,7 @@ class MainActivity : Activity() {
         val name = personName(person).trim()
         val initials = name.split(Regex("\\s+")).filter { it.isNotBlank() }
             .take(2).map { it.take(1).uppercase(Locale.getDefault()) }.joinToString("")
-        val palette = intArrayOf(0xFF356AC3.toInt(), 0xFF21896F.toInt(), 0xFF9B59B6.toInt(),
-            0xFFD47A25.toInt(), 0xFFC34F69.toInt(), 0xFF526E83.toInt())
-        val color = palette[Math.floorMod(person, palette.size)]
+        val color = personColor(person)
         return TextView(this).apply {
             text = initials.ifEmpty { "?" }
             textSize = 13f
