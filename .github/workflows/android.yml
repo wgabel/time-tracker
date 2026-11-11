@@ -40,6 +40,6 @@ jobs:
       - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: time-tracker-signed-release-apk
+          name: APK
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
