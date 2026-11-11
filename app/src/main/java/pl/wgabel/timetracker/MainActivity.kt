@@ -2,6 +2,9 @@ package pl.wgabel.timetracker
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.widget.Toast
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -218,23 +221,90 @@ class MainActivity : Activity() {
         addCard(c)
     }
 
+    private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
+        if (ended == null) {
+            Toast.makeText(this, "Zatrzymaj licznik przed edycją sesji.", Toast.LENGTH_LONG).show()
+            return
+        }
+        fun chooseDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
+            val cal = Calendar.getInstance().apply { timeInMillis = initial }
+            DatePickerDialog(this, { _, year, month, day ->
+                val selected = Calendar.getInstance().apply {
+                    timeInMillis = initial
+                    set(Calendar.YEAR, year)
+                    set(Calendar.MONTH, month)
+                    set(Calendar.DAY_OF_MONTH, day)
+                }
+                TimePickerDialog(this, { _, hour, minute ->
+                    selected.set(Calendar.HOUR_OF_DAY, hour)
+                    selected.set(Calendar.MINUTE, minute)
+                    selected.set(Calendar.SECOND, 0)
+                    selected.set(Calendar.MILLISECOND, 0)
+                    onChosen(selected.timeInMillis)
+                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), true)
+                    .apply { setTitle(title) }.show()
+            }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+                .apply { setTitle(title) }.show()
+        }
+        val format = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("pl", "PL"))
+        AlertDialog.Builder(this)
+            .setTitle("Edytuj sesję: " + personName(person))
+            .setMessage("Od: " + format.format(Date(started)) + "\nDo: " + format.format(Date(ended)) +
+                "\n\nWybierz nowe daty i godziny rozpoczęcia oraz zakończenia.")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Edytuj") { _, _ ->
+                chooseDateTime(started, "Nowy początek") { newStart ->
+                    chooseDateTime(ended, "Nowy koniec") { newEnd ->
+                        if (newEnd <= newStart) {
+                            Toast.makeText(this, "Koniec musi być później niż początek.", Toast.LENGTH_LONG).show()
+                        } else if (newEnd > System.currentTimeMillis()) {
+                            Toast.makeText(this, "Koniec nie może być w przyszłości.", Toast.LENGTH_LONG).show()
+                        } else {
+                            val values = android.content.ContentValues().apply {
+                                put("started_at", newStart)
+                                put("ended_at", newEnd)
+                            }
+                            val updated = db.update("sessions", values, "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
+                            if (updated == 1) {
+                                Toast.makeText(this, "Sesja zaktualizowana.", Toast.LENGTH_SHORT).show()
+                                renderContent()
+                            } else {
+                                Toast.makeText(this, "Nie udało się zaktualizować sesji.", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+            }.show()
+    }
+
     private fun sessionList(start: Long, end: Long, limit: Int = 100) {
         var count = 0
         db.rawQuery(
-            "SELECT person,started_at,ended_at FROM sessions WHERE started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at DESC LIMIT $limit",
+            "SELECT id,person,started_at,ended_at FROM sessions WHERE started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at DESC LIMIT $limit",
             arrayOf(end.toString(), start.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                val person = cursor.getInt(0)
-                val from = maxOf(start, cursor.getLong(1))
-                val until = minOf(end, if (cursor.isNull(2)) System.currentTimeMillis() else cursor.getLong(2))
+                val id = cursor.getLong(0)
+                val person = cursor.getInt(1)
+                val originalStart = cursor.getLong(2)
+                val originalEnd = if (cursor.isNull(3)) null else cursor.getLong(3)
+                val from = maxOf(start, originalStart)
+                val until = minOf(end, originalEnd ?: System.currentTimeMillis())
                 val row = card()
                 row.addView(label("●  " + personName(person), 15f, true, personColor(person)))
                 gap(row, 6)
-                val running = if (cursor.isNull(2)) "  • trwa" else ""
+                row.addView(label("Data: " + dateFormat.format(Date(originalStart)), 14f, true, muted))
+                gap(row, 6)
+                val running = if (originalEnd == null) "  • trwa" else ""
                 row.addView(label(clockFormat.format(Date(from)) + " – " + clockFormat.format(Date(until)) + running, 14f, false, muted))
                 gap(row, 5)
                 row.addView(label(duration(until - from), 19f, true))
+                if (tab == 2 && originalEnd != null) {
+                    gap(row, 10)
+                    row.addView(action("Edytuj wpis", Color.rgb(226, 235, 252), blue) {
+                        editSession(id, person, originalStart, originalEnd)
+                    })
+                }
                 addCard(row)
                 count++
             }
