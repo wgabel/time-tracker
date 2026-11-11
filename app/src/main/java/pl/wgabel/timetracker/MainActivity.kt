@@ -63,7 +63,7 @@ class MainActivity : Activity() {
     private val muted = Color.rgb(99, 109, 120)
     private val surface = Color.WHITE
     private val background = Color.rgb(242, 244, 247)
-    private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("pl", "PL"))
+    private val dateFormat get() = SimpleDateFormat("dd MMM yyyy", resources.configuration.locales[0])
     private val clockFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,6 +136,29 @@ class MainActivity : Activity() {
     private fun shape(color: Int, radius: Int = 18): GradientDrawable =
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
+    private fun tr(id: Int): String = getString(id)
+
+    private fun selectLanguage() {
+        val choices = arrayOf(tr(R.string.system_language), tr(R.string.polish), tr(R.string.english))
+        val codes = arrayOf("", "pl", "en")
+        val selected = codes.indexOf(prefs.getString("app_language", "") ?: "").coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle(tr(R.string.language))
+            .setSingleChoiceItems(choices, selected) { dialog, which ->
+                prefs.edit().putString("app_language", codes[which]).apply()
+                dialog.dismiss()
+                recreate()
+            }.setNegativeButton(tr(R.string.cancel), null).show()
+    }
+
+    private fun applyLanguage() {
+        val code = prefs.getString("app_language", "") ?: ""
+        val locale = if (code.isEmpty()) resources.configuration.locales[0] else Locale(code)
+        Locale.setDefault(locale)
+        val config = android.content.res.Configuration(resources.configuration)
+        config.setLocale(locale)
+        resources.updateConfiguration(config, resources.displayMetrics)
+    }
+
     private fun label(value: String, size: Float = 16f, bold: Boolean = false, color: Int = ink): TextView =
         TextView(this).apply {
             text = value
@@ -191,10 +214,10 @@ class MainActivity : Activity() {
         }
     }
     private fun createProject() {
-        val input = EditText(this).apply { hint = "Nazwa projektu"; setSingleLine(true) }
+        val input = EditText(this).apply { hint = tr(R.string.project_name_hint); setSingleLine(true) }
         val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
-        val dialog = AlertDialog.Builder(this).setTitle("Nowy projekt").setView(holder)
-            .setNegativeButton("Anuluj", null).setPositiveButton("Dodaj", null).create()
+        val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_project)).setView(holder)
+            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton("Dodaj", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = input.text.toString().trim()
@@ -206,10 +229,10 @@ class MainActivity : Activity() {
         dialog.show()
     }
     private fun addParticipant() {
-        val input = EditText(this).apply { hint = "Imię lub nazwa uczestnika"; setSingleLine(true) }
+        val input = EditText(this).apply { hint = tr(R.string.participant_hint); setSingleLine(true) }
         val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
-        val dialog = AlertDialog.Builder(this).setTitle("Dodaj uczestnika").setView(holder)
-            .setNegativeButton("Anuluj", null).setPositiveButton("Dodaj", null).create()
+        val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_participant)).setView(holder)
+            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton("Dodaj", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = input.text.toString().trim()
@@ -361,15 +384,15 @@ class MainActivity : Activity() {
             if (it.moveToFirst()) it.getInt(0) else 0
         }
         if (count > 0) {
-            AlertDialog.Builder(this).setTitle("Aktywne liczniki")
-                .setMessage("Zatrzymaj wszystkie liczniki w projekcie przed archiwizacją.")
+            AlertDialog.Builder(this).setTitle(tr(R.string.active_timers))
+                .setMessage(tr(R.string.stop_before_archive))
                 .setPositiveButton("OK", null).show()
             return
         }
-        AlertDialog.Builder(this).setTitle("Archiwizować projekt?")
-            .setMessage("Projekt zostanie przeniesiony do archiwum. Zachowasz pomiary i statystyki, ale nie będzie można zmieniać jego danych.")
-            .setNegativeButton("Anuluj", null)
-            .setPositiveButton("Archiwizuj") { _, _ ->
+        AlertDialog.Builder(this).setTitle(tr(R.string.archive_confirm))
+            .setMessage(tr(R.string.archive_description))
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(tr(R.string.archive_verb)) { _, _ ->
                 db.execSQL("UPDATE projects SET archived=1 WHERE id=? AND archived=0", arrayOf(projectId))
                 projectId = null
                 showArchived = false
@@ -378,14 +401,14 @@ class MainActivity : Activity() {
     }
 
     private fun renderProjects() {
-        content.addView(label(if (showArchived) "Projekty archiwalne" else "Projekty", 24f, true))
+        content.addView(label(if (showArchived) tr(R.string.archived_projects) else tr(R.string.projects), 24f, true))
         gap(content, 14)
         val projects = mutableListOf<Pair<Long, String>>()
         db.rawQuery("SELECT id,name FROM projects WHERE archived=? ORDER BY id DESC", arrayOf(if (showArchived) "1" else "0")).use { c ->
             while (c.moveToNext()) projects.add(c.getLong(0) to c.getString(1))
         }
         if (projects.isEmpty()) {
-            content.addView(label("Nie masz jeszcze żadnego projektu.", 16f, false, muted))
+            content.addView(label(tr(R.string.no_projects), 16f, false, muted))
             gap(content, 18)
         }
         projects.forEach { (id, name) ->
@@ -395,20 +418,20 @@ class MainActivity : Activity() {
             line.addView(label(name, 19f, true).apply { setPadding(dp(12), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             line.addView(label("›", 23f, false, muted))
             item.addView(line)
-            if (showArchived) item.addView(label("ARCHIWALNE", 11f, true, Color.rgb(166, 99, 34)))
+            if (showArchived) item.addView(label(tr(R.string.archived), 11f, true, Color.rgb(166, 99, 34)))
             item.setOnClickListener {
                 projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; render()
             }
             addCard(item)
         }
         if (showArchived) {
-            content.addView(action("← Wróć do projektów", Color.rgb(245, 229, 209), ink) {
+            content.addView(action(tr(R.string.back_projects), Color.rgb(245, 229, 209), ink) {
                 showArchived = false; render()
             })
         } else {
-            content.addView(action("+ Dodaj projekt", blue) { createProject() })
+            content.addView(action(tr(R.string.add_project), blue) { createProject() })
             gap(content, 16)
-            content.addView(action("Projekty archiwalne  ›", Color.rgb(245, 229, 209), Color.rgb(133, 76, 27)) {
+            content.addView(action(tr(R.string.archived_link), Color.rgb(245, 229, 209), Color.rgb(133, 76, 27)) {
                 showArchived = true; render()
             })
         }
@@ -499,7 +522,7 @@ class MainActivity : Activity() {
         gap(c, 12)
         c.addView(label(duration(total(person, start, end, now)), 37f, true))
         gap(c, 5)
-        c.addView(label("Suma wybranego dnia", 14f, false, muted))
+        c.addView(label(tr(R.string.selected_day_total), 14f, false, muted))
         if (dayOffset == 0 && !isArchived()) {
             gap(c, 14)
             c.addView(label(if (active == null) "Licznik zatrzymany" else "Trwa: " + duration(now - active), 16f, false, muted))
@@ -535,7 +558,7 @@ class MainActivity : Activity() {
         val ids = participants()
         if (ids.isEmpty()) { addParticipant(); return }
         val people = ids.map { personName(it) }.toTypedArray()
-        AlertDialog.Builder(this).setTitle("Wybierz osobę")
+        AlertDialog.Builder(this).setTitle(tr(R.string.select_person))
             .setItems(people) { _, which ->
                 val person = ids[which]
                 val now = System.currentTimeMillis()
@@ -560,15 +583,15 @@ class MainActivity : Activity() {
                         }
                     }
                 }
-            }.setNegativeButton("Anuluj", null).show()
+            }.setNegativeButton(tr(R.string.cancel), null).show()
     }
 
     private fun deleteSession(id: Long) {
         AlertDialog.Builder(this)
             .setTitle("Usunąć pomiar?")
             .setMessage("Usunięcie wpisu jest nieodwracalne. Zmieni również statystyki.")
-            .setNegativeButton("Anuluj", null)
-            .setPositiveButton("Usuń") { _, _ ->
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(tr(R.string.delete)) { _, _ ->
                 val deleted = db.delete("sessions", "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
                 if (deleted > 0) {
                     renderContent()
@@ -608,7 +631,7 @@ class MainActivity : Activity() {
             .setTitle("Edytuj sesję: " + personName(person))
             .setMessage("Od: " + format.format(Date(started)) + "\nDo: " + format.format(Date(ended)) +
                 "\n\nWybierz nowe daty i godziny rozpoczęcia oraz zakończenia.")
-            .setNegativeButton("Anuluj", null)
+            .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton("Edytuj") { _, _ ->
                 chooseDateTime(started, "Nowy początek") { newStart ->
                     chooseDateTime(ended, "Nowy koniec") { newEnd ->
@@ -748,7 +771,7 @@ class MainActivity : Activity() {
                 count++
             }
         }
-        if (count == 0) content.addView(label("Brak sesji w wybranym dniu.", 15f, false, muted))
+        if (count == 0) content.addView(label(tr(R.string.no_sessions), 15f, false, muted))
     }
 
     private fun renderTimers() {
@@ -756,18 +779,18 @@ class MainActivity : Activity() {
         val start = dayStart(dayOffset)
         val end = dayStart(dayOffset + 1)
         val now = System.currentTimeMillis()
-        if (!isArchived()) content.addView(action("+ Dodaj osobę", Color.rgb(226, 235, 252), blue) { addParticipant() })
+        if (!isArchived()) content.addView(action(tr(R.string.add_person), Color.rgb(226, 235, 252), blue) { addParticipant() })
         gap(content, 12)
         if (participants().isEmpty()) {
-            content.addView(label("Dodaj pierwszą osobę, aby rozpocząć pomiary.", 16f, false, muted))
+            content.addView(label(tr(R.string.first_person), 16f, false, muted))
             gap(content, 12)
         }
         participants().forEach { timerCard(it, start, end, now) }
-        content.addView(label("Sesje z wybranego dnia", 21f, true))
+        content.addView(label(tr(R.string.selected_day_sessions), 21f, true))
         gap(content, 12)
         sessionList(start, end, 8)
         gap(content, 8)
-        content.addView(action("Zobacz pełną historię", Color.rgb(226, 235, 252), blue) {
+        content.addView(action(tr(R.string.full_history), Color.rgb(226, 235, 252), blue) {
             tab = 2
             render()
         })
@@ -848,7 +871,7 @@ class MainActivity : Activity() {
             }
         }
         if (points.isEmpty()) {
-            content.addView(label("Brak pomiarów w tym okresie.", 14f, false, muted))
+            content.addView(label(tr(R.string.no_measurements), 14f, false, muted))
             return
         }
         val maxValue = (points.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
@@ -883,9 +906,9 @@ class MainActivity : Activity() {
 
     private fun renderParticipantPie(from: Long, to: Long) {
         val c = card()
-        c.addView(label("Porównanie czasu uczestników", 20f, true))
+        c.addView(label(tr(R.string.participant_compare), 20f, true))
         gap(c, 6)
-        c.addView(label("Udział w łącznym czasie wybranego okresu", 13f, false, muted))
+        c.addView(label(tr(R.string.participant_share), 13f, false, muted))
         gap(c, 12)
         val people = participants()
         val totals = mutableMapOf<Int, Long>()
@@ -895,7 +918,7 @@ class MainActivity : Activity() {
         val entries = people.map { it to (totals[it] ?: 0L) }
         val total = entries.sumOf { it.second }
         if (total <= 0L) {
-            c.addView(label("Brak pomiarów w wybranym okresie.", 14f, false, muted))
+            c.addView(label(tr(R.string.no_period), 14f, false, muted))
             addCard(c)
             return
         }
@@ -944,7 +967,7 @@ class MainActivity : Activity() {
     private fun renderTimeline(inHistory: Boolean = false) {
         val c = if (inHistory) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else card()
         if (!inHistory) {
-            c.addView(label("Oś czasu dnia", 20f, true))
+            c.addView(label(tr(R.string.daily_timeline), 20f, true))
             gap(c, 8)
         }
         val day = dayStart(if (inHistory) dayOffset else timelineOffset)
@@ -961,7 +984,7 @@ class MainActivity : Activity() {
         }
         val people = if (inHistory && historyPerson != 0) participants().filter { it == historyPerson } else participants()
         if (people.isEmpty()) {
-            c.addView(label("Dodaj uczestnika, aby zobaczyć oś czasu.", 14f, false, muted))
+            c.addView(label(tr(R.string.timeline_hint), 14f, false, muted))
         } else {
             val end = dayStart((if (inHistory) dayOffset else timelineOffset) + 1)
             val sessions = intervals(day, end)
@@ -1041,13 +1064,13 @@ class MainActivity : Activity() {
     }
 
     private fun renderStats() {
-        content.addView(label("Statystyki", 24f, true))
+        content.addView(label(tr(R.string.statistics), 24f, true))
         gap(content, 12)
         val c = card()
-        c.addView(label("Czas w projekcie", 20f, true))
+        c.addView(label(tr(R.string.time_project), 20f, true))
         gap(c, 12)
         val selector = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf("Dzień", "Tydzień", "Miesiąc", "Całość").forEachIndexed { index, name ->
+        listOf(tr(R.string.day), tr(R.string.week), tr(R.string.month), tr(R.string.all)).forEachIndexed { index, name ->
             selector.addView(action(name, if (statsPeriod == index) blue else Color.rgb(229, 233, 239),
                 if (statsPeriod == index) Color.WHITE else ink) {
                 statsPeriod = index
@@ -1081,9 +1104,9 @@ class MainActivity : Activity() {
     }
 
     private fun renderHistory() {
-        content.addView(label("Historia", 24f, true))
+        content.addView(label(tr(R.string.history), 24f, true))
         gap(content, 10)
-        if (!isArchived()) content.addView(action("+ Dodaj pomiar", blue) { addSession() })
+        if (!isArchived()) content.addView(action(tr(R.string.add_measurement), blue) { addSession() })
         gap(content, 12)
         val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         (listOf(0) + participants()).forEach { person ->
@@ -1114,8 +1137,8 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this).setTitle("Nazwa osoby $person")
             .setView(holder)
-            .setNegativeButton("Anuluj", null)
-            .setPositiveButton("Zapisz") { _, _ ->
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(tr(R.string.save)) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
                     db.update("participants", ContentValues().apply { put("name", name) }, "id=? AND project_id=?", arrayOf(person.toString(), projectId.toString()))
@@ -1128,7 +1151,7 @@ class MainActivity : Activity() {
         val id = projectId ?: return
         val input = EditText(this).apply { setText(projectName()); setSingleLine(true); selectAll() }
         AlertDialog.Builder(this).setTitle("Zmień nazwę projektu").setView(input)
-            .setNegativeButton("Anuluj", null).setPositiveButton("Zapisz") { _, _ ->
+            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.save)) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
                     db.update("projects", ContentValues().apply { put("name", name) }, "id=?",
@@ -1151,8 +1174,8 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this).setTitle("Usunąć uczestnika?")
             .setMessage("Usunąć ${personName(person)} z projektu?")
-            .setNegativeButton("Anuluj", null)
-            .setPositiveButton("Usuń") { _, _ ->
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(tr(R.string.delete)) { _, _ ->
                 db.delete("participants", "id=? AND project_id=?",
                     arrayOf(person.toString(), projectId.toString()))
                 renderContent()
@@ -1209,37 +1232,37 @@ class MainActivity : Activity() {
 
     private fun renderSettings() {
         if (isArchived()) {
-            content.addView(label("Archiwum · tylko do odczytu", 23f, true, Color.rgb(151, 87, 31)))
+            content.addView(label(tr(R.string.archive_readonly), 23f, true, Color.rgb(151, 87, 31)))
             gap(content, 12)
             val info = card()
-            info.addView(label("Projekt archiwalny", 19f, true))
+            info.addView(label(tr(R.string.archived_project), 19f, true))
             gap(info, 8)
             info.addView(label(projectName(), 17f, false))
             gap(info, 10)
             info.addView(label("Uczestnicy: " + participants().joinToString(", ") { personName(it) }, 14f, false, muted))
             gap(info, 10)
-            info.addView(label("Dane są zablokowane przed edycją.", 14f, false, muted))
+            info.addView(label(tr(R.string.locked_data), 14f, false, muted))
             addCard(info)
-            content.addView(action("↓  Eksport pomiarów (CSV)", Color.rgb(245, 229, 209), ink) { exportCsv() })
+            content.addView(action(tr(R.string.export_csv), Color.rgb(245, 229, 209), ink) { exportCsv() })
             return
         }
-        content.addView(label("Ustawienia", 24f, true))
+        content.addView(label(tr(R.string.settings), 24f, true))
         gap(content, 12)
         val project = card()
-        project.addView(label("PROJEKT", 13f, true, muted))
+        project.addView(label(tr(R.string.project), 13f, true, muted))
         gap(project, 8)
         project.addView(label(projectName(), 20f, true))
         gap(project, 8)
-        project.addView(action("✎  Zmień nazwę projektu", Color.rgb(226, 235, 252), blue) {
+        project.addView(action(tr(R.string.rename_project), Color.rgb(226, 235, 252), blue) {
             renameProject()
         })
         gap(project, 14)
         val iconRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         iconRow.addView(projectIcon(projectId!!, 60))
-        iconRow.addView(label("Ikona projektu", 16f, true).apply { setPadding(dp(14), 0, 0, 0) })
+        iconRow.addView(label(tr(R.string.project_icon), 16f, true).apply { setPadding(dp(14), 0, 0, 0) })
         project.addView(iconRow)
         gap(project, 10)
-        project.addView(action("⟳  Wygeneruj inną ikonę", Color.rgb(226, 235, 252), blue) {
+        project.addView(action(tr(R.string.regenerate_icon), Color.rgb(226, 235, 252), blue) {
             regenerateProjectIcon()
         })
         addCard(project)
@@ -1263,28 +1286,28 @@ class MainActivity : Activity() {
             people.addView(row)
             gap(people, 7)
         }
-        people.addView(action("+ Dodaj uczestnika", Color.rgb(226, 235, 252), blue) {
+        people.addView(action(tr(R.string.add_participant), Color.rgb(226, 235, 252), blue) {
             addParticipant()
         })
         addCard(people)
 
         val data = card()
-        data.addView(label("Dane projektu", 19f, true))
+        data.addView(label(tr(R.string.project_data), 19f, true))
         gap(data, 12)
-        data.addView(action("↓  Eksport pomiarów (CSV)", Color.rgb(226, 235, 252), blue) {
+        data.addView(action(tr(R.string.export_csv), Color.rgb(226, 235, 252), blue) {
             exportCsv()
         })
         gap(data, 8)
-        data.addView(action("Archiwizuj projekt", Color.rgb(245, 229, 209), Color.rgb(143, 80, 28)) { archiveProject() })
+        data.addView(action(tr(R.string.archive_project), Color.rgb(245, 229, 209), Color.rgb(143, 80, 28)) { archiveProject() })
         addCard(data)
 
         val app = card()
-        app.addView(label("Aplikacja", 19f, true))
+        app.addView(label(tr(R.string.application), 19f, true))
         gap(app, 8)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "—" }
         app.addView(label("Wersja: $version", 14f, false, muted))
         gap(app, 8)
-        app.addView(label("Pomiary są zapisane lokalnie. Eksport CSV nie jest pełną kopią zapasową. Nie odinstalowuj aplikacji przed zabezpieczeniem danych.", 13f, false, muted))
+        app.addView(label(tr(R.string.local_data), 13f, false, muted))
         addCard(app)
     }
 
@@ -1298,7 +1321,7 @@ class MainActivity : Activity() {
         val archived = isArchived()
         content.setBackgroundColor(if (archived) Color.rgb(252, 239, 219) else background)
         if (archived) {
-            content.addView(label("▣  ARCHIWALNE · TYLKO DO ODCZYTU", 13f, true, Color.rgb(147, 82, 27)))
+            content.addView(label(tr(R.string.archive_banner), 13f, true, Color.rgb(147, 82, 27)))
             gap(content, 7)
         }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
