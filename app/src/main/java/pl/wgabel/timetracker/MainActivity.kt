@@ -899,8 +899,8 @@ class MainActivity : Activity() {
         try {
             contentResolver.openOutputStream(uri)?.use { output ->
                 OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
-                    writer.write("\\uFEFF")
-                    writer.write("Uczestnik;Data;Od;Do;Czas (sekundy);Status\\n")
+                    writer.write("\uFEFF")
+                    writer.write("Uczestnik;Data;Od;Do;Czas (sekundy);Status\n")
                     val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
                     db.rawQuery(
                         "SELECT p.name,s.started_at,s.ended_at FROM sessions s JOIN participants p ON p.id=s.person WHERE s.project_id=? ORDER BY s.started_at",
@@ -914,7 +914,7 @@ class MainActivity : Activity() {
                             val endDate = end?.let { fmt.format(Date(it)) } ?: ""
                             val secs = ((end ?: System.currentTimeMillis()) - start).coerceAtLeast(0) / 1000
                             writer.write(listOf(csv(name), csv(date.take(10)), csv(date),
-                                csv(endDate), secs.toString(), if (end == null) "Trwa" else "Zakończony").joinToString(";") + "\\n")
+                                csv(endDate), secs.toString(), if (end == null) "Trwa" else "Zakończony").joinToString(";") + "\n")
                         }
                     }
                 }
