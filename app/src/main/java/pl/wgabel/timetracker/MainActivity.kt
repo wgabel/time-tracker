@@ -1616,9 +1616,9 @@ class MainActivity : Activity() {
         }
 
         val names = activePeople.associateWith { personName(it) }
-        // Fit the entire local calendar day into the fixed-height chart.
-        // Using actual day boundaries also handles 23/25-hour DST days.
-        val fullHeight = dp(480)
+        // The full local day is always shown. Grow the chart when event labels
+        // need more vertical room, instead of clipping the bottom of the day.
+        val fullHeight = dp(maxOf(480, 48 + events.size * 42))
         val graph = object : View(this) {
             private val p = Paint(Paint.ANTI_ALIAS_FLAG)
             private var horizontalOffset = 0f
@@ -1724,12 +1724,23 @@ class MainActivity : Activity() {
                     }
                 }
                 canvas.restore()
-                // Keep event markers at their actual timestamps; move only labels to avoid collisions.
-                var lastLabelY = -dp(40).toFloat()
-                events.forEach { e ->
+                // Keep dots at exact times. Lay out descriptions with a minimum
+                // separation, including clusters near the end of the day.
+                val labelPositions = events.map { yAt(it.at) }.toMutableList()
+                val separation = dp(42).toFloat()
+                for (i in 1 until labelPositions.size) {
+                    labelPositions[i] = maxOf(labelPositions[i], labelPositions[i - 1] + separation)
+                }
+                if (labelPositions.isNotEmpty()) {
+                    labelPositions[labelPositions.lastIndex] = minOf(
+                        labelPositions.last(), fullHeight - dp(24).toFloat())
+                    for (i in labelPositions.lastIndex - 1 downTo 0) {
+                        labelPositions[i] = minOf(labelPositions[i], labelPositions[i + 1] - separation)
+                    }
+                }
+                events.forEachIndexed { index, e ->
                     val y = yAt(e.at)
-                    val labelY = maxOf(y, lastLabelY + dp(42)).coerceAtMost(fullHeight - dp(24).toFloat())
-                    lastLabelY = labelY
+                    val labelY = labelPositions[index]
                     p.color = personColor(e.person)
                     p.strokeWidth = dp(1.5f.toInt()).toFloat().coerceAtLeast(1f)
                     canvas.drawCircle(rightEdge - dp(3), y, dp(4).toFloat(), p)
@@ -1749,9 +1760,9 @@ class MainActivity : Activity() {
                 canvas.restore()
             }
         }
-        // The full day fits inside this fixed-height view, so sessions never
-        // disappear below the viewport. Horizontal swiping is limited to tracks.
-        panel.addView(graph, LinearLayout.LayoutParams(-1, dp(480)))
+        // Height expands with event density; the surrounding statistics page scrolls.
+        // Horizontal swiping remains limited to participant tracks.
+        panel.addView(graph, LinearLayout.LayoutParams(-1, fullHeight))
         if (activePeople.size > 3) {
             gap(panel, 5)
             panel.addView(label(if (polish) "Przesuń paski uczestników w bok" else "Swipe participant tracks sideways", 12f, false, muted))
