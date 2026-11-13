@@ -872,18 +872,9 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun duration(ms: Long): String {
-        val s = ms.coerceAtLeast(0) / 1000
-        return String.format(Locale.ROOT, "%02d:%02d:%02d", s / 3600, (s / 60) % 60, s % 60)
-    }
+    private fun duration(ms: Long): String = TimeMath.duration(ms)
 
-    private fun dayStart(offset: Int): Long = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-        add(Calendar.DAY_OF_YEAR, offset)
-    }.timeInMillis
+    private fun dayStart(offset: Int): Long = TimeMath.dayStart(offset)
 
     private fun total(person: Int, start: Long, end: Long, now: Long = System.currentTimeMillis()): Long {
         var sum = 0L
@@ -892,9 +883,14 @@ class MainActivity : Activity() {
             arrayOf(projectId.toString(), person.toString(), end.toString(), start.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                val a = maxOf(start, cursor.getLong(0))
-                val b = minOf(end, if (cursor.isNull(1)) now else cursor.getLong(1))
-                sum += (b - a).coerceAtLeast(0)
+                val clipped = TimeMath.clippedInterval(
+                    cursor.getLong(0),
+                    if (cursor.isNull(1)) null else cursor.getLong(1),
+                    start,
+                    end,
+                    now
+                )
+                if (clipped != null) sum += clipped.second - clipped.first
             }
         }
         return sum
@@ -1521,14 +1517,22 @@ class MainActivity : Activity() {
 
     private fun intervals(start: Long, end: Long): List<Triple<Int, Long, Long>> {
         val result = mutableListOf<Triple<Int, Long, Long>>()
+        val now = System.currentTimeMillis()
         db.rawQuery(
             "SELECT person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
             arrayOf(projectId.toString(), end.toString(), start.toString())
         ).use { c ->
             while (c.moveToNext()) {
-                val from = maxOf(start, c.getLong(1))
-                val until = minOf(end, if (c.isNull(2)) System.currentTimeMillis() else c.getLong(2))
-                if (until > from) result.add(Triple(c.getInt(0), from, until))
+                val clipped = TimeMath.clippedInterval(
+                    c.getLong(1),
+                    if (c.isNull(2)) null else c.getLong(2),
+                    start,
+                    end,
+                    now
+                )
+                if (clipped != null) {
+                    result.add(Triple(c.getInt(0), clipped.first, clipped.second))
+                }
             }
         }
         return result
