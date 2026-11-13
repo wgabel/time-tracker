@@ -1220,6 +1220,67 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
+    private fun eventCategoryIcon(type: String): View {
+        val color = when (type) {
+            "Lek" -> Color.rgb(184, 77, 87)
+            "Posiłek" -> Color.rgb(163, 108, 34)
+            "Sen" -> Color.rgb(117, 97, 181)
+            "Spacer" -> Color.rgb(40, 123, 86)
+            else -> Color.rgb(83, 113, 139)
+        }
+        return object : View(this) {
+            private val pen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 2.4f
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                this.color = color
+            }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                canvas.save()
+                canvas.scale(width / 24f, height / 24f)
+                when (type) {
+                    "Lek" -> {
+                        canvas.save()
+                        canvas.rotate(-45f, 12f, 12f)
+                        canvas.drawRoundRect(RectF(6f, 2f, 18f, 22f), 6f, 6f, pen)
+                        canvas.drawLine(6f, 12f, 18f, 12f, pen)
+                        canvas.restore()
+                    }
+                    "Posiłek" -> {
+                        canvas.drawLine(5f, 3f, 5f, 10f, pen)
+                        canvas.drawLine(9f, 3f, 9f, 10f, pen)
+                        canvas.drawLine(5f, 10f, 9f, 10f, pen)
+                        canvas.drawLine(7f, 10f, 7f, 21f, pen)
+                        canvas.drawPath(Path().apply {
+                            moveTo(19f, 21f); lineTo(19f, 3f)
+                            cubicTo(13f, 6f, 13f, 13f, 19f, 14f)
+                        }, pen)
+                    }
+                    "Sen" -> canvas.drawPath(Path().apply {
+                        moveTo(19f, 15f)
+                        cubicTo(12f, 17f, 7f, 12f, 9f, 4f)
+                        cubicTo(0f, 10f, 4f, 21f, 12f, 21f)
+                        cubicTo(15f, 21f, 17f, 19f, 19f, 15f)
+                    }, pen)
+                    "Spacer" -> {
+                        canvas.drawOval(RectF(4f, 3f, 10f, 12f), pen)
+                        canvas.drawOval(RectF(14f, 12f, 20f, 21f), pen)
+                        canvas.drawCircle(12f, 5f, 1f, pen)
+                        canvas.drawCircle(12f, 19f, 1f, pen)
+                    }
+                    else -> canvas.drawPath(Path().apply {
+                        moveTo(5f, 3f); lineTo(19f, 3f)
+                        lineTo(19f, 21f); lineTo(12f, 16f)
+                        lineTo(5f, 21f); close()
+                    }, pen)
+                }
+                canvas.restore()
+            }
+        }.apply { contentDescription = type }
+    }
+
     private fun eventList(sessionId: Long, person: Int, container: LinearLayout) {
         val eventColor = personColor(person)
         db.rawQuery(
@@ -1257,17 +1318,16 @@ class MainActivity : Activity() {
                 details.addView(label(eventTitle, 14f, true))
                 val secondary = if (note.isNotBlank()) type + " · " else ""
                 details.addView(label(secondary + clockFormat.format(Date(timestamp)), 12f, false, muted))
+                val categoryIcon = eventCategoryIcon(type)
+                eventRow.addView(categoryIcon, LinearLayout.LayoutParams(dp(18), dp(18)).apply {
+                    leftMargin = dp(8)
+                })
                 eventRow.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-                val eventGroup = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                }
-                eventGroup.addView(eventRow)
                 if (!isArchived()) {
                     // Keep the timeline row uncluttered until the event is tapped.
                     val tray = LinearLayout(this).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
-                        setPadding(dp(12), 0, dp(12), 0)
                         clipChildren = true
                     }
                     val edit = editIconButton {
@@ -1285,10 +1345,10 @@ class MainActivity : Activity() {
                         background = shape(
                             if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
                     }
-                    tray.addView(edit, LinearLayout.LayoutParams(dp(52), dp(48)))
-                    tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                    tray.addView(delete, LinearLayout.LayoutParams(dp(52), dp(48)))
-                    eventGroup.addView(tray, LinearLayout.LayoutParams(-1, 0))
+                    tray.addView(edit, LinearLayout.LayoutParams(dp(48), dp(48)))
+                    tray.addView(View(this), LinearLayout.LayoutParams(dp(8), dp(1)))
+                    tray.addView(delete, LinearLayout.LayoutParams(dp(48), dp(48)))
+                    eventRow.addView(tray, LinearLayout.LayoutParams(0, dp(48)))
                     var expanded = false
                     var animation: ValueAnimator? = null
                     eventRow.isClickable = true
@@ -1298,9 +1358,9 @@ class MainActivity : Activity() {
                     eventRow.setOnClickListener {
                         expanded = !expanded
                         animation?.cancel()
-                        val targetHeight = if (expanded) dp(64) else 0
-                        val currentHeight = tray.layoutParams.height.coerceAtLeast(0)
-                        if (expanded && currentHeight == 0) {
+                        val targetWidth = if (expanded) dp(104) else 0
+                        val currentWidth = tray.layoutParams.width.coerceAtLeast(0)
+                        if (expanded && currentWidth == 0) {
                             tray.translationX = dp(36).toFloat()
                             tray.alpha = 0f
                         }
@@ -1312,8 +1372,8 @@ class MainActivity : Activity() {
                             addUpdateListener { animator ->
                                 val fraction = animator.animatedValue as Float
                                 tray.layoutParams = tray.layoutParams.apply {
-                                    height = currentHeight +
-                                        ((targetHeight - currentHeight) * fraction).toInt()
+                                    width = currentWidth +
+                                        ((targetWidth - currentWidth) * fraction).toInt()
                                 }
                                 tray.translationX = fromOffset * (1f - fraction) +
                                     (if (expanded) 0f else dp(36).toFloat()) * fraction
@@ -1324,7 +1384,7 @@ class MainActivity : Activity() {
                         }
                     }
                 }
-                container.addView(eventGroup)
+                container.addView(eventRow)
             }
         }
     }
