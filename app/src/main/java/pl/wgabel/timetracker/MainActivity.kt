@@ -2433,9 +2433,6 @@ class MainActivity : Activity() {
             people.addView(row)
             gap(people, 7)
         }
-        people.addView(styledAction("＋  " + tr(R.string.add_participant), ButtonRole.PRIMARY) {
-            addParticipant()
-        })
         addCard(people)
 
         val data = card()
