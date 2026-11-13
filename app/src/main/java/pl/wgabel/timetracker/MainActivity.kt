@@ -55,6 +55,7 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
+    private lateinit var stickyDateContainer: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
@@ -145,6 +146,14 @@ class MainActivity : Activity() {
             }
             outer.requestApplyInsets()
         }
+        stickyDateContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(10), dp(16), dp(8))
+            setBackgroundColor(background)
+            visibility = View.GONE
+            elevation = dp(4).toFloat()
+        }
+        outer.addView(stickyDateContainer)
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             setBackgroundColor(this@MainActivity.background)
@@ -1096,7 +1105,11 @@ class MainActivity : Activity() {
             }
         }, LinearLayout.LayoutParams(dp(44), dp(42)))
         panel.addView(footer)
-        addCard(panel)
+        if (tab == 1 || tab == 2) {
+            stickyDateContainer.addView(panel)
+        } else {
+            addCard(panel)
+        }
     }
 
     private fun addEvent(person: Int) {
@@ -2477,7 +2490,7 @@ class MainActivity : Activity() {
     private fun renderStats() {
         // Reuse the History day navigator; the statistics period selector is independent.
         dayNavigator(false)
-        gap(content, 18)
+        gap(content, 8)
         val c = card()
         c.addView(label(tr(R.string.time_project), 20f, true))
         gap(c, 12)
@@ -2584,7 +2597,7 @@ class MainActivity : Activity() {
     private fun renderHistory() {
         // Day selection is the first control, followed by actions and participant filters.
         dayNavigator(true)
-        gap(content, 12)
+        gap(content, 8)
 
         // Wrap filters into as many rows as needed, with no horizontal scrolling.
         val availableWidth = resources.displayMetrics.widthPixels - dp(32)
@@ -2825,6 +2838,9 @@ class MainActivity : Activity() {
     private fun renderContent() {
         timerUpdates.clear()
         content.removeAllViews()
+        stickyDateContainer.removeAllViews()
+        stickyDateContainer.visibility = if (projectId != null && (tab == 1 || tab == 2)) View.VISIBLE else View.GONE
+        stickyDateContainer.setBackgroundColor(background)
         if (projectId == null) {
             content.setBackgroundColor(background)
             if (showAppSettings) renderAppSettings() else renderProjects()
