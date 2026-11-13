@@ -1175,7 +1175,7 @@ class MainActivity : Activity() {
                                 chosenTimestamp = chosenDay.timeInMillis
                                 refreshTime()
                             }.show()
-                    }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(this))
+                    }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), DatePresentation.uses24HourClock(resources))
                         .show()
                 }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
                     calendar.get(Calendar.DAY_OF_MONTH)).show()
@@ -1474,7 +1474,7 @@ class MainActivity : Activity() {
                 selected.set(Calendar.SECOND, 0)
                 selected.set(Calendar.MILLISECOND, 0)
                 onChosen(selected.timeInMillis)
-            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(this)).apply { setTitle(title) }.show()
+            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), DatePresentation.uses24HourClock(resources)).apply { setTitle(title) }.show()
         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
             .apply { setTitle(title) }.show()
     }
@@ -1546,7 +1546,7 @@ class MainActivity : Activity() {
                     selected.set(Calendar.SECOND, 0)
                     selected.set(Calendar.MILLISECOND, 0)
                     onChosen(selected.timeInMillis)
-                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(this))
+                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), DatePresentation.uses24HourClock(resources))
                     .apply { setTitle(title) }.show()
             }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 .apply { setTitle(title) }.show()
