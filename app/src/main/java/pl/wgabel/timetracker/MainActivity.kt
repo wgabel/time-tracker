@@ -1506,20 +1506,65 @@ class MainActivity : Activity() {
                     row.addView(elapsedLabel.apply { setSingleLine(true) },
                         LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
                 }
-                if (tab == 2 && originalEnd != null && !isArchived()) {
-                    val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                    controls.addView(editIconButton {
-                        editSession(id, person, originalStart, originalEnd)
-                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
-                    gap(controls, 4)
-                    controls.addView(deleteIconButton {
-                        deleteSession(id)
-                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
-                    row.addView(controls)
-                }
                 val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 group.addView(row)
-                if (tab == 2) eventList(id, person, group)
+                if (isHistory && originalEnd != null && !isArchived()) {
+                    // Actions start hidden; tapping the session reveals a sliding action tray.
+                    val tray = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+                        setPadding(dp(12), 0, dp(12), 0)
+                        background = shape(surface, 12)
+                        clipChildren = true
+                    }
+                    val editAction = editIconButton {
+                        editSession(id, person, originalStart, originalEnd)
+                    }.apply { background = shape(subtle, 10) }
+                    val deleteAction = deleteIconButton {
+                        deleteSession(id)
+                    }.apply {
+                        background = shape(
+                            if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
+                    }
+                    tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
+                    tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    group.addView(tray, LinearLayout.LayoutParams(-1, 0))
+                    var expanded = false
+                    var animation: ValueAnimator? = null
+                    row.isClickable = true
+                    row.isFocusable = true
+                    row.contentDescription = personName(person) + ", " +
+                        duration(until - from) + ". Dotknij, aby pokazać lub ukryć akcje"
+                    row.setOnClickListener {
+                        expanded = !expanded
+                        animation?.cancel()
+                        val targetHeight = if (expanded) dp(64) else 0
+                        val currentHeight = tray.layoutParams.height.coerceAtLeast(0)
+                        val initialOffset = if (expanded) dp(36).toFloat() else 0f
+                        if (expanded && currentHeight == 0) {
+                            tray.translationX = initialOffset
+                            tray.alpha = 0f
+                        }
+                        val fromOffset = tray.translationX
+                        val fromAlpha = tray.alpha
+                        animation = ValueAnimator.ofFloat(0f, 1f).apply {
+                            duration = 260L
+                            interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+                            addUpdateListener { animator ->
+                                val fraction = animator.animatedValue as Float
+                                tray.layoutParams = tray.layoutParams.apply {
+                                    height = currentHeight + ((targetHeight - currentHeight) * fraction).toInt()
+                                }
+                                tray.translationX = fromOffset * (1f - fraction) +
+                                    (if (expanded) 0f else dp(36).toFloat()) * fraction
+                                tray.alpha = fromAlpha + ((if (expanded) 1f else 0f) - fromAlpha) * fraction
+                            }
+                            start()
+                        }
+                    }
+                }
+                if (isHistory) eventList(id, person, group)
                 content.addView(group, LinearLayout.LayoutParams(-1, -2))
                 gap(content, 7)
                 count++
