@@ -133,4 +133,6 @@
     <string name="theme">Appearance</string>
     <string name="theme_light">Light theme</string>
     <string name="theme_dark">Dark theme</string>
+    <string name="event_time_range">Choose event time (from %1$s to %2$s)</string>
+    <string name="event_time_label">Time: %1$s</string>
 </resources>
