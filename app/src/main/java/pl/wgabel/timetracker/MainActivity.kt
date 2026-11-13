@@ -2278,34 +2278,74 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun activeCountText(count: Int): String {
+        val language = resources.configuration.locales[0].language
+        return when (language) {
+            "pl" -> {
+                val suffix = if (count == 1) "aktywny"
+                    else if (count % 10 in 2..4 && count % 100 !in 12..14) "aktywnych"
+                    else "aktywnych"
+                "$count $suffix"
+            }
+            else -> "$count active"
+        }
+    }
+
     private fun renderTopHeader() {
         topHeader.removeAllViews()
         if (projectId == null) {
             topHeader.addView(label("◷  " + tr(R.string.app_title), 21f, true, Color.WHITE))
             return
         }
-        topHeader.addView(label("‹", 29f, false, Color.WHITE).apply {
+        val left = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        left.addView(label("‹", 29f, false, Color.WHITE).apply {
             gravity = Gravity.CENTER
             contentDescription = tr(R.string.back_to_projects_description)
             setOnClickListener { projectId = null; render() }
         }, LinearLayout.LayoutParams(dp(38), dp(40)))
-        topHeader.addView(projectIcon(projectId!!, 30), LinearLayout.LayoutParams(dp(30), dp(30)))
-        topHeader.addView(label(projectName(), 17f, true, Color.WHITE).apply {
-            setSingleLine(true)
-            ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(dp(9), 0, dp(6), 0)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        val active = db.rawQuery(
-            "SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL",
-            arrayOf(projectId.toString())
-        ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
-        if (active > 0) {
-            topHeader.addView(label("● $active", 12f, true, Color.rgb(164, 231, 187)).apply {
-                setPadding(dp(9), dp(6), dp(9), dp(6))
-                background = shape(Color.rgb(44, 79, 83), 18)
-                contentDescription = "$active " + tr(R.string.active_plural).trim()
-            })
+        left.addView(projectIcon(projectId!!, 32), LinearLayout.LayoutParams(dp(32), dp(32)))
+        topHeader.addView(left)
+
+        val details = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, 0, 0)
         }
+        details.addView(label(projectName(), 17f, true, Color.WHITE).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, LinearLayout.LayoutParams(-1, -2))
+
+        val activePeople = mutableListOf<Int>()
+        db.rawQuery(
+            "SELECT DISTINCT person FROM sessions WHERE project_id=? AND ended_at IS NULL ORDER BY person",
+            arrayOf(projectId.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) activePeople.add(cursor.getInt(0))
+        }
+        if (activePeople.isNotEmpty()) {
+            val status = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(3), 0, 0)
+            }
+            activePeople.forEach { person ->
+                status.addView(View(this).apply {
+                    background = shape(personColor(person), 4)
+                }, LinearLayout.LayoutParams(dp(7), dp(7)).apply {
+                    rightMargin = dp(4)
+                })
+            }
+            status.addView(label(activeCountText(activePeople.size), 12f, false,
+                Color.rgb(185, 208, 205)).apply {
+                setPadding(dp(3), 0, 0, 0)
+            })
+            details.addView(status)
+        }
+        topHeader.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
     }
 
     private fun render() {
