@@ -2017,8 +2017,6 @@ class MainActivity : Activity() {
     }
 
     private fun renderStats() {
-        content.addView(label(tr(R.string.statistics), 24f, true))
-        gap(content, 12)
         // Use the exact same day-selection component as History, at the top.
         dayNavigator(false)
         gap(content, 18)
@@ -2062,8 +2060,6 @@ class MainActivity : Activity() {
     }
 
     private fun renderHistory() {
-        content.addView(label(tr(R.string.history), 24f, true))
-        gap(content, 10)
         if (!isArchived()) content.addView(action(tr(R.string.add_measurement), blue) { addSession() })
         gap(content, 12)
         val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -2204,8 +2200,6 @@ class MainActivity : Activity() {
             content.addView(action(tr(R.string.export_csv), subtleWarm, ink) { exportCsv() })
             return
         }
-        content.addView(label(tr(R.string.settings), 24f, true))
-        gap(content, 12)
         val project = card()
         project.addView(label(tr(R.string.project), 13f, true, muted))
         gap(project, 8)
