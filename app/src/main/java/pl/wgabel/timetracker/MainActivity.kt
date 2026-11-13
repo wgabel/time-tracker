@@ -430,14 +430,24 @@ class MainActivity : Activity() {
         return action(text, fill, foreground, click)
     }
 
-    private fun participantAction(text: String, participantColor: Int, selected: Boolean,
-                                  click: () -> Unit): Button {
+    private fun blendColors(base: Int, overlay: Int, fraction: Float): Int {
+        val backgroundWeight = 1f - fraction
+        return Color.rgb(
+            (Color.red(base) * backgroundWeight + Color.red(overlay) * fraction).toInt(),
+            (Color.green(base) * backgroundWeight + Color.green(overlay) * fraction).toInt(),
+            (Color.blue(base) * backgroundWeight + Color.blue(overlay) * fraction).toInt()
+        )
+    }
+
+    private fun participantAction(
+        text: String,
+        participantColor: Int,
+        selected: Boolean,
+        click: () -> Unit
+    ): Button {
         val base = if (darkTheme) surface else Color.WHITE
-        val blend = if (darkTheme) 0.20f else 0.14f
-        val fill = if (selected) participantColor else Color.rgb(
-            (Color.red(base) * (1f - blend) + Color.red(participantColor) * blend).toInt(),
-            (Color.green(base) * (1f - blend) + Color.green(participantColor) * blend).toInt(),
-            (Color.blue(base) * (1f - blend) + Color.blue(participantColor) * blend).toInt())
+        val tintStrength = if (darkTheme) 0.20f else 0.14f
+        val fill = if (selected) participantColor else blendColors(base, participantColor, tintStrength)
         return action(text, fill, if (selected) Color.WHITE else ink, click)
     }
 
@@ -1136,7 +1146,7 @@ class MainActivity : Activity() {
         }
         gap(c, 5)
         c.addView(label(tr(R.string.selected_day_total), 14f, false, muted))
-        if (dayOffset == 0 && !isArchived()) {
+        if (!isArchived()) {
             gap(c, 14)
             val statusLabel = label(if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active), 16f, false, muted)
             c.addView(statusLabel)
@@ -1297,6 +1307,12 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun editIconButton(onClick: () -> Unit): View =
+        iconButton("edit", if (darkTheme) Color.rgb(164, 208, 205) else darkHeader, onClick)
+
+    private fun deleteIconButton(onClick: () -> Unit): View =
+        iconButton("delete", Color.rgb(170, 42, 42), onClick)
+
     private fun iconButton(kind: String, color: Int, onClick: () -> Unit): View {
         return object : View(this) {
             private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1388,11 +1404,11 @@ class MainActivity : Activity() {
                 row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
                 if (tab == 2 && originalEnd != null && !isArchived()) {
                     val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                    controls.addView(iconButton("edit", if (darkTheme) Color.rgb(164, 208, 205) else darkHeader) {
+                    controls.addView(editIconButton {
                         editSession(id, person, originalStart, originalEnd)
                     }, LinearLayout.LayoutParams(dp(42), dp(40)))
                     gap(controls, 4)
-                    controls.addView(iconButton("delete", Color.rgb(170, 42, 42)) {
+                    controls.addView(deleteIconButton {
                         deleteSession(id)
                     }, LinearLayout.LayoutParams(dp(42), dp(40)))
                     row.addView(controls)
@@ -2065,7 +2081,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderStats() {
-        // Use the exact same day-selection component as History, at the top.
+        // Reuse the History day navigator; the statistics period selector is independent.
         dayNavigator(false)
         gap(content, 18)
         val c = card()
@@ -2355,9 +2371,10 @@ class MainActivity : Activity() {
         addCard(project)
 
         val people = card()
-        people.addView(label(tr(R.string.participants_label) + participants().size, 19f, true))
+        val projectParticipants = participants()
+        people.addView(label(tr(R.string.participants_label) + projectParticipants.size, 19f, true))
         gap(people, 10)
-        participants().forEach { person ->
+        projectParticipants.forEach { person ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -2365,10 +2382,10 @@ class MainActivity : Activity() {
             row.addView(avatar(person), LinearLayout.LayoutParams(dp(36), dp(36)))
             val name = label(personName(person), 15f, true).apply { setPadding(dp(10), 0, dp(4), 0) }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(iconButton("edit", if (darkTheme) Color.rgb(164, 208, 205) else darkHeader) { rename(person) },
+            row.addView(editIconButton { rename(person) },
                 LinearLayout.LayoutParams(dp(42), dp(42)))
             gap(row, 5)
-            row.addView(iconButton("delete", Color.rgb(170, 42, 42)) { removeParticipant(person) },
+            row.addView(deleteIconButton { removeParticipant(person) },
                 LinearLayout.LayoutParams(dp(42), dp(42)))
             people.addView(row)
             gap(people, 7)
@@ -2417,9 +2434,7 @@ class MainActivity : Activity() {
         val language = resources.configuration.locales[0].language
         return when (language) {
             "pl" -> {
-                val suffix = if (count == 1) "aktywny"
-                    else if (count % 10 in 2..4 && count % 100 !in 12..14) "aktywnych"
-                    else "aktywnych"
+                val suffix = if (count == 1) "aktywny" else "aktywnych"
                 "$count $suffix"
             }
             else -> "$count active"
