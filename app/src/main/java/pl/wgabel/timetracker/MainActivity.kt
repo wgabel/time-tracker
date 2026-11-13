@@ -1193,10 +1193,21 @@ class MainActivity : Activity() {
                 val secondary = if (note.isNotBlank()) type + " · " else ""
                 details.addView(label(secondary + clockFormat.format(Date(timestamp)), 12f, false, muted))
                 eventRow.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+                val eventGroup = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                }
+                eventGroup.addView(eventRow)
                 if (!isArchived()) {
+                    // Keep the timeline row uncluttered until the event is tapped.
+                    val tray = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+                        setPadding(dp(12), 0, dp(12), 0)
+                        clipChildren = true
+                    }
                     val edit = editIconButton {
                         editEvent(id, sessionId, person, timestamp, type, note)
-                    }.apply { background = null }
+                    }.apply { background = shape(subtle, 10) }
                     val delete = deleteIconButton {
                         AlertDialog.Builder(this).setTitle("Usunąć wydarzenie?")
                             .setNegativeButton(tr(R.string.cancel), null)
@@ -1205,14 +1216,50 @@ class MainActivity : Activity() {
                                     arrayOf(id.toString(), projectId.toString()))
                                 renderContent()
                             }.show()
-                    }.apply { background = null }
-                    // Separate 48dp touch targets with a non-clickable 12dp gap.
-                    // This prevents accidental deletion when tapping Edit.
-                    eventRow.addView(edit, LinearLayout.LayoutParams(dp(48), dp(48)))
-                    eventRow.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                    eventRow.addView(delete, LinearLayout.LayoutParams(dp(48), dp(48)))
+                    }.apply {
+                        background = shape(
+                            if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
+                    }
+                    tray.addView(edit, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
+                    tray.addView(delete, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    eventGroup.addView(tray, LinearLayout.LayoutParams(-1, 0))
+                    var expanded = false
+                    var animation: ValueAnimator? = null
+                    eventRow.isClickable = true
+                    eventRow.isFocusable = true
+                    eventRow.contentDescription = eventTitle +
+                        ". Dotknij, aby pokazać lub ukryć akcje wydarzenia"
+                    eventRow.setOnClickListener {
+                        expanded = !expanded
+                        animation?.cancel()
+                        val targetHeight = if (expanded) dp(64) else 0
+                        val currentHeight = tray.layoutParams.height.coerceAtLeast(0)
+                        if (expanded && currentHeight == 0) {
+                            tray.translationX = dp(36).toFloat()
+                            tray.alpha = 0f
+                        }
+                        val fromOffset = tray.translationX
+                        val fromAlpha = tray.alpha
+                        animation = ValueAnimator.ofFloat(0f, 1f).apply {
+                            duration = 260L
+                            interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+                            addUpdateListener { animator ->
+                                val fraction = animator.animatedValue as Float
+                                tray.layoutParams = tray.layoutParams.apply {
+                                    height = currentHeight +
+                                        ((targetHeight - currentHeight) * fraction).toInt()
+                                }
+                                tray.translationX = fromOffset * (1f - fraction) +
+                                    (if (expanded) 0f else dp(36).toFloat()) * fraction
+                                tray.alpha = fromAlpha +
+                                    ((if (expanded) 1f else 0f) - fromAlpha) * fraction
+                            }
+                            start()
+                        }
+                    }
                 }
-                container.addView(eventRow)
+                container.addView(eventGroup)
             }
         }
     }
