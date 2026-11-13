@@ -2086,46 +2086,61 @@ class MainActivity : Activity() {
 
     // The selected control retains its participant color. A dashed outline moves
     // around a stationary rounded rectangle, 4dp outside the button.
+    // Marching-dashes selection: draw after the button so the border stays visible.
+    // The 5dp wrapper padding creates a real gap between button and outline.
     private fun outlinedSelection(button: Button, color: Int): FrameLayout {
-        val wrapper = FrameLayout(this)
-        wrapper.setPadding(dp(5), dp(5), dp(5), dp(5))
-        wrapper.addView(button, FrameLayout.LayoutParams(-1, -1))
-        val outline = object : View(this) {
-            private val pen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val wrapper = object : FrameLayout(this) {
+            private val dashLength = dp(7).toFloat()
+            private val gapLength = dp(5).toFloat()
+            private val cycle = dashLength + gapLength
+            private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = dp(2).toFloat()
                 this.color = color
             }
-            private var phase = 0f
-            private var animator: ValueAnimator? = null
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val inset = dp(1).toFloat() + pen.strokeWidth / 2
-                val rect = RectF(inset, inset, width - inset, height - inset)
-                pen.pathEffect = DashPathEffect(floatArrayOf(dp(7).toFloat(), dp(5).toFloat()), phase)
-                canvas.drawRoundRect(rect, dp(21).toFloat(), dp(21).toFloat(), pen)
+            private var dashPhase = 0f
+            private var dashAnimator: ValueAnimator? = null
+
+            override fun dispatchDraw(canvas: Canvas) {
+                super.dispatchDraw(canvas)
+                val inset = dp(1).toFloat() + outlinePaint.strokeWidth / 2f
+                if (width <= 2 * inset || height <= 2 * inset) return
+                outlinePaint.pathEffect = DashPathEffect(
+                    floatArrayOf(dashLength, gapLength), dashPhase)
+                canvas.drawRoundRect(
+                    RectF(inset, inset, width - inset, height - inset),
+                    dp(21).toFloat(), dp(21).toFloat(), outlinePaint)
             }
+
             override fun onAttachedToWindow() {
                 super.onAttachedToWindow()
-                if (android.provider.Settings.Global.getFloat(
-                        contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) return
-                animator = ValueAnimator.ofFloat(0f, -dp(12).toFloat()).apply {
-                    duration = 1600L
+                val scale = ValueAnimator.getDurationScale()
+                if (scale <= 0f) {
+                    dashPhase = 0f
+                    invalidate()
+                    return
+                }
+                dashAnimator?.cancel()
+                dashAnimator = ValueAnimator.ofFloat(0f, -cycle).apply {
+                    duration = (1800L * scale).toLong().coerceAtLeast(100L)
                     repeatCount = ValueAnimator.INFINITE
                     interpolator = android.view.animation.LinearInterpolator()
-                    addUpdateListener { phase = it.animatedValue as Float; invalidate() }
+                    addUpdateListener {
+                        dashPhase = it.animatedValue as Float
+                        invalidate()
+                    }
                     start()
                 }
             }
+
             override fun onDetachedFromWindow() {
-                animator?.cancel()
-                animator = null
+                dashAnimator?.cancel()
+                dashAnimator = null
                 super.onDetachedFromWindow()
             }
         }
-        wrapper.addView(outline, FrameLayout.LayoutParams(-1, -1))
-        outline.isClickable = false
-        outline.isFocusable = false
+        wrapper.setPadding(dp(5), dp(5), dp(5), dp(5))
+        wrapper.addView(button, FrameLayout.LayoutParams(-1, -1))
         return wrapper
     }
 
