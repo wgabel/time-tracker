@@ -1361,7 +1361,25 @@ class MainActivity : Activity() {
             if (active != null) {
                 val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 controls.addView(button, LinearLayout.LayoutParams(0, dp(54), 2f))
-                controls.addView(styledAction("⚑ EVENT", ButtonRole.SECONDARY) { addEvent(person) },
+                val eventButton = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                    background = shape(subtleNeutral, 12)
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = "Dodaj wydarzenie"
+                    setOnClickListener { addEvent(person) }
+                }
+                val eventIcon = iconButton(
+                    "bookmark-add",
+                    if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
+                ) { addEvent(person) }.apply {
+                    background = null
+                    isFocusable = false
+                }
+                eventButton.addView(eventIcon, LinearLayout.LayoutParams(dp(30), dp(40)))
+                eventButton.addView(label("EVENT", 13f, true, ink))
+                controls.addView(eventButton,
                     LinearLayout.LayoutParams(0, dp(54), 1f).apply { leftMargin = dp(8) })
                 c.addView(controls)
             } else c.addView(button, LinearLayout.LayoutParams(-1, dp(54)))
