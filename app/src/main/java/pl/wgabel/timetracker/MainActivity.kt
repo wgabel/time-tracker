@@ -1621,10 +1621,13 @@ class MainActivity : Activity() {
         val graph = object : View(this) {
             private val p = Paint(Paint.ANTI_ALIAS_FLAG)
             private var horizontalOffset = 0f
+            private var verticalOffset = 0f
+            private var initialVerticalOffset = 0f
             private var downX = 0f
             private var downY = 0f
             private var initialOffset = 0f
             private var swiping = false
+            private var verticalSwiping = false
             private val trackStep get() = dp(19).toFloat()
             private val trackWidth get() = dp(14).toFloat()
             private fun yAt(time: Long) = ((time - day).toDouble() / (end - day) * fullHeight).toFloat()
@@ -1634,21 +1637,25 @@ class MainActivity : Activity() {
                 val maxOffset = (activePeople.size * trackStep - participantWidth).coerceAtLeast(0f)
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        if (event.x < scaleWidth || event.x > width * .40f || maxOffset <= 0f) return false
                         downX = event.x; downY = event.y
-                        initialOffset = horizontalOffset; swiping = false
+                        initialOffset = horizontalOffset
+                        initialVerticalOffset = verticalOffset
+                        swiping = false; verticalSwiping = false
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        if (!swiping && kotlin.math.abs(event.x - downX) > dp(8) &&
-                            kotlin.math.abs(event.x - downX) > kotlin.math.abs(event.y - downY)) {
-                            swiping = true
-                            parent.requestDisallowInterceptTouchEvent(true)
+                        val dx = event.x - downX
+                        val dy = event.y - downY
+                        if (!swiping && !verticalSwiping && maxOf(kotlin.math.abs(dx), kotlin.math.abs(dy)) > dp(8)) {
+                            swiping = event.x >= scaleWidth && event.x <= width * .40f &&
+                                kotlin.math.abs(dx) > kotlin.math.abs(dy) && maxOffset > 0f
+                            verticalSwiping = !swiping && kotlin.math.abs(dy) >= kotlin.math.abs(dx)
+                            if (swiping || verticalSwiping) parent.requestDisallowInterceptTouchEvent(true)
                         }
-                        if (swiping) {
-                            horizontalOffset = (initialOffset + downX - event.x).coerceIn(0f, maxOffset)
-                            invalidate()
-                        }
+                        if (swiping) horizontalOffset = (initialOffset - dx).coerceIn(0f, maxOffset)
+                        if (verticalSwiping) verticalOffset = (initialVerticalOffset - dy)
+                            .coerceIn(0f, (fullHeight - height).coerceAtLeast(0).toFloat())
+                        if (swiping || verticalSwiping) invalidate()
                         return true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -1660,6 +1667,9 @@ class MainActivity : Activity() {
             }
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
+                canvas.save()
+                canvas.clipRect(0f, 0f, width.toFloat(), height.toFloat())
+                canvas.translate(0f, -verticalOffset)
                 val scaleWidth = dp(38).toFloat()
                 val rightEdge = width * .40f
                 val eventLeft = rightEdge + dp(8)
@@ -1678,13 +1688,13 @@ class MainActivity : Activity() {
                         (y + dp(4)).coerceIn(dp(10).toFloat(), fullHeight - dp(2).toFloat()), hourPaint)
                 }
                 canvas.save()
-                canvas.clipRect(scaleWidth, 0f, rightEdge, height.toFloat())
+                canvas.clipRect(scaleWidth, 0f, rightEdge, fullHeight.toFloat())
                 activePeople.forEachIndexed { index, person ->
                     val x = scaleWidth + dp(3) + index * trackStep - horizontalOffset
                     if (x + trackWidth < scaleWidth || x > rightEdge) return@forEachIndexed
                     p.color = personColor(person)
                     p.alpha = 38
-                    canvas.drawRoundRect(RectF(x, 0f, x + trackWidth, height.toFloat()), dp(5).toFloat(), dp(5).toFloat(), p)
+                    canvas.drawRoundRect(RectF(x, 0f, x + trackWidth, fullHeight.toFloat()), dp(5).toFloat(), dp(5).toFloat(), p)
                     p.alpha = 255
                     val parts = sessions.filter { it.first == person }
                     val longest = parts.maxByOrNull { it.third - it.second }
@@ -1735,13 +1745,12 @@ class MainActivity : Activity() {
                     val description = (names[e.person] ?: "") + if (e.note.isBlank()) "" else " · " + e.note
                     canvas.drawText(description.take(30), eventLeft + dp(3), labelY + dp(17), p)
                 }
+                canvas.restore()
             }
         }
-        val scroll = android.widget.ScrollView(this).apply {
-            isFillViewport = false
-            addView(graph, android.view.ViewGroup.LayoutParams(-1, fullHeight))
-        }
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(480)))
+        // A fixed-size drawing surface avoids nested ScrollView measurement issues.
+        // Vertical scrolling is handled by the graph itself.
+        panel.addView(graph, LinearLayout.LayoutParams(-1, dp(480)))
         if (activePeople.size > 3) {
             gap(panel, 5)
             panel.addView(label(if (polish) "Przesuń paski uczestników w bok" else "Swipe participant tracks sideways", 12f, false, muted))
