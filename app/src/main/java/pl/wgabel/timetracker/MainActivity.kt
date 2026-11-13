@@ -151,8 +151,8 @@ class MainActivity : Activity() {
         }
         stickyDateContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(10), dp(16), dp(8))
-            setBackgroundColor(this@MainActivity.background)
+            setPadding(dp(16), 0, dp(16), dp(5))
+            setBackgroundColor(if (darkTheme) surface else darkHeader)
             visibility = View.GONE
             elevation = dp(4).toFloat()
         }
@@ -1051,12 +1051,21 @@ class MainActivity : Activity() {
                 activity.getOrPut(date) { mutableSetOf() }.add(cursor.getInt(0))
             }
         }
-        val panel = card()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(if (darkTheme) surface else darkHeader)
+        }
+        val calendarText = Color.WHITE
+        val calendarMuted = if (darkTheme) Color.rgb(171, 181, 196) else Color.rgb(195, 217, 215)
+        val calendarSelected = if (darkTheme) Color.rgb(55, 106, 156) else Color.rgb(67, 138, 153)
         val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val headingText = java.text.SimpleDateFormat("LLLL yyyy", resources.configuration.locales[0]).format(Date(selected))
-        heading.addView(label(headingText, 15f, true).apply { setOnClickListener { heading.getChildAt(1).performClick() } },
+        heading.addView(label(headingText, 15f, true, calendarText).apply { setOnClickListener { heading.getChildAt(1).performClick() } },
             LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(styledAction("▦", ButtonRole.SECONDARY) {
+        heading.addView(label("▦", 23f, false, calendarText).apply {
+            gravity = Gravity.CENTER
+            contentDescription = if (resources.configuration.locales[0].language == "pl") "Wybierz datę" else "Choose date"
+            setOnClickListener {
             val chosen = Calendar.getInstance().apply { timeInMillis = selected }
             DatePickerDialog(this, { _, year, month, day ->
                 val target = Calendar.getInstance().apply {
@@ -1071,7 +1080,8 @@ class MainActivity : Activity() {
             }, chosen.get(Calendar.YEAR), chosen.get(Calendar.MONTH), chosen.get(Calendar.DAY_OF_MONTH)).apply {
                 datePicker.maxDate = System.currentTimeMillis()
             }.show()
-        }, LinearLayout.LayoutParams(dp(46), dp(42)))
+            }
+        }, LinearLayout.LayoutParams(dp(46), dp(40)))
         panel.addView(heading, LinearLayout.LayoutParams(-1, dp(40)))
         calendarHeading = heading
         calendarHeadingExpanded = true
@@ -1088,12 +1098,12 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 setPadding(dp(1), dp(3), dp(1), dp(3))
-                background = shape(if (chosen) subtle else Color.TRANSPARENT, 12)
+                background = shape(if (chosen) calendarSelected else Color.TRANSPARENT, 12)
                 alpha = if (future) .40f else 1f
             }
-            cell.addView(label(shortDay.format(Date(date)), 11f, false, muted).apply { gravity = Gravity.CENTER })
+            cell.addView(label(shortDay.format(Date(date)), 11f, false, calendarMuted).apply { gravity = Gravity.CENTER })
             cell.addView(label(Calendar.getInstance().apply { timeInMillis = date }.get(Calendar.DAY_OF_MONTH).toString(),
-                16f, true, if (chosen) blue else ink).apply { gravity = Gravity.CENTER })
+                16f, true, calendarText).apply { gravity = Gravity.CENTER })
             val dots = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
             activity[date]?.take(3)?.forEach { person ->
                 dots.addView(View(this).apply { background = shape(personColor(person), 4) },
@@ -2930,7 +2940,7 @@ class MainActivity : Activity() {
         calendarHeadingExpanded = true
         stickyDateContainer.removeAllViews()
         stickyDateContainer.visibility = if (projectId != null && (tab == 1 || tab == 2)) View.VISIBLE else View.GONE
-        stickyDateContainer.setBackgroundColor(background)
+        stickyDateContainer.setBackgroundColor(if (darkTheme) surface else darkHeader)
         if (projectId == null) {
             content.setBackgroundColor(background)
             if (showAppSettings) renderAppSettings() else renderProjects()
