@@ -294,7 +294,7 @@ class MainActivity : Activity() {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var phase = 0f
         private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 6500L
+            duration = 2400L
             repeatCount = ValueAnimator.INFINITE
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { phase = it.animatedValue as Float; invalidateSelf() }
@@ -327,8 +327,12 @@ class MainActivity : Activity() {
             val clip = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
             canvas.clipPath(clip)
             for (i in 0 until 8) {
-                val x = w * (.71f + (i * .037f)) - dp(12) * phase
-                val y = ((i * .173f + phase * (.16f + i % 3 * .025f)) % 1f) * (h + dp(24)) - dp(12)
+                // Staggered horizontal blocks with smoothstep easing:
+                // acceleration at the start, deceleration at the end.
+                val progress = (phase * 1.6f + i / 8f) % 1f
+                val eased = progress * progress * (3f - 2f * progress)
+                val x = -dp(12) + eased * (w + dp(24))
+                val y = (i + .5f) / 8f * h
                 val side = dp(5 + i % 3).toFloat()
                 p.color = if (darkTheme) Color.argb(55, 114, 226, 154) else Color.argb(58, 47, 166, 93)
                 canvas.drawRoundRect(RectF(x, y, x + side, y + side), dp(1).toFloat(), dp(1).toFloat(), p)
