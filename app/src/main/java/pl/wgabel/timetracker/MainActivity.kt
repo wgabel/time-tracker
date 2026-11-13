@@ -1618,7 +1618,7 @@ class MainActivity : Activity() {
         val names = activePeople.associateWith { personName(it) }
         // The full local day is always shown. Grow the chart when event labels
         // need more vertical room, instead of clipping the bottom of the day.
-        val fullHeight = dp(maxOf(480, 48 + events.size * 42))
+        val fullHeight = dp(maxOf(480, 48 + events.size * 64))
         val graph = object : View(this) {
             private val p = Paint(Paint.ANTI_ALIAS_FLAG)
             private var horizontalOffset = 0f
@@ -1634,6 +1634,35 @@ class MainActivity : Activity() {
             private val trackStep get() = if (activePeople.size <= visibleCapacity)
                 participantWidth / activePeople.size.coerceAtLeast(1) else dp(19).toFloat()
             private val trackWidth get() = (trackStep - dp(3)).coerceAtLeast(dp(8).toFloat())
+            private fun drawWrappedText(canvas: Canvas, value: String, x: Float, baseline: Float,
+                                        availableWidth: Float, maxLines: Int, lineHeight: Float) {
+                val words = value.split(Regex("\\s+"))
+                var line = ""
+                var lineIndex = 0
+                for (word in words) {
+                    val candidate = if (line.isEmpty()) word else "$line $word"
+                    if (p.measureText(candidate) <= availableWidth) {
+                        line = candidate
+                    } else {
+                        if (line.isNotEmpty()) {
+                            canvas.drawText(line, x, baseline + lineIndex * lineHeight, p)
+                            lineIndex++
+                            if (lineIndex >= maxLines) return
+                        }
+                        line = word
+                        // Handle unbroken long words without drawing outside the panel.
+                        while (line.isNotEmpty() && p.measureText(line) > availableWidth) {
+                            val count = p.breakText(line, true, availableWidth, null).coerceAtLeast(1)
+                            canvas.drawText(line.take(count), x, baseline + lineIndex * lineHeight, p)
+                            lineIndex++
+                            if (lineIndex >= maxLines) return
+                            line = line.drop(count)
+                        }
+                    }
+                }
+                if (line.isNotEmpty() && lineIndex < maxLines)
+                    canvas.drawText(line, x, baseline + lineIndex * lineHeight, p)
+            }
             private fun yAt(time: Long) = ((time - day).toDouble() / (end - day) * fullHeight).toFloat()
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 val maxOffset = (activePeople.size * trackStep - participantWidth).coerceAtLeast(0f)
@@ -1727,7 +1756,7 @@ class MainActivity : Activity() {
                 // Keep dots at exact times. Lay out descriptions with a minimum
                 // separation, including clusters near the end of the day.
                 val labelPositions = events.map { yAt(it.at) }.toMutableList()
-                val separation = dp(42).toFloat()
+                val separation = dp(64).toFloat()
                 for (i in 1 until labelPositions.size) {
                     labelPositions[i] = maxOf(labelPositions[i], labelPositions[i - 1] + separation)
                 }
@@ -1750,12 +1779,14 @@ class MainActivity : Activity() {
                     p.textSize = dp(11).toFloat()
                     p.typeface = android.graphics.Typeface.DEFAULT_BOLD
                     val stamp = clockFormat.format(Date(e.at))
-                    canvas.drawText("$stamp · ${e.type}".take(27), eventLeft + dp(3), labelY + dp(4), p)
+                    val textX = eventLeft + dp(3)
+                    val textWidth = (width - textX - dp(6)).coerceAtLeast(dp(30).toFloat())
+                    drawWrappedText(canvas, "$stamp · ${e.type}", textX, labelY + dp(4), textWidth, 2, dp(13).toFloat())
                     p.typeface = android.graphics.Typeface.DEFAULT
                     p.color = muted
                     p.textSize = dp(10).toFloat()
                     val description = (names[e.person] ?: "") + if (e.note.isBlank()) "" else " · " + e.note
-                    canvas.drawText(description.take(30), eventLeft + dp(3), labelY + dp(17), p)
+                    drawWrappedText(canvas, description, textX, labelY + dp(30), textWidth, 2, dp(12).toFloat())
                 }
                 canvas.restore()
             }
