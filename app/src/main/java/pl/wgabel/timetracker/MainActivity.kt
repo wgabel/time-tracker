@@ -1505,6 +1505,177 @@ class MainActivity : Activity() {
         } else addCard(c)
     }
 
+
+    // Fixed-height daily view: the time scale and event labels stay pinned horizontally.
+    // Only participant tracks respond to horizontal swipes.
+    private fun renderVerticalDailyTimeline() {
+        val polish = resources.configuration.locales[0].language == "pl"
+        val panel = card()
+        panel.addView(label(if (polish) "Pionowa oś dnia" else "Vertical daily timeline", 20f, true))
+        gap(panel, 8)
+        val day = dayStart(timelineOffset)
+        val end = dayStart(timelineOffset + 1)
+        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        nav.addView(action("‹", subtleNeutral, ink) { timelineOffset--; renderContent() },
+            LinearLayout.LayoutParams(dp(44), dp(42)))
+        nav.addView(label(dateFormat.format(Date(day)), 14f, true).apply { gravity = Gravity.CENTER },
+            LinearLayout.LayoutParams(0, dp(42), 1f))
+        nav.addView(action("›", subtleNeutral, ink) {
+            if (timelineOffset < 0) { timelineOffset++; renderContent() }
+        }, LinearLayout.LayoutParams(dp(44), dp(42)))
+        panel.addView(nav)
+        gap(panel, 8)
+
+        val sessions = intervals(day, end)
+        data class EventMark(val person: Int, val at: Long, val type: String, val note: String)
+        val events = mutableListOf<EventMark>()
+        db.rawQuery(
+            "SELECT person,happened_at,type,note FROM events WHERE project_id=? AND happened_at>=? AND happened_at<? ORDER BY happened_at",
+            arrayOf(projectId.toString(), day.toString(), end.toString())
+        ).use { cur ->
+            while (cur.moveToNext()) events.add(EventMark(cur.getInt(0), cur.getLong(1), cur.getString(2), cur.getString(3)))
+        }
+        val activePeople = sessions.map { it.first }.distinct()
+        if (sessions.isEmpty() && events.isEmpty()) {
+            panel.addView(label(if (polish) "Brak aktywności tego dnia" else "No activity on this day", 14f, false, muted))
+            addCard(panel)
+            return
+        }
+
+        val names = activePeople.associateWith { personName(it) }
+        val scaleHeight = dp(48)
+        val fullHeight = (24f * (end - day).toDouble() / 86400000.0 * scaleHeight).toInt().coerceAtLeast(dp(200))
+        val graph = object : View(this) {
+            private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            private var horizontalOffset = 0f
+            private var downX = 0f
+            private var downY = 0f
+            private var initialOffset = 0f
+            private var swiping = false
+            private val trackStep get() = dp(19).toFloat()
+            private val trackWidth get() = dp(14).toFloat()
+            private fun yAt(time: Long) = ((time - day).toDouble() / (end - day) * fullHeight).toFloat()
+            override fun onTouchEvent(event: MotionEvent): Boolean {
+                val scaleWidth = dp(38).toFloat()
+                val participantWidth = width * .40f - scaleWidth
+                val maxOffset = (activePeople.size * trackStep - participantWidth).coerceAtLeast(0f)
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        if (event.x < scaleWidth || event.x > width * .40f || maxOffset <= 0f) return false
+                        downX = event.x; downY = event.y
+                        initialOffset = horizontalOffset; swiping = false
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (!swiping && kotlin.math.abs(event.x - downX) > dp(8) &&
+                            kotlin.math.abs(event.x - downX) > kotlin.math.abs(event.y - downY)) {
+                            swiping = true
+                            parent.requestDisallowInterceptTouchEvent(true)
+                        }
+                        if (swiping) {
+                            horizontalOffset = (initialOffset + downX - event.x).coerceIn(0f, maxOffset)
+                            invalidate()
+                        }
+                        return true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        parent.requestDisallowInterceptTouchEvent(false)
+                        return true
+                    }
+                }
+                return false
+            }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val scaleWidth = dp(38).toFloat()
+                val rightEdge = width * .40f
+                val eventLeft = rightEdge + dp(8)
+                val hourPaint = p
+                for (hour in 0..24) {
+                    val cal = Calendar.getInstance().apply { timeInMillis = day; add(Calendar.HOUR_OF_DAY, hour) }
+                    val at = cal.timeInMillis
+                    if (at > end) break
+                    val y = yAt(at).coerceAtMost(fullHeight - dp(2).toFloat())
+                    hourPaint.color = muted
+                    hourPaint.strokeWidth = dp(1).toFloat()
+                    canvas.drawLine(scaleWidth - dp(5), y, rightEdge, y, hourPaint)
+                    hourPaint.textSize = dp(10).toFloat()
+                    hourPaint.textAlign = Paint.Align.LEFT
+                    canvas.drawText(String.format(Locale.ROOT, "%02d", cal.get(Calendar.HOUR_OF_DAY)), dp(1).toFloat(),
+                        (y + dp(4)).coerceIn(dp(10).toFloat(), fullHeight - dp(2).toFloat()), hourPaint)
+                }
+                canvas.save()
+                canvas.clipRect(scaleWidth, 0f, rightEdge, height.toFloat())
+                activePeople.forEachIndexed { index, person ->
+                    val x = scaleWidth + dp(3) + index * trackStep - horizontalOffset
+                    if (x + trackWidth < scaleWidth || x > rightEdge) return@forEachIndexed
+                    p.color = personColor(person)
+                    p.alpha = 38
+                    canvas.drawRoundRect(RectF(x, 0f, x + trackWidth, height.toFloat()), dp(5).toFloat(), dp(5).toFloat(), p)
+                    p.alpha = 255
+                    val parts = sessions.filter { it.first == person }
+                    val longest = parts.maxByOrNull { it.third - it.second }
+                    parts.forEach { (_, start, finish) ->
+                        val top = yAt(start)
+                        val bottom = yAt(finish)
+                        p.color = personColor(person)
+                        canvas.drawRoundRect(RectF(x, top, x + trackWidth, maxOf(top + dp(2), bottom)),
+                            dp(5).toFloat(), dp(5).toFloat(), p)
+                        if (longest != null && start == longest.second && finish == longest.third &&
+                            bottom - top > dp(45)) {
+                            canvas.save()
+                            canvas.clipRect(x, top, x + trackWidth, bottom)
+                            canvas.rotate(90f, x + trackWidth / 2, (top + bottom) / 2)
+                            p.color = Color.WHITE
+                            p.textSize = dp(10).toFloat()
+                            p.textAlign = Paint.Align.CENTER
+                            p.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                            val name = names[person] ?: ""
+                            val maxChars = ((bottom - top) / dp(7)).toInt().coerceAtLeast(1)
+                            canvas.drawText(if (name.length > maxChars) name.take(maxChars - 1) + "…" else name,
+                                x + trackWidth / 2, (top + bottom) / 2 + dp(3), p)
+                            p.typeface = android.graphics.Typeface.DEFAULT
+                            canvas.restore()
+                        }
+                    }
+                }
+                canvas.restore()
+                // Keep event markers at their actual timestamps; move only labels to avoid collisions.
+                var lastLabelY = -dp(40).toFloat()
+                events.forEach { e ->
+                    val y = yAt(e.at)
+                    val labelY = maxOf(y, lastLabelY + dp(42)).coerceAtMost(fullHeight - dp(24).toFloat())
+                    lastLabelY = labelY
+                    p.color = personColor(e.person)
+                    p.strokeWidth = dp(1.5f.toInt()).toFloat().coerceAtLeast(1f)
+                    canvas.drawCircle(rightEdge - dp(3), y, dp(4).toFloat(), p)
+                    canvas.drawLine(rightEdge + dp(1), y, eventLeft, labelY, p)
+                    p.color = ink
+                    p.textAlign = Paint.Align.LEFT
+                    p.textSize = dp(11).toFloat()
+                    p.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    val stamp = clockFormat.format(Date(e.at))
+                    canvas.drawText("$stamp · ${e.type}".take(27), eventLeft + dp(3), labelY + dp(4), p)
+                    p.typeface = android.graphics.Typeface.DEFAULT
+                    p.color = muted
+                    p.textSize = dp(10).toFloat()
+                    val description = (names[e.person] ?: "") + if (e.note.isBlank()) "" else " · " + e.note
+                    canvas.drawText(description.take(30), eventLeft + dp(3), labelY + dp(17), p)
+                }
+            }
+        }
+        val scroll = android.widget.ScrollView(this).apply {
+            isFillViewport = false
+            addView(graph, android.widget.ScrollView.LayoutParams(-1, fullHeight))
+        }
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(480)))
+        if (activePeople.size > 3) {
+            gap(panel, 5)
+            panel.addView(label(if (polish) "Przesuń paski uczestników w bok" else "Swipe participant tracks sideways", 12f, false, muted))
+        }
+        addCard(panel)
+    }
+
     private fun renderStats() {
         content.addView(label(tr(R.string.statistics), 24f, true))
         gap(content, 12)
@@ -1543,6 +1714,8 @@ class MainActivity : Activity() {
         }
         gap(content, 18)
         renderTimeline()
+        gap(content, 18)
+        renderVerticalDailyTimeline()
     }
 
     private fun renderHistory() {
