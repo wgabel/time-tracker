@@ -2019,6 +2019,9 @@ class MainActivity : Activity() {
     private fun renderStats() {
         content.addView(label(tr(R.string.statistics), 24f, true))
         gap(content, 12)
+        // Use the exact same day-selection component as History, at the top.
+        dayNavigator(false)
+        gap(content, 18)
         val c = card()
         c.addView(label(tr(R.string.time_project), 20f, true))
         gap(c, 12)
@@ -2052,8 +2055,6 @@ class MainActivity : Activity() {
             gap(content, 18)
             renderParticipantPie(from, to)
         }
-        gap(content, 18)
-        dayNavigator(false)
         gap(content, 18)
         renderTimeline()
         gap(content, 18)
