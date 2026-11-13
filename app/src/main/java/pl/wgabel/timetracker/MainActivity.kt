@@ -293,8 +293,16 @@ class MainActivity : Activity() {
     private fun activeCardBackground(): Drawable = object : Drawable(), android.graphics.drawable.Animatable {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var phase = 0f
+        // Generate particle properties once; never randomize inside draw().
+        private val random = kotlin.random.Random(System.nanoTime())
+        private data class Block(val offset: Float, val y: Float, val speed: Float, val size: Int, val opacity: Int)
+        private val blocks = List(24) {
+            Block(random.nextFloat(), random.nextFloat(),
+                .65f + random.nextFloat() * .8f,
+                4 + random.nextInt(5), 28 + random.nextInt(42))
+        }
         private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 2400L
+            duration = 3600L
             repeatCount = ValueAnimator.INFINITE
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { phase = it.animatedValue as Float; invalidateSelf() }
@@ -326,16 +334,17 @@ class MainActivity : Activity() {
             canvas.save()
             val clip = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
             canvas.clipPath(clip)
-            for (i in 0 until 8) {
-                // Staggered horizontal blocks with smoothstep easing:
-                // acceleration at the start, deceleration at the end.
-                val progress = (phase * 1.6f + i / 8f) % 1f
+            for (block in blocks) {
+                // Independent randomized starting positions and speeds.
+                val progress = (phase * block.speed + block.offset) % 1f
                 val eased = progress * progress * (3f - 2f * progress)
-                val x = -dp(12) + eased * (w + dp(24))
-                val y = (i + .5f) / 8f * h
-                val side = dp(5 + i % 3).toFloat()
-                p.color = if (darkTheme) Color.argb(55, 114, 226, 154) else Color.argb(58, 47, 166, 93)
-                canvas.drawRoundRect(RectF(x, y, x + side, y + side), dp(1).toFloat(), dp(1).toFloat(), p)
+                val side = dp(block.size).toFloat()
+                val x = -side + eased * (w + side * 2f)
+                val y = block.y * (h - side).coerceAtLeast(0f)
+                p.color = if (darkTheme) Color.argb(block.opacity, 114, 226, 154)
+                    else Color.argb(block.opacity, 47, 166, 93)
+                canvas.drawRoundRect(RectF(x, y, x + side, y + side),
+                    dp(1).toFloat(), dp(1).toFloat(), p)
             }
             canvas.restore()
             p.style = Paint.Style.STROKE
