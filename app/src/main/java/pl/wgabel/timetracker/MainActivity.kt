@@ -1179,7 +1179,7 @@ class MainActivity : Activity() {
                         val cx = width / 2f
                         paint.strokeWidth = dp(2).toFloat()
                         canvas.drawLine(cx, 0f, cx, height.toFloat(), paint)
-                        canvas.drawCircle(cx, height / 2f, dp(5) .toFloat(), paint)
+                        canvas.drawCircle(cx, height / 2f, dp(5).toFloat(), paint)
                     }
                 }
                 eventRow.addView(rail, LinearLayout.LayoutParams(dp(14), dp(62)))
@@ -1206,8 +1206,11 @@ class MainActivity : Activity() {
                                 renderContent()
                             }.show()
                     }.apply { background = null }
-                    eventRow.addView(edit, LinearLayout.LayoutParams(dp(36), dp(40)))
-                    eventRow.addView(delete, LinearLayout.LayoutParams(dp(36), dp(40)))
+                    // Separate 48dp touch targets with a non-clickable 12dp gap.
+                    // This prevents accidental deletion when tapping Edit.
+                    eventRow.addView(edit, LinearLayout.LayoutParams(dp(48), dp(48)))
+                    eventRow.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
+                    eventRow.addView(delete, LinearLayout.LayoutParams(dp(48), dp(48)))
                 }
                 container.addView(eventRow)
             }
