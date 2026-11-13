@@ -70,7 +70,8 @@ class MainActivity : Activity() {
     private val ink get() = if (darkTheme) Color.rgb(238, 241, 248) else Color.rgb(26, 34, 43)
     private val muted get() = if (darkTheme) Color.rgb(171, 181, 196) else Color.rgb(99, 109, 120)
     private val surface get() = if (darkTheme) Color.rgb(35, 42, 54) else Color.WHITE
-    private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(246, 247, 251)
+    private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(245, 240, 232)
+    private val darkHeader = Color.rgb(24, 47, 53)
     private val subtle get() = if (darkTheme) Color.rgb(52, 62, 79) else Color.rgb(226, 235, 252)
     private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else Color.rgb(235, 238, 244)
     private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else Color.rgb(245, 229, 209)
@@ -114,7 +115,7 @@ class MainActivity : Activity() {
             textSize = 25f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else Color.rgb(37, 49, 72))
+            setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else darkHeader)
             letterSpacing = -0.02f
             setPadding(dp(22), dp(17), dp(22), dp(17))
         }
@@ -128,7 +129,7 @@ class MainActivity : Activity() {
         outer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         navigation = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(surface)
+            setBackgroundColor(if (darkTheme) surface else darkHeader)
             setPadding(dp(8), dp(5), dp(8), dp(7))
             elevation = dp(7).toFloat()
         }
@@ -2310,10 +2311,13 @@ class MainActivity : Activity() {
         if (projectId == null) { navigation.visibility = View.GONE; return }
         navigation.visibility = View.VISIBLE
         listOf("◷\n" + tr(R.string.timers), "▥\n" + tr(R.string.statistics), "☷\n" + tr(R.string.history), "⚙\n" + tr(R.string.settings)).forEachIndexed { index, name ->
-            val item = label(name, 12f, tab == index, if (tab == index) blue else muted).apply {
+            val item = label(name, 12f, tab == index,
+                if (darkTheme) { if (tab == index) blue else muted }
+                else if (tab == index) Color.WHITE else Color.rgb(183, 204, 202)).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(2), dp(8), dp(2), dp(8))
-                background = if (tab == index) shape(subtle, 16) else shape(Color.TRANSPARENT, 16)
+                background = if (tab == index) shape(if (darkTheme) subtle else Color.rgb(44, 79, 83), 16)
+                    else shape(Color.TRANSPARENT, 16)
                 contentDescription = name.replace("\n", " ")
                 setOnClickListener { tab = index; render() }
             }
