@@ -732,12 +732,10 @@ class MainActivity : Activity() {
     }
 
     private fun renderAppSettings() {
-        val back = label("←  " + tr(R.string.back_projects).removePrefix("← "), 16f, true, blue).apply {
-            setPadding(0, dp(8), 0, dp(16))
-            setOnClickListener { showAppSettings = false; render() }
-        }
-        content.addView(back)
-        content.addView(label(tr(R.string.settings), 24f, true))
+        content.addView(styledAction(tr(R.string.back_projects), ButtonRole.SECONDARY) {
+            showAppSettings = false
+            render()
+        })
         gap(content, 16)
         val app = card()
         app.addView(label(tr(R.string.application), 19f, true))
@@ -760,11 +758,12 @@ class MainActivity : Activity() {
         }
         heading.addView(label(if (showArchived) tr(R.string.archived_projects) else tr(R.string.projects), 24f, true))
         if (!showArchived) {
-            val addButton = label("+", 27f, true, Color.WHITE).apply {
-                gravity = Gravity.CENTER
+            val addButton = styledAction("＋", ButtonRole.PRIMARY) { createProject() }.apply {
+                textSize = 24f
                 contentDescription = tr(R.string.add_project)
-                background = shape(blue, 12)
-                setOnClickListener { createProject() }
+                minHeight = dp(42)
+                minimumHeight = dp(42)
+                setPadding(0, 0, 0, 0)
             }
             heading.addView(addButton, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
                 setMargins(dp(12), 0, 0, 0)
@@ -827,10 +826,9 @@ class MainActivity : Activity() {
                 showArchived = true; render()
             })
             gap(content, 18)
-            content.addView(label("⚙  " + tr(R.string.settings), 14f, false, muted).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(12), dp(14), dp(12), dp(14))
-                setOnClickListener { showAppSettings = true; render() }
+            content.addView(styledAction("⚙  " + tr(R.string.settings), ButtonRole.SECONDARY) {
+                showAppSettings = true
+                render()
             })
         }
     }
@@ -2195,10 +2193,6 @@ class MainActivity : Activity() {
         // Day selection is the first control, followed by actions and participant filters.
         dayNavigator(true)
         gap(content, 12)
-        if (!isArchived()) {
-            content.addView(styledAction("＋  " + tr(R.string.add_measurement), ButtonRole.PRIMARY) { addSession() })
-            gap(content, 12)
-        }
 
         // Wrap filters into as many rows as needed, with no horizontal scrolling.
         val availableWidth = resources.displayMetrics.widthPixels - dp(32)
@@ -2238,6 +2232,28 @@ class MainActivity : Activity() {
         content.addView(filterRows)
         gap(content, 12)
         renderTimeline(inHistory = true)
+        val measurementsHeading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        measurementsHeading.addView(label(tr(R.string.measurements_heading), 21f, true, ink).apply {
+            letterSpacing = -0.02f
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (!isArchived()) {
+            val addMeasurement = styledAction("＋", ButtonRole.PRIMARY) { addSession() }.apply {
+                contentDescription = tr(R.string.add_measurement).removePrefix("+").trim()
+                textSize = 24f
+                minHeight = dp(40)
+                minimumHeight = dp(40)
+                minWidth = dp(44)
+                minimumWidth = dp(44)
+                setPadding(0, 0, 0, 0)
+            }
+            measurementsHeading.addView(addMeasurement, LinearLayout.LayoutParams(dp(44), dp(40)))
+        }
+        gap(content, 12)
+        content.addView(measurementsHeading)
+        gap(content, 12)
         sessionList(dayStart(dayOffset), dayStart(dayOffset + 1), 500)
     }
 
