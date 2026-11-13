@@ -290,14 +290,15 @@ class MainActivity : Activity() {
         elevation = dp(1).toFloat()
     }
 
+    private data class AnimatedBlock(val offset: Float, val y: Float, val speed: Float, val size: Int, val opacity: Int)
+
     private fun activeCardBackground(): Drawable = object : Drawable(), android.graphics.drawable.Animatable {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var phase = 0f
         // Generate particle properties once; never randomize inside draw().
         private val random = kotlin.random.Random(System.nanoTime())
-        private data class Block(val offset: Float, val y: Float, val speed: Float, val size: Int, val opacity: Int)
         private val blocks = List(24) {
-            Block(random.nextFloat(), random.nextFloat(),
+            AnimatedBlock(random.nextFloat(), random.nextFloat(),
                 .65f + random.nextFloat() * .8f,
                 4 + random.nextInt(5), 28 + random.nextInt(42))
         }
