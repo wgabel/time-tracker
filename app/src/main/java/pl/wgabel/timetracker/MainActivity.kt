@@ -1666,7 +1666,7 @@ class MainActivity : Activity() {
         }
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = false
-            addView(graph, android.widget.ScrollView.LayoutParams(-1, fullHeight))
+            addView(graph, android.view.ViewGroup.LayoutParams(-1, fullHeight))
         }
         panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(480)))
         if (activePeople.size > 3) {
