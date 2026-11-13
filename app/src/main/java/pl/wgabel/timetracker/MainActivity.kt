@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private lateinit var db: SQLiteDatabase
     private lateinit var content: LinearLayout
     private lateinit var navigation: LinearLayout
+    private lateinit var topHeader: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
@@ -110,16 +111,14 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(this@MainActivity.background)
         }
-        val heading = TextView(this).apply {
-            text = "◷  " + tr(R.string.app_title)
-            textSize = 25f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.WHITE)
+        topHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else darkHeader)
-            letterSpacing = -0.02f
-            setPadding(dp(22), dp(17), dp(22), dp(17))
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            minimumHeight = dp(54)
         }
-        outer.addView(heading)
+        outer.addView(topHeader)
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2271,32 +2270,6 @@ class MainActivity : Activity() {
             content.addView(label(tr(R.string.archive_banner), 13f, true, Color.rgb(147, 82, 27)))
             gap(content, 7)
         }
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(label("←", 29f, false, ink).apply {
-            gravity = Gravity.CENTER
-            contentDescription = tr(R.string.back_to_projects_description)
-            setOnClickListener { projectId = null; render() }
-        }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        header.addView(projectIcon(projectId!!, 38))
-        header.addView(label(projectName(), 21f, true, ink).apply {
-            setSingleLine(true)
-            ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(dp(10), 0, dp(5), 0)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val active = db.rawQuery("SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL", arrayOf(projectId.toString())).use {
-            if (it.moveToFirst()) it.getInt(0) else 0
-        }
-        if (active > 0) {
-            header.addView(label("● $active " + tr(R.string.active_plural).trim(), 12f, true, green).apply {
-                setPadding(dp(8), dp(7), dp(8), dp(7))
-                background = GradientDrawable().apply {
-                    setColor(if (darkTheme) Color.rgb(35, 71, 54) else Color.rgb(230, 241, 235))
-                    cornerRadius = dp(16).toFloat()
-                }
-            })
-        }
-        content.addView(header)
-        gap(content, 12)
         when (tab) {
             0 -> renderTimers()
             1 -> renderStats()
@@ -2305,7 +2278,38 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun renderTopHeader() {
+        topHeader.removeAllViews()
+        if (projectId == null) {
+            topHeader.addView(label("◷  " + tr(R.string.app_title), 21f, true, Color.WHITE))
+            return
+        }
+        topHeader.addView(label("‹", 29f, false, Color.WHITE).apply {
+            gravity = Gravity.CENTER
+            contentDescription = tr(R.string.back_to_projects_description)
+            setOnClickListener { projectId = null; render() }
+        }, LinearLayout.LayoutParams(dp(38), dp(40)))
+        topHeader.addView(projectIcon(projectId!!, 30), LinearLayout.LayoutParams(dp(30), dp(30)))
+        topHeader.addView(label(projectName(), 17f, true, Color.WHITE).apply {
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(dp(9), 0, dp(6), 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        val active = db.rawQuery(
+            "SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL",
+            arrayOf(projectId.toString())
+        ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+        if (active > 0) {
+            topHeader.addView(label("● $active", 12f, true, Color.rgb(164, 231, 187)).apply {
+                setPadding(dp(9), dp(6), dp(9), dp(6))
+                background = shape(Color.rgb(44, 79, 83), 18)
+                contentDescription = "$active " + tr(R.string.active_plural).trim()
+            })
+        }
+    }
+
     private fun render() {
+        renderTopHeader()
         renderContent()
         navigation.removeAllViews()
         if (projectId == null) { navigation.visibility = View.GONE; return }
