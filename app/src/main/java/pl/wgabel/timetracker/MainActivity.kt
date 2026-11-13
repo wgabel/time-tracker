@@ -56,6 +56,9 @@ class MainActivity : Activity() {
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
     private lateinit var stickyDateContainer: LinearLayout
+    private var calendarHeading: View? = null
+    private var calendarHeadingExpanded = true
+    private var calendarHeadingAnimator: android.animation.ValueAnimator? = null
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
@@ -161,6 +164,11 @@ class MainActivity : Activity() {
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(20))
+        }
+        scroll.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            if (projectId != null && (tab == 1 || tab == 2) && kotlin.math.abs(scrollY - oldScrollY) > dp(2)) {
+                setCalendarHeadingExpanded(scrollY == 0 || scrollY < oldScrollY)
+            }
         }
         scroll.addView(content)
         outer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -973,6 +981,25 @@ class MainActivity : Activity() {
         return sum
     }
 
+    private fun setCalendarHeadingExpanded(expanded: Boolean) {
+        if (calendarHeadingExpanded == expanded) return
+        val heading = calendarHeading ?: return
+        calendarHeadingExpanded = expanded
+        calendarHeadingAnimator?.cancel()
+        val startHeight = heading.height
+        val targetHeight = if (expanded) dp(40) else 0
+        calendarHeadingAnimator = android.animation.ValueAnimator.ofInt(startHeight, targetHeight).apply {
+            duration = 220L
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener { animator ->
+                val height = animator.animatedValue as Int
+                heading.layoutParams = heading.layoutParams.apply { this.height = height }
+                heading.alpha = height.toFloat() / dp(40)
+            }
+            start()
+        }
+    }
+
     // Shared day navigation for Statistics timelines and History. Timers always shows today.
     private fun dayNavigator(forHistory: Boolean) {
         val selectedOffset = if (forHistory) dayOffset else timelineOffset
@@ -1026,8 +1053,8 @@ class MainActivity : Activity() {
         }
         val panel = card()
         val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val headingText = DatePresentation.weekdayHeading(resources, selected)
-        heading.addView(label(headingText, 18f, true),
+        val headingText = java.text.SimpleDateFormat("LLLL yyyy", resources.configuration.locales[0]).format(Date(selected))
+        heading.addView(label(headingText, 15f, true).apply { setOnClickListener { heading.getChildAt(1).performClick() } },
             LinearLayout.LayoutParams(0, -2, 1f))
         heading.addView(styledAction("▦", ButtonRole.SECONDARY) {
             val chosen = Calendar.getInstance().apply { timeInMillis = selected }
@@ -1045,8 +1072,9 @@ class MainActivity : Activity() {
                 datePicker.maxDate = System.currentTimeMillis()
             }.show()
         }, LinearLayout.LayoutParams(dp(46), dp(42)))
-        panel.addView(heading)
-        gap(panel, 8)
+        panel.addView(heading, LinearLayout.LayoutParams(-1, dp(40)))
+        calendarHeading = heading
+        calendarHeadingExpanded = true
         val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val shortDay = DatePresentation.weekdayShort(resources)
         for (index in 0 until 7) {
@@ -1059,7 +1087,7 @@ class MainActivity : Activity() {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(1), dp(7), dp(1), dp(7))
+                setPadding(dp(1), dp(3), dp(1), dp(3))
                 background = shape(if (chosen) subtle else Color.TRANSPARENT, 12)
                 alpha = if (future) .40f else 1f
             }
@@ -1079,31 +1107,43 @@ class MainActivity : Activity() {
                 if (forHistory) dayOffset = offset else timelineOffset = offset
                 renderContent()
             }
-            strip.addView(cell, LinearLayout.LayoutParams(0, dp(75), 1f))
+            strip.addView(cell, LinearLayout.LayoutParams(0, dp(59), 1f))
+        }
+        // Week navigation via swipes is handled by the individual day cells.
+        for (index in 0 until strip.childCount) {
+            val cell = strip.getChildAt(index)
+            var downX = 0f
+            var downY = 0f
+            cell.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        false
+                    }
+                    android.view.MotionEvent.ACTION_UP -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (kotlin.math.abs(dx) > dp(48) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f) {
+                            val target = Calendar.getInstance().apply {
+                                timeInMillis = selected
+                                add(Calendar.DAY_OF_YEAR, if (dx > 0) -7 else 7)
+                            }.timeInMillis
+                            if (target <= today) {
+                                var offset = selectedOffset
+                                while (dayStart(offset) > target) offset--
+                                while (dayStart(offset + 1) <= target) offset++
+                                if (forHistory) dayOffset = offset else timelineOffset = offset
+                                renderContent()
+                            }
+                            true
+                        } else false
+                    }
+                    else -> false
+                }
+            }
         }
         panel.addView(strip)
-        val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        footer.addView(styledAction("‹ " + if (polish) "Poprzedni tydzień" else "Previous week", ButtonRole.SECONDARY) {
-            val target = Calendar.getInstance().apply { timeInMillis = selected; add(Calendar.DAY_OF_YEAR, -7) }.timeInMillis
-            var offset = selectedOffset
-            while (dayStart(offset) > target) offset--
-            if (forHistory) dayOffset = offset else timelineOffset = offset
-            renderContent()
-        }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        footer.addView(styledAction(if (polish) "Dzisiaj" else "Today", ButtonRole.SECONDARY) {
-            if (forHistory) dayOffset = 0 else timelineOffset = 0
-            renderContent()
-        }, LinearLayout.LayoutParams(dp(100), dp(42)).apply { setMargins(dp(8), 0, dp(8), 0) })
-        footer.addView(styledAction("›", ButtonRole.SECONDARY) {
-            val target = Calendar.getInstance().apply { timeInMillis = selected; add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
-            if (target <= today) {
-                var offset = selectedOffset
-                while (dayStart(offset + 1) <= target) offset++
-                if (forHistory) dayOffset = offset else timelineOffset = offset
-                renderContent()
-            }
-        }, LinearLayout.LayoutParams(dp(44), dp(42)))
-        panel.addView(footer)
         if (tab == 1 || tab == 2) {
             stickyDateContainer.addView(panel)
         } else {
@@ -2885,6 +2925,9 @@ class MainActivity : Activity() {
     private fun renderContent() {
         timerUpdates.clear()
         content.removeAllViews()
+        calendarHeadingAnimator?.cancel()
+        calendarHeading = null
+        calendarHeadingExpanded = true
         stickyDateContainer.removeAllViews()
         stickyDateContainer.visibility = if (projectId != null && (tab == 1 || tab == 2)) View.VISIBLE else View.GONE
         stickyDateContainer.setBackgroundColor(background)
