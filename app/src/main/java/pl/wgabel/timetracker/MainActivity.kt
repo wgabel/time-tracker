@@ -86,10 +86,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         applyLanguage()
         applyThemeToSystem()
-        db = object : SQLiteOpenHelper(this, "sessions.db", null, 5) {
+        db = object : SQLiteOpenHelper(this, "sessions.db", null, 6) {
             override fun onCreate(database: SQLiteDatabase) {
                 database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
-                database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
+                database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL, color INTEGER NOT NULL DEFAULT 0)")
                 database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
                 database.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
                 database.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
@@ -106,6 +106,18 @@ class MainActivity : Activity() {
                 if (oldVersion < 3) database.execSQL("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
                 if (oldVersion < 4) database.execSQL("ALTER TABLE projects ADD COLUMN icon_variant INTEGER NOT NULL DEFAULT 0")
                 if (oldVersion < 5) database.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
+                if (oldVersion < 6) {
+                    database.execSQL("ALTER TABLE participants ADD COLUMN color INTEGER NOT NULL DEFAULT 0")
+                    database.rawQuery("SELECT id FROM participants", null).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val id = cursor.getInt(0)
+                            database.execSQL(
+                                "UPDATE participants SET color=? WHERE id=?",
+                                arrayOf(ParticipantColors.legacyColor(id), id)
+                            )
+                        }
+                    }
+                }
             }
         }.writableDatabase
         applyThemeToSystem()
@@ -485,7 +497,13 @@ class MainActivity : Activity() {
     }
     private fun addParticipant() {
         val input = EditText(this).apply { hint = tr(R.string.participant_hint); setSingleLine(true) }
-        val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
+        val selectedColor = intArrayOf(nextParticipantColor())
+        val holder = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), 0, dp(20), 0)
+            addView(input)
+            addView(colorPicker(selectedColor[0]) { selectedColor[0] = it })
+        }
         val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_participant)).setView(holder)
             .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.add), null).create()
         dialog.setOnShowListener {
@@ -493,7 +511,7 @@ class MainActivity : Activity() {
                 val name = input.text.toString().trim()
                 if (name.isEmpty()) { input.error = tr(R.string.name_required); return@setOnClickListener }
                 db.insert("participants", null, ContentValues().apply {
-                    put("project_id", projectId); put("name", name)
+                    put("project_id", projectId); put("name", name); put("color", selectedColor[0])
                 })
                 dialog.dismiss()
                 renderContent()
@@ -832,12 +850,63 @@ class MainActivity : Activity() {
             })
         }
     }
-    private val participantPalette = intArrayOf(
-        0xFF356AC3.toInt(), 0xFF21896F.toInt(), 0xFF9B59B6.toInt(),
-        0xFFD47A25.toInt(), 0xFFC34F69.toInt(), 0xFF526E83.toInt()
-    )
     private fun personColor(person: Int): Int =
-        participantPalette[Math.floorMod(person, participantPalette.size)]
+        db.rawQuery("SELECT color FROM participants WHERE id=? AND project_id=?",
+            arrayOf(person.toString(), projectId.toString())).use { cursor ->
+            if (cursor.moveToFirst() && cursor.getInt(0) != 0) cursor.getInt(0)
+            else ParticipantColors.legacyColor(person)
+        }
+
+    private fun nextParticipantColor(): Int {
+        val count = db.rawQuery("SELECT COUNT(*) FROM participants WHERE project_id=?",
+            arrayOf(projectId.toString())).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+        return ParticipantColors.suggested(count)
+    }
+
+    private fun colorPicker(initial: Int, onSelected: (Int) -> Unit): LinearLayout {
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val swatches = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var selectedColor = initial
+        val preview = label("●", 30f, true, initial).apply { gravity = Gravity.CENTER }
+        container.addView(preview)
+        ParticipantColors.palette.toList().chunked(5).forEach { rowColors ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            rowColors.forEach { color ->
+                val swatch = label("●", 29f, true, color).apply {
+                    gravity = Gravity.CENTER
+                    contentDescription = String.format(Locale.ROOT, "#%06X", color and 0xFFFFFF)
+                    setOnClickListener {
+                        selectedColor = color
+                        preview.setTextColor(selectedColor)
+                        onSelected(selectedColor)
+                    }
+                }
+                row.addView(swatch, LinearLayout.LayoutParams(0, dp(50), 1f))
+            }
+            swatches.addView(row)
+        }
+        container.addView(swatches)
+        return container
+    }
+
+    private fun editParticipantColor(person: Int) {
+        if (isArchived()) return
+        val selected = intArrayOf(personColor(person))
+        AlertDialog.Builder(this)
+            .setTitle(personName(person))
+            .setView(colorPicker(selected[0]) { selected[0] = it })
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(tr(R.string.save)) { _, _ ->
+                db.update("participants", ContentValues().apply { put("color", selected[0]) },
+                    "id=? AND project_id=?", arrayOf(person.toString(), projectId.toString()))
+                render()
+            }.show()
+    }
 
     private fun activeStart(person: Int): Long? {
         db.rawQuery("SELECT started_at FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1", arrayOf(projectId.toString(), person.toString())).use {
@@ -2425,6 +2494,11 @@ class MainActivity : Activity() {
             row.addView(avatar(person), LinearLayout.LayoutParams(dp(36), dp(36)))
             val name = label(personName(person), 15f, true).apply { setPadding(dp(10), 0, dp(4), 0) }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(label("●", 24f, true, personColor(person)).apply {
+                gravity = Gravity.CENTER
+                contentDescription = "Color"
+                setOnClickListener { editParticipantColor(person) }
+            }, LinearLayout.LayoutParams(dp(42), dp(42)))
             row.addView(editIconButton { rename(person) },
                 LinearLayout.LayoutParams(dp(42), dp(42)))
             gap(row, 5)
