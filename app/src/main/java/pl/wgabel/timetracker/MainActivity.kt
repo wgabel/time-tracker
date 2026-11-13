@@ -1392,7 +1392,7 @@ class MainActivity : Activity() {
                                 }
                                 tray.translationX = fromOffset * (1f - fraction) +
                                     (if (expanded) 0f else dp(36).toFloat()) * fraction
-                                arrow.alpha = if (expanded) 1f - fraction else fraction
+                                arrow.rotation = (if (expanded) 90f else 0f) * fraction + (if (expanded) 0f else 90f) * (1f - fraction)
                                 tray.alpha = fromAlpha +
                                     ((if (expanded) 1f else 0f) - fromAlpha) * fraction
                             }
@@ -1790,7 +1790,7 @@ class MainActivity : Activity() {
                                 }
                                 tray.translationX = fromOffset * (1f - fraction) +
                                     (if (expanded) 0f else dp(36).toFloat()) * fraction
-                                arrow.alpha = if (expanded) 1f - fraction else fraction
+                                arrow.rotation = (if (expanded) 90f else 0f) * fraction + (if (expanded) 0f else 90f) * (1f - fraction)
                                 tray.alpha = fromAlpha + ((if (expanded) 1f else 0f) - fromAlpha) * fraction
                             }
                             start()
@@ -2851,7 +2851,7 @@ class MainActivity : Activity() {
                 }
                 val fromOffset = tray.translationX
                 val fromAlpha = tray.alpha
-                val fromArrowAlpha = arrow.alpha
+                val fromArrowRotation = arrow.rotation
                 animation = ValueAnimator.ofFloat(0f, 1f).apply {
                     duration = 260L
                     interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
@@ -2863,7 +2863,7 @@ class MainActivity : Activity() {
                         tray.translationX = fromOffset * (1f - fraction) +
                             (if (expanded) 0f else dp(36).toFloat()) * fraction
                         tray.alpha = fromAlpha + ((if (expanded) 1f else 0f) - fromAlpha) * fraction
-                        arrow.alpha = fromArrowAlpha + ((if (expanded) 0f else 1f) - fromArrowAlpha) * fraction
+                        arrow.rotation = fromArrowRotation + ((if (expanded) 90f else 0f) - fromArrowRotation) * fraction
                     }
                     start()
                 }
