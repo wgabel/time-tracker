@@ -1067,7 +1067,7 @@ class MainActivity : Activity() {
             contentDescription = if (resources.configuration.locales[0].language == "pl") "Wybierz datę" else "Choose date"
             setOnClickListener {
             val chosen = Calendar.getInstance().apply { timeInMillis = selected }
-            DatePickerDialog(this, { _, year, month, day ->
+            DatePickerDialog(this@MainActivity, { _, year, month, day ->
                 val target = Calendar.getInstance().apply {
                     set(year, month, day, 0, 0, 0)
                     set(Calendar.MILLISECOND, 0)
