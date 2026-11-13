@@ -1481,6 +1481,54 @@ class MainActivity : Activity() {
         addCard(c)
     }
 
+    // Particle overlay for a currently running interval, clipped to its colored bar.
+    private fun drawRunningBlocks(canvas: Canvas, paint: Paint, area: RectF, color: Int, vertical: Boolean) {
+        if (area.width() <= 0f || area.height() <= 0f) return
+        val t = android.os.SystemClock.uptimeMillis().toDouble() / 3600.0
+        canvas.save()
+        val clip = Path().apply { addRoundRect(area, dp(3).toFloat(), dp(3).toFloat(), Path.Direction.CW) }
+        canvas.clipPath(clip)
+        for (i in 0 until 24) {
+            // Stable pseudo-random particle properties: no jitter between frames.
+            fun fraction(seed: Int): Float {
+                val n = kotlin.math.sin(seed.toDouble() * 12.9898 + i * 78.233) * 43758.5453
+                return (n - kotlin.math.floor(n)).toFloat()
+            }
+            val speed = .65f + fraction(11) * .8f
+            val progress = ((t * speed + fraction(23)) % 1.0).toFloat()
+            val eased = progress * progress * (3f - 2f * progress)
+            val side = dp(4 + (fraction(37) * 5).toInt()).toFloat()
+            val x = if (vertical) area.left + fraction(41) * (area.width() - side).coerceAtLeast(0f)
+                else area.left - side + eased * (area.width() + 2f * side)
+            val y = if (vertical) area.top - side + eased * (area.height() + 2f * side)
+                else area.top + fraction(41) * (area.height() - side).coerceAtLeast(0f)
+            paint.color = Color.argb(38 + (fraction(53) * 40).toInt(),
+                Color.red(color), Color.green(color), Color.blue(color))
+            canvas.drawRoundRect(RectF(x, y, x + side, y + side), dp(1).toFloat(), dp(1).toFloat(), paint)
+        }
+        canvas.restore()
+    }
+
+    private fun animateRunningChart(view: View, active: Boolean) {
+        if (!active) return
+        val ticker = object : Runnable {
+            override fun run() {
+                if (!view.isAttachedToWindow || !view.hasWindowFocus()) return
+                view.invalidate()
+                view.postDelayed(this, 33L)
+            }
+        }
+        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { v.post(ticker) }
+            override fun onViewDetachedFromWindow(v: View) { v.removeCallbacks(ticker) }
+        })
+        // Window focus can change without detaching the view.
+        view.viewTreeObserver.addOnWindowFocusChangeListener { focused ->
+            view.removeCallbacks(ticker)
+            if (focused && view.isAttachedToWindow) view.post(ticker)
+        }
+    }
+
     private fun renderTimeline(inHistory: Boolean = false) {
         val c = if (inHistory) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else card()
         if (!inHistory) {
@@ -1513,6 +1561,8 @@ class MainActivity : Activity() {
                         maxOf(day, cur.getLong(2)) to minOf(end, if (cur.isNull(3)) System.currentTimeMillis() else cur.getLong(3))))
                 }
             }
+            val runningPeople = if (day <= System.currentTimeMillis() && end > System.currentTimeMillis())
+                people.filter { activeStart(it) != null }.toSet() else emptySet()
             val timeline = object : View(this) {
                 override fun onTouchEvent(event: MotionEvent): Boolean {
                     if (event.action != MotionEvent.ACTION_UP) return true
@@ -1559,6 +1609,11 @@ class MainActivity : Activity() {
                             val x2 = left + ((item.third - day).toFloat() / (end - day)) * trackWidth
                             paint.color = personColor(person)
                             canvas.drawRoundRect(RectF(x1, y, maxOf(x1 + dp(2), x2), y + dp(21)), dp(3).toFloat(), dp(3).toFloat(), paint)
+                            if (person in runningPeople && item.third >= System.currentTimeMillis() - 1500L) {
+                                drawRunningBlocks(canvas, paint,
+                                    RectF(x1, y, maxOf(x1 + dp(2), x2), y + dp(21)),
+                                    personColor(person), false)
+                            }
                         }
                         // Hour ticks directly below each timeline track, with only a 1dp gap.
                         paint.strokeWidth = resources.displayMetrics.density.coerceAtLeast(1f)
@@ -1586,6 +1641,7 @@ class MainActivity : Activity() {
                 }
             }
             c.addView(timeline, LinearLayout.LayoutParams(-1, dp(32) * people.size + (if (inHistory) dp(4) else dp(25))))
+            animateRunningChart(timeline, runningPeople.isNotEmpty())
         }
         if (inHistory) {
             content.addView(c, LinearLayout.LayoutParams(-1, -2))
@@ -1624,6 +1680,8 @@ class MainActivity : Activity() {
             while (cur.moveToNext()) events.add(EventMark(cur.getInt(0), cur.getLong(1), cur.getString(2), cur.getString(3)))
         }
         val activePeople = sessions.map { it.first }.distinct()
+        val runningPeople = if (day <= System.currentTimeMillis() && end > System.currentTimeMillis())
+            activePeople.filter { activeStart(it) != null }.toSet() else emptySet()
         if (sessions.isEmpty() && events.isEmpty()) {
             panel.addView(label(if (polish) "Brak aktywności tego dnia" else "No activity on this day", 14f, false, muted))
             addCard(panel)
@@ -1761,6 +1819,11 @@ class MainActivity : Activity() {
                         p.color = personColor(person)
                         canvas.drawRoundRect(RectF(x, top, x + trackWidth, maxOf(top + dp(2), bottom)),
                             dp(5).toFloat(), dp(5).toFloat(), p)
+                        if (person in runningPeople && finish >= System.currentTimeMillis() - 1500L) {
+                            drawRunningBlocks(canvas, p,
+                                RectF(x, top, x + trackWidth, maxOf(top + dp(2), bottom)),
+                                personColor(person), true)
+                        }
                         if (longest != null && start == longest.second && finish == longest.third &&
                             bottom - top > dp(24)) {
                             canvas.save()
@@ -1838,6 +1901,7 @@ class MainActivity : Activity() {
         // Height expands with event density; the surrounding statistics page scrolls.
         // Horizontal swiping remains limited to participant tracks.
         panel.addView(graph, LinearLayout.LayoutParams(-1, fullHeight))
+        animateRunningChart(graph, runningPeople.isNotEmpty())
         if (activePeople.size > 3) {
             gap(panel, 5)
             panel.addView(label(if (polish) "Przesuń paski uczestników w bok" else "Swipe participant tracks sideways", 12f, false, muted))
