@@ -81,8 +81,8 @@ class MainActivity : Activity() {
     private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else Color.rgb(235, 238, 244)
     private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else Color.rgb(245, 229, 209)
     private val secondaryButtonText get() = if (darkTheme) ink else blue
-    private val dateFormat get() = SimpleDateFormat("dd MMM yyyy", resources.configuration.locales[0])
-    private val clockFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private val dateFormat get() = DatePresentation.date(resources)
+    private val clockFormat get() = DatePresentation.time(resources)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1026,9 +1026,8 @@ class MainActivity : Activity() {
         }
         val panel = card()
         val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val headingText = SimpleDateFormat("EEEE, d MMMM", resources.configuration.locales[0])
-            .format(Date(selected))
-        heading.addView(label(headingText.replaceFirstChar { it.uppercase() }, 18f, true),
+        val headingText = DatePresentation.weekdayHeading(resources, selected)
+        heading.addView(label(headingText, 18f, true),
             LinearLayout.LayoutParams(0, -2, 1f))
         heading.addView(styledAction("▦", ButtonRole.SECONDARY) {
             val chosen = Calendar.getInstance().apply { timeInMillis = selected }
@@ -1049,7 +1048,7 @@ class MainActivity : Activity() {
         panel.addView(heading)
         gap(panel, 8)
         val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val shortDay = SimpleDateFormat("EE", resources.configuration.locales[0])
+        val shortDay = DatePresentation.weekdayShort(resources)
         for (index in 0 until 7) {
             val date = Calendar.getInstance().apply {
                 timeInMillis = weekStart
@@ -1140,13 +1139,10 @@ class MainActivity : Activity() {
         }
         var chosenTimestamp = timestamp
         if (allowedRange != null) {
-            val dateTimeFormat = java.text.DateFormat.getDateTimeInstance(
-                java.text.DateFormat.MEDIUM, java.text.DateFormat.MEDIUM,
-                resources.configuration.locales[0])
+            val dateTimeFormat = DatePresentation.dateTime(resources)
             panel.addView(label(
-                "Wybierz godzinę wydarzenia (od " +
-                    dateTimeFormat.format(Date(allowedRange.first)) + " do " +
-                    dateTimeFormat.format(Date(allowedRange.second)) + ")",
+                getString(R.string.event_time_range, dateTimeFormat.format(Date(allowedRange.first)),
+                    dateTimeFormat.format(Date(allowedRange.second))),
                 13f, false, muted))
             // Calendar date is selectable as well: a session can span midnight.
             val timeButton = styledAction(
@@ -1179,14 +1175,14 @@ class MainActivity : Activity() {
                                 chosenTimestamp = chosenDay.timeInMillis
                                 refreshTime()
                             }.show()
-                    }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), true)
+                    }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(this))
                         .show()
                 }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
                     calendar.get(Calendar.DAY_OF_MONTH)).show()
             }
             panel.addView(timeButton)
         } else {
-            panel.addView(label("Godzina: " + clockFormat.format(Date(timestamp)), 14f, false, muted))
+            panel.addView(label(getString(R.string.event_time_label, clockFormat.format(Date(timestamp))), 14f, false, muted))
         }
         val picker = Spinner(this)
         picker.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
@@ -1478,7 +1474,7 @@ class MainActivity : Activity() {
                 selected.set(Calendar.SECOND, 0)
                 selected.set(Calendar.MILLISECOND, 0)
                 onChosen(selected.timeInMillis)
-            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), true).apply { setTitle(title) }.show()
+            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(this)).apply { setTitle(title) }.show()
         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
             .apply { setTitle(title) }.show()
     }
@@ -1550,12 +1546,12 @@ class MainActivity : Activity() {
                     selected.set(Calendar.SECOND, 0)
                     selected.set(Calendar.MILLISECOND, 0)
                     onChosen(selected.timeInMillis)
-                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), true)
+                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(this))
                     .apply { setTitle(title) }.show()
             }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 .apply { setTitle(title) }.show()
         }
-        val format = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, resources.configuration.locales[0])
+        val format = DatePresentation.shortDateTime(resources)
         AlertDialog.Builder(this)
             .setTitle(tr(R.string.edit_session_prefix) + personName(person))
             .setMessage(tr(R.string.from_prefix) + format.format(Date(started)) + "\n" + tr(R.string.to_prefix) + format.format(Date(ended)) +
@@ -1972,9 +1968,9 @@ class MainActivity : Activity() {
                 }
                 val finish = cal.timeInMillis
                 val name = when (statsPeriod) {
-                    1 -> SimpleDateFormat("EEE", resources.configuration.locales[0]).format(Date(start))
+                    1 -> DatePresentation.weekdayShort(resources).format(Date(start))
                     2 -> SimpleDateFormat("d", resources.configuration.locales[0]).format(Date(start))
-                    else -> SimpleDateFormat("MM.yy", resources.configuration.locales[0]).format(Date(start))
+                    else -> DatePresentation.monthYear(resources).format(Date(start))
                 }
                 points.add(name to intervals(start, finish).sumOf { it.third - it.second })
                 count++
