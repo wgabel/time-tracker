@@ -42,6 +42,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.ImageButton
+import android.widget.NumberPicker
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.text.SimpleDateFormat
@@ -1107,13 +1108,73 @@ class MainActivity : Activity() {
         editEvent(null, sessionId, person, timestamp, "Inne", "")
     }
 
-    private fun editEvent(id: Long?, sessionId: Long, person: Int, timestamp: Long, currentType: String, currentNote: String) {
+    private fun addHistoricalEvent(sessionId: Long, person: Int, started: Long, ended: Long) {
+        if (ended <= started || isArchived()) return
+        // Use the start as the initial event time. The editor checks the complete
+        // timestamp, not only the displayed hour, against the session boundaries.
+        editEvent(null, sessionId, person, started, "Inne", "", started to ended)
+    }
+
+    private fun editEvent(
+        id: Long?, sessionId: Long, person: Int, timestamp: Long,
+        currentType: String, currentNote: String,
+        allowedRange: Pair<Long, Long>? = null
+    ) {
         val types = arrayOf("Lek", "Posiłek", "Sen", "Spacer", "Inne")
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(10), dp(20), dp(8))
         }
-        panel.addView(label("Godzina: " + clockFormat.format(Date(timestamp)), 14f, false, muted))
+        var chosenTimestamp = timestamp
+        if (allowedRange != null) {
+            val dateTimeFormat = java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.MEDIUM, java.text.DateFormat.MEDIUM,
+                resources.configuration.locales[0])
+            panel.addView(label(
+                "Wybierz godzinę wydarzenia (od " +
+                    dateTimeFormat.format(Date(allowedRange.first)) + " do " +
+                    dateTimeFormat.format(Date(allowedRange.second)) + ")",
+                13f, false, muted))
+            // Calendar date is selectable as well: a session can span midnight.
+            val timeButton = styledAction(
+                dateTimeFormat.format(Date(chosenTimestamp)), ButtonRole.SECONDARY
+            ) {}
+            fun refreshTime() { timeButton.text = dateTimeFormat.format(Date(chosenTimestamp)) }
+            timeButton.setOnClickListener {
+                val calendar = Calendar.getInstance().apply { timeInMillis = chosenTimestamp }
+                DatePickerDialog(this, { _, year, month, day ->
+                    val chosenDay = Calendar.getInstance().apply {
+                        timeInMillis = chosenTimestamp
+                        set(year, month, day)
+                    }
+                    TimePickerDialog(this, { _, hour, minute ->
+                        chosenDay.set(Calendar.HOUR_OF_DAY, hour)
+                        chosenDay.set(Calendar.MINUTE, minute)
+                        // Preserve seconds for sub-minute sessions.
+                        val seconds = NumberPicker(this).apply {
+                            minValue = 0
+                            maxValue = 59
+                            value = calendar.get(Calendar.SECOND)
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle("Sekundy")
+                            .setView(seconds)
+                            .setNegativeButton(tr(R.string.cancel), null)
+                            .setPositiveButton(tr(R.string.save)) { _, _ ->
+                                chosenDay.set(Calendar.SECOND, seconds.value)
+                                chosenDay.set(Calendar.MILLISECOND, 0)
+                                chosenTimestamp = chosenDay.timeInMillis
+                                refreshTime()
+                            }.show()
+                    }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), true)
+                        .show()
+                }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
+                    calendar.get(Calendar.DAY_OF_MONTH)).show()
+            }
+            panel.addView(timeButton)
+        } else {
+            panel.addView(label("Godzina: " + clockFormat.format(Date(timestamp)), 14f, false, muted))
+        }
         val picker = Spinner(this)
         picker.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
         picker.setSelection(types.indexOf(currentType).coerceAtLeast(0))
@@ -1134,14 +1195,18 @@ class MainActivity : Activity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val type = types[picker.selectedItemPosition]
                 val description = note.text.toString().trim()
-                if (type == "Lek" && description.isEmpty()) {
+                if (allowedRange != null &&
+                    (chosenTimestamp < allowedRange.first || chosenTimestamp > allowedRange.second)) {
+                    Toast.makeText(this, "Godzina wydarzenia musi mieścić się w czasie pomiaru",
+                        Toast.LENGTH_LONG).show()
+                } else if (type == "Lek" && description.isEmpty()) {
                     note.error = "Wpisz nazwę i dawkę leku"
                 } else {
                     val values = ContentValues().apply {
                         put("project_id", projectId)
                         put("session_id", sessionId)
                         put("person", person)
-                        put("happened_at", timestamp)
+                        put("happened_at", chosenTimestamp)
                         put("type", type)
                         put("note", description)
                     }
@@ -1460,7 +1525,19 @@ class MainActivity : Activity() {
                 val cx = width / 2f; val cy = height / 2f
                 canvas.save()
                 canvas.translate(cx - dp(12), cy - dp(12))
-                if (kind == "edit") {
+                if (kind == "bookmark-add") {
+                    val bookmark = Path().apply {
+                        moveTo(dp(5).toFloat(), dp(3).toFloat())
+                        lineTo(dp(15).toFloat(), dp(3).toFloat())
+                        lineTo(dp(15).toFloat(), dp(20).toFloat())
+                        lineTo(dp(10).toFloat(), dp(16).toFloat())
+                        lineTo(dp(5).toFloat(), dp(20).toFloat())
+                        close()
+                    }
+                    canvas.drawPath(bookmark, p)
+                    canvas.drawLine(dp(16).toFloat(), dp(9).toFloat(), dp(23).toFloat(), dp(9).toFloat(), p)
+                    canvas.drawLine(dp(19.5f), dp(5.5f), dp(19.5f), dp(12.5f), p)
+                } else if (kind == "edit") {
                     // Recognizable pencil: closed shaft, pointed nib and eraser cap.
                     val pencil = Path().apply {
                         moveTo(dp(4).toFloat(), dp(16).toFloat())
@@ -1564,6 +1641,16 @@ class MainActivity : Activity() {
                         background = shape(surface, 12)
                         clipChildren = true
                     }
+                    val addEventAction = iconButton(
+                        "bookmark-add",
+                        if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
+                    ) {
+                        addHistoricalEvent(id, person, originalStart, originalEnd)
+                    }.apply {
+                        background = shape(
+                            if (darkTheme) Color.rgb(34, 70, 59) else Color.rgb(229, 244, 237), 10)
+                        contentDescription = "Dodaj wydarzenie"
+                    }
                     val editAction = editIconButton {
                         editSession(id, person, originalStart, originalEnd)
                     }.apply { background = shape(subtle, 10) }
@@ -1573,6 +1660,8 @@ class MainActivity : Activity() {
                         background = shape(
                             if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
                     }
+                    tray.addView(addEventAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
                     tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
                     tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
                     tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
