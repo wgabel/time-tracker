@@ -93,6 +93,14 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 ## CSV export and backup
 `exportCsv()` exists; inspect its SQL and output columns before changing it. **Do not assume EVENT entries are exported**: they were added after the export implementation. CSV export is not equivalent to a complete database backup. Be cautious with reinstall/uninstall and signing key changes: uninstalling may erase the local SQLite database. Never advise uninstalling as a casual fix.
 
+## Engineering quality and code composition (mandatory)
+- Apply established Kotlin/Android software engineering practices to every change: readable names, clear responsibilities, cohesive functions, appropriate visibility, null safety, and consistent error handling.
+- Prefer small, composable, reusable helpers over duplicated logic or new responsibilities inside the monolithic Activity. Separate presentation/formatting, persistence, and UI behavior when doing so reduces coupling without risky refactors.
+- Follow single-responsibility and separation-of-concerns principles pragmatically; avoid overengineering, speculative abstractions, dead code, and unnecessary dependencies.
+- Keep localized user-facing dates/times in a shared formatting layer using the effective in-app language (including system-language mode). Avoid hardcoded date ordering and cached formatters tied to a previous locale; keep stored epoch timestamps and machine-readable CSV formats stable.
+- Check all affected UI surfaces, including dialogs, descriptions, notifications, accessibility text, and export formats, whenever changing localization or formatting.
+- Review edge cases and compatibility, add focused tests where practical, and preserve backward-compatible persistence and existing behavior. A compiling change is not automatically a well-designed or tested change.
+
 ## Agent execution workflow
 1. Read `AGENTS.md`, `MainActivity.kt`, relevant service/resources, Gradle config and workflow **at the current main HEAD** before editing. Check existing implementation and don't assume old summaries are current.
 2. Identify the user-facing behavior, invariants, data migration and edge cases. Prefer the smallest coherent change; avoid broad refactors unless justified.
