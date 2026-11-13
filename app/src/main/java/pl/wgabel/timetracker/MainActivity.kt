@@ -149,7 +149,7 @@ class MainActivity : Activity() {
         stickyDateContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(10), dp(16), dp(8))
-            setBackgroundColor(background)
+            setBackgroundColor(this@MainActivity.background)
             visibility = View.GONE
             elevation = dp(4).toFloat()
         }
