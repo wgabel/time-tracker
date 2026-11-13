@@ -111,7 +111,7 @@ class MainActivity : Activity() {
         applyThemeToSystem()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(this@MainActivity.background)
+            setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else darkHeader)
         }
         topHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -132,7 +132,10 @@ class MainActivity : Activity() {
             }
             outer.requestApplyInsets()
         }
-        val scroll = ScrollView(this).apply { isFillViewport = true }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(this@MainActivity.background)
+        }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(20))
@@ -245,9 +248,15 @@ class MainActivity : Activity() {
     private fun tr(id: Int): String = getString(id)
 
     private fun applyThemeToSystem() {
-        window.statusBarColor = if (darkTheme) Color.rgb(13, 17, 25) else Color.rgb(25, 34, 44)
-        window.navigationBarColor = background
-        window.decorView.systemUiVisibility = if (darkTheme) 0 else View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        // System bars visually extend the dark header/footer, with light icons.
+        val chrome = if (darkTheme) Color.rgb(25, 31, 43) else darkHeader
+        window.statusBarColor = chrome
+        window.navigationBarColor = chrome
+        window.decorView.systemUiVisibility = 0
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     }
 
