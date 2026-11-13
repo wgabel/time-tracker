@@ -2155,6 +2155,29 @@ class MainActivity : Activity() {
         }
     }
 
+    // A resumed Activity does not necessarily reattach its views, so restart
+    // running-session backgrounds explicitly when returning from the background.
+    private fun updateActiveAnimations(view: View, running: Boolean) {
+        (view.background as? android.graphics.drawable.Animatable)?.let { animation ->
+            if (running) animation.start() else animation.stop()
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                updateActiveAnimations(view.getChildAt(index), running)
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::content.isInitialized) updateActiveAnimations(content, true)
+    }
+
+    override fun onPause() {
+        if (::content.isInitialized) updateActiveAnimations(content, false)
+        super.onPause()
+    }
+
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         db.close()
