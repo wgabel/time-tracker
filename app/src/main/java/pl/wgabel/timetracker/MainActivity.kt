@@ -1187,53 +1187,65 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(10), dp(20), dp(8))
         }
-        var chosenTimestamp = timestamp
-        if (allowedRange != null) {
-            val dateTimeFormat = DatePresentation.dateTime(resources)
-            panel.addView(label(
-                getString(R.string.event_time_range, dateTimeFormat.format(Date(allowedRange.first)),
-                    dateTimeFormat.format(Date(allowedRange.second))),
-                13f, false, muted))
-            // Calendar date is selectable as well: a session can span midnight.
-            val timeButton = styledAction(
-                dateTimeFormat.format(Date(chosenTimestamp)), ButtonRole.SECONDARY
-            ) {}
-            fun refreshTime() { timeButton.text = dateTimeFormat.format(Date(chosenTimestamp)) }
-            timeButton.setOnClickListener {
-                val calendar = Calendar.getInstance().apply { timeInMillis = chosenTimestamp }
-                DatePickerDialog(this, { _, year, month, day ->
-                    val chosenDay = Calendar.getInstance().apply {
-                        timeInMillis = chosenTimestamp
-                        set(year, month, day)
-                    }
-                    TimePickerDialog(this, { _, hour, minute ->
-                        chosenDay.set(Calendar.HOUR_OF_DAY, hour)
-                        chosenDay.set(Calendar.MINUTE, minute)
-                        // Preserve seconds for sub-minute sessions.
-                        val seconds = NumberPicker(this).apply {
-                            minValue = 0
-                            maxValue = 59
-                            value = calendar.get(Calendar.SECOND)
-                        }
-                        AlertDialog.Builder(this)
-                            .setTitle("Sekundy")
-                            .setView(seconds)
-                            .setNegativeButton(tr(R.string.cancel), null)
-                            .setPositiveButton(tr(R.string.save)) { _, _ ->
-                                chosenDay.set(Calendar.SECOND, seconds.value)
-                                chosenDay.set(Calendar.MILLISECOND, 0)
-                                chosenTimestamp = chosenDay.timeInMillis
-                                refreshTime()
-                            }.show()
-                    }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), DatePresentation.uses24HourClock(resources))
-                        .show()
-                }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)).show()
-            }
-            panel.addView(timeButton)
-        } else {
-            panel.addView(label(getString(R.string.event_time_label, clockFormat.format(Date(timestamp))), 14f, false, muted))
+        // Resolve session boundaries for both newly created and existing events.
+        // Active sessions are bounded by the current time at save.
+        val sessionBounds = db.rawQuery(
+            "SELECT started_at, ended_at FROM sessions WHERE id=? AND project_id=? AND person=?",
+            arrayOf(sessionId.toString(), projectId.toString(), person.toString())
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                cursor.getLong(0) to (if (cursor.isNull(1)) null else cursor.getLong(1))
+            } else null
         }
+        if (sessionBounds == null) {
+            Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
+            return
+        }
+        val dateTimeFormat = DatePresentation.dateTime(resources)
+        var chosenTimestamp = timestamp
+        val timeButton = styledAction(dateTimeFormat.format(Date(chosenTimestamp)), ButtonRole.SECONDARY) {}
+        fun refreshTime() { timeButton.text = dateTimeFormat.format(Date(chosenTimestamp)) }
+        val sessionEnd = sessionBounds.second ?: System.currentTimeMillis()
+        panel.addView(label(
+            getString(R.string.event_time_range, dateTimeFormat.format(Date(sessionBounds.first)),
+                dateTimeFormat.format(Date(sessionEnd))),
+            13f, false, muted
+        ))
+        timeButton.setOnClickListener {
+            val calendar = Calendar.getInstance().apply { timeInMillis = chosenTimestamp }
+            DatePickerDialog(this, { _, year, month, day ->
+                val selected = Calendar.getInstance().apply {
+                    timeInMillis = chosenTimestamp
+                    set(Calendar.YEAR, year)
+                    set(Calendar.MONTH, month)
+                    set(Calendar.DAY_OF_MONTH, day)
+                }
+                TimePickerDialog(this, { _, hour, minute ->
+                    selected.set(Calendar.HOUR_OF_DAY, hour)
+                    selected.set(Calendar.MINUTE, minute)
+                    val seconds = NumberPicker(this).apply {
+                        minValue = 0
+                        maxValue = 59
+                        value = calendar.get(Calendar.SECOND)
+                    }
+                    AlertDialog.Builder(this)
+                        .setTitle(if (resources.configuration.locales[0].language == "pl") "Sekundy" else "Seconds")
+                        .setView(seconds)
+                        .setNegativeButton(tr(R.string.cancel), null)
+                        .setPositiveButton(tr(R.string.save)) { _, _ ->
+                            selected.set(Calendar.SECOND, seconds.value)
+                            selected.set(Calendar.MILLISECOND, 0)
+                            chosenTimestamp = selected.timeInMillis
+                            refreshTime()
+                        }.show()
+                }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE),
+                    DatePresentation.uses24HourClock(resources)).show()
+            }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).apply {
+                datePicker.minDate = sessionBounds.first
+                datePicker.maxDate = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis())
+            }.show()
+        }
+        panel.addView(timeButton)
         val picker = Spinner(this)
         picker.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
         picker.setSelection(types.indexOf(currentType).coerceAtLeast(0))
@@ -1254,8 +1266,8 @@ class MainActivity : Activity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val type = types[picker.selectedItemPosition]
                 val description = note.text.toString().trim()
-                if (allowedRange != null &&
-                    (chosenTimestamp < allowedRange.first || chosenTimestamp > allowedRange.second)) {
+                val latestEnd = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis())
+                if (chosenTimestamp < sessionBounds.first || chosenTimestamp > latestEnd) {
                     Toast.makeText(this, "Godzina wydarzenia musi mieścić się w czasie pomiaru",
                         Toast.LENGTH_LONG).show()
                 } else if (type == "Lek" && description.isEmpty()) {
