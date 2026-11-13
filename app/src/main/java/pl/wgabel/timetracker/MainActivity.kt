@@ -2054,7 +2054,7 @@ class MainActivity : Activity() {
                 statsOffset = 0
                 renderContent()
             }
-            selector.addView(if (chosen) outlinedSelection(control, darkHeader) else control,
+            selector.addView(outlinedSelection(control, darkHeader, chosen),
                 LinearLayout.LayoutParams(0, dp(53), 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
         }
         c.addView(selector)
@@ -2088,7 +2088,7 @@ class MainActivity : Activity() {
     // around a stationary rounded rectangle, 4dp outside the button.
     // Marching-dashes selection: draw after the button so the border stays visible.
     // The 5dp wrapper padding creates a real gap between button and outline.
-    private fun outlinedSelection(button: Button, color: Int): FrameLayout {
+    private fun outlinedSelection(button: Button, color: Int, selected: Boolean): FrameLayout {
         val wrapper = object : FrameLayout(this) {
             private val dashLength = dp(7).toFloat()
             private val gapLength = dp(5).toFloat()
@@ -2103,6 +2103,7 @@ class MainActivity : Activity() {
 
             override fun dispatchDraw(canvas: Canvas) {
                 super.dispatchDraw(canvas)
+                if (!selected) return
                 val inset = dp(1).toFloat() + outlinePaint.strokeWidth / 2f
                 if (width <= 2 * inset || height <= 2 * inset) return
                 outlinePaint.pathEffect = DashPathEffect(
@@ -2114,6 +2115,7 @@ class MainActivity : Activity() {
 
             override fun onAttachedToWindow() {
                 super.onAttachedToWindow()
+                if (!selected) return
                 val scale = ValueAnimator.getDurationScale()
                 if (scale <= 0f) {
                     dashPhase = 0f
@@ -2182,7 +2184,7 @@ class MainActivity : Activity() {
                 isSingleLine = true
                 setAllCaps(false)
             }
-            val measuredWidth = (button.paint.measureText(name) + dp(if (selected) 44 else 34)).toInt()
+            val measuredWidth = (button.paint.measureText(name) + dp(44)).toInt()
                 .coerceAtLeast(dp(78)).coerceAtMost(availableWidth)
             val widthWithMargins = measuredWidth + dp(6)
             if (usedWidth > 0 && usedWidth + widthWithMargins > availableWidth) {
@@ -2190,8 +2192,8 @@ class MainActivity : Activity() {
                 filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 usedWidth = 0
             }
-            filterRow.addView(if (selected) outlinedSelection(button, participantColor) else button,
-                LinearLayout.LayoutParams(measuredWidth, if (selected) dp(50) else dp(40)).apply {
+            filterRow.addView(outlinedSelection(button, participantColor, selected),
+                LinearLayout.LayoutParams(measuredWidth, dp(50)).apply {
                     setMargins(dp(2), dp(2), dp(4), dp(4))
                 })
             usedWidth += widthWithMargins
