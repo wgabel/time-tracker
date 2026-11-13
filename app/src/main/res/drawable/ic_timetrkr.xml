@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#182F35" android:pathData="M0,0h108v108h-108z"/>
+    <!-- Cream clock arc and three ticks -->
+    <path android:strokeColor="#F5F0E8" android:strokeWidth="5" android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,60 A34,34 0,0 1,88 60"/>
+    <path android:strokeColor="#F5F0E8" android:strokeWidth="3.4" android:strokeLineCap="round"
+        android:pathData="M54,23 L54,30 M31,35 L35,39 M77,35 L73,39"/>
+    <!-- Three people: teal, apricot and sage -->
+    <path android:fillColor="#77C4B5" android:pathData="M34,60 a8,8 0,1 0,0.01 0z"/>
+    <path android:fillColor="#77C4B5" android:pathData="M22,84 L22,78 Q22,67 34,67 Q42,67 45,74 L45,84z"/>
+    <path android:fillColor="#AFC889" android:pathData="M74,60 a8,8 0,1 0,0.01 0z"/>
+    <path android:fillColor="#AFC889" android:pathData="M63,84 L63,74 Q66,67 74,67 Q86,67 86,78 L86,84z"/>
+    <path android:fillColor="#F5F0E8" android:pathData="M54,51 a9,9 0,1 0,0.01 0z"/>
+    <path android:fillColor="#ECA65C" android:pathData="M41,86 L41,73 Q41,62 54,62 Q67,62 67,73 L67,86z"/>
+</vector>
