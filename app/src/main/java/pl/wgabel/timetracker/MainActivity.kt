@@ -1156,8 +1156,9 @@ class MainActivity : Activity() {
     }
 
     private fun eventList(sessionId: Long, person: Int, container: LinearLayout) {
+        val eventColor = personColor(person)
         db.rawQuery(
-            "SELECT id,happened_at,type,note FROM events WHERE project_id=? AND session_id=? ORDER BY happened_at",
+            "SELECT id,happened_at,type,note FROM events WHERE project_id=? AND session_id=? ORDER BY happened_at,id",
             arrayOf(projectId.toString(), sessionId.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
@@ -1165,28 +1166,50 @@ class MainActivity : Activity() {
                 val timestamp = cursor.getLong(1)
                 val type = cursor.getString(2)
                 val note = cursor.getString(3)
-                val item = LinearLayout(this).apply {
+                val eventRow = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(12), dp(4), dp(8), dp(4))
+                    setPadding(dp(20), 0, dp(6), 0)
                 }
-                val description = "⚑ " + clockFormat.format(Date(timestamp)) + " · " + type +
-                    (if (note.isBlank()) "" else " · " + note)
-                item.addView(label(description, 13f, false, muted), LinearLayout.LayoutParams(0, -2, 1f))
-                if (tab == 2 && !isArchived()) {
-                    item.addView(styledAction("✎", ButtonRole.SECONDARY) {
+                // A connected timeline on the section background, not another card.
+                val rail = object : View(this) {
+                    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = eventColor }
+                    override fun onDraw(canvas: Canvas) {
+                        super.onDraw(canvas)
+                        val cx = width / 2f
+                        paint.strokeWidth = dp(2).toFloat()
+                        canvas.drawLine(cx, 0f, cx, height.toFloat(), paint)
+                        canvas.drawCircle(cx, height / 2f, dp(5) .toFloat(), paint)
+                    }
+                }
+                eventRow.addView(rail, LinearLayout.LayoutParams(dp(14), dp(62)))
+                val details = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(10), 0, 0, 0)
+                }
+                val eventTitle = if (note.isNotBlank()) note else type
+                details.addView(label(eventTitle, 14f, true))
+                val secondary = if (note.isNotBlank()) type + " · " else ""
+                details.addView(label(secondary + clockFormat.format(Date(timestamp)), 12f, false, muted))
+                eventRow.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+                if (!isArchived()) {
+                    val edit = editIconButton {
                         editEvent(id, sessionId, person, timestamp, type, note)
-                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
-                    item.addView(styledAction("×", ButtonRole.DANGER) {
+                    }.apply { background = null }
+                    val delete = deleteIconButton {
                         AlertDialog.Builder(this).setTitle("Usunąć wydarzenie?")
                             .setNegativeButton(tr(R.string.cancel), null)
-                            .setPositiveButton("Usuń") { _, _ ->
-                                db.delete("events", "id=? AND project_id=?", arrayOf(id.toString(), projectId.toString()))
+                            .setPositiveButton(tr(R.string.delete)) { _, _ ->
+                                db.delete("events", "id=? AND project_id=?",
+                                    arrayOf(id.toString(), projectId.toString()))
                                 renderContent()
                             }.show()
-                    }, LinearLayout.LayoutParams(dp(42), dp(40)))
+                    }.apply { background = null }
+                    eventRow.addView(edit, LinearLayout.LayoutParams(dp(36), dp(40)))
+                    eventRow.addView(delete, LinearLayout.LayoutParams(dp(36), dp(40)))
                 }
-                container.addView(item)
+                container.addView(eventRow)
             }
         }
     }
@@ -1442,22 +1465,33 @@ class MainActivity : Activity() {
                     background = shape(surface, 12)
                 }
                 if (originalEnd == null) markActive(row)
+                val isHistory = tab == 2
                 val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                val heading = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                }
-                heading.addView(avatar(person), LinearLayout.LayoutParams(dp(29), dp(29)))
-                heading.addView(label("  " + personName(person) + "  •  " +
-                    dateFormat.format(Date(originalStart)), 13f, true), LinearLayout.LayoutParams(-2, -2))
-                left.addView(heading)
-                gap(left, 5)
                 val running = if (originalEnd == null) "  • trwa" else ""
                 val rangeLabel = label(clockFormat.format(Date(from)) + " – " +
                     clockFormat.format(Date(until)) + running, 13f, false, muted)
-                left.addView(rangeLabel)
-                gap(left, 3)
                 val elapsedLabel = label(duration(until - from), 16f, true)
-                left.addView(elapsedLabel)
+                if (isHistory) {
+                    row.addView(avatar(person), LinearLayout.LayoutParams(dp(38), dp(38)).apply {
+                        rightMargin = dp(10)
+                    })
+                    left.addView(label(personName(person), 16f, true))
+                    gap(left, 4)
+                    left.addView(rangeLabel)
+                } else {
+                    val heading = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                    }
+                    heading.addView(avatar(person), LinearLayout.LayoutParams(dp(29), dp(29)))
+                    heading.addView(label("  " + personName(person) + "  •  " +
+                        dateFormat.format(Date(originalStart)), 13f, true))
+                    left.addView(heading)
+                    gap(left, 5)
+                    left.addView(rangeLabel)
+                    gap(left, 3)
+                    left.addView(elapsedLabel)
+                }
                 if (originalEnd == null && tab == 0) timerUpdates.add { tick ->
                     val currentEnd = minOf(end, tick)
                     rangeLabel.text = clockFormat.format(Date(from)) + " – " +
@@ -1465,6 +1499,10 @@ class MainActivity : Activity() {
                     elapsedLabel.text = duration(currentEnd - from)
                 }
                 row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
+                if (isHistory) {
+                    row.addView(elapsedLabel.apply { setSingleLine(true) },
+                        LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
+                }
                 if (tab == 2 && originalEnd != null && !isArchived()) {
                     val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                     controls.addView(editIconButton {
