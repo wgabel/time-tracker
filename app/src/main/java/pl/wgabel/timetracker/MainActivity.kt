@@ -119,6 +119,17 @@ class MainActivity : Activity() {
             minimumHeight = dp(54)
         }
         outer.addView(topHeader)
+        // Android 15+ may lay out the app edge-to-edge even when older target
+        // versions did not. Reserve the actual system-bar insets, not a fixed dp.
+        if (Build.VERSION.SDK_INT >= 20) {
+            outer.setOnApplyWindowInsetsListener { view, insets ->
+                val top = insets.systemWindowInsetTop
+                val bottom = insets.systemWindowInsetBottom
+                view.setPadding(0, top, 0, bottom)
+                insets
+            }
+            outer.requestApplyInsets()
+        }
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
