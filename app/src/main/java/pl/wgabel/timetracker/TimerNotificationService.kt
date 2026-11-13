@@ -64,7 +64,7 @@ class TimerNotificationService : Service() {
     }
 
     private fun startTime(start: Long): String =
-        java.text.SimpleDateFormat("HH:mm", resources.configuration.locales[0]).format(java.util.Date(start))
+        DatePresentation.shortTime(resources).format(java.util.Date(start))
 
     private fun buildNotification(items: List<Timer>): Notification {
         val projectCount = items.map { it.project }.distinct().size
