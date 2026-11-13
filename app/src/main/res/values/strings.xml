@@ -27,6 +27,7 @@
     <string name="archive_banner">▣  ARCHIVED · READ-ONLY</string>
     <string name="add_measurement">+ Add measurement</string>
     <string name="selected_day_total">Selected day\'s total</string>
+    <string name="measurements_heading">Measurements</string>
     <string name="selected_day_sessions">Sessions for selected day</string>
     <string name="full_history">View full history</string>
     <string name="no_sessions">No sessions on the selected day.</string>
