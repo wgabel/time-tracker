@@ -1776,17 +1776,40 @@ class MainActivity : Activity() {
                 events.forEachIndexed { index, e ->
                     val y = yAt(e.at)
                     val labelY = labelPositions[index]
-                    p.color = personColor(e.person)
-                    p.strokeWidth = dp(1.5f.toInt()).toFloat().coerceAtLeast(1f)
+                    val eventColor = personColor(e.person)
+                    val cardLeft = eventLeft
+                    val cardRight = width - dp(3).toFloat()
+                    val cardTop = labelY - dp(13)
+                    val cardBottom = labelY + dp(48)
+                    // Use a solid 10% tint so text remains readable in both themes.
+                    val cardBase = if (darkTheme) Color.rgb(21, 26, 35) else Color.WHITE
+                    val tint = Color.rgb(
+                        (Color.red(cardBase) * .90f + Color.red(eventColor) * .10f).toInt(),
+                        (Color.green(cardBase) * .90f + Color.green(eventColor) * .10f).toInt(),
+                        (Color.blue(cardBase) * .90f + Color.blue(eventColor) * .10f).toInt()
+                    )
+                    p.style = Paint.Style.FILL
+                    p.color = tint
+                    canvas.drawRoundRect(
+                        RectF(cardLeft, cardTop, cardRight, cardBottom),
+                        dp(8).toFloat(), dp(8).toFloat(), p
+                    )
+                    // Colored accent and connector identify the participant.
+                    p.color = eventColor
+                    canvas.drawRoundRect(
+                        RectF(cardLeft, cardTop + dp(5), cardLeft + dp(3), cardBottom - dp(5)),
+                        dp(2).toFloat(), dp(2).toFloat(), p
+                    )
+                    p.strokeWidth = dp(1).toFloat()
+                    canvas.drawLine(rightEdge + dp(1), y, cardLeft, labelY, p)
                     canvas.drawCircle(rightEdge - dp(3), y, dp(4).toFloat(), p)
-                    canvas.drawLine(rightEdge + dp(1), y, eventLeft, labelY, p)
                     p.color = ink
                     p.textAlign = Paint.Align.LEFT
                     p.textSize = dp(11).toFloat()
                     p.typeface = android.graphics.Typeface.DEFAULT_BOLD
                     val stamp = clockFormat.format(Date(e.at))
-                    val textX = eventLeft + dp(3)
-                    val textWidth = (width - textX - dp(6)).coerceAtLeast(dp(30).toFloat())
+                    val textX = cardLeft + dp(9)
+                    val textWidth = (cardRight - textX - dp(6)).coerceAtLeast(dp(30).toFloat())
                     drawWrappedText(canvas, "$stamp · ${e.type}", textX, labelY + dp(4), textWidth, 2, dp(13).toFloat())
                     p.typeface = android.graphics.Typeface.DEFAULT
                     p.color = muted
