@@ -1616,46 +1616,49 @@ class MainActivity : Activity() {
         }
 
         val names = activePeople.associateWith { personName(it) }
-        val scaleHeight = dp(48)
-        val fullHeight = (24f * (end - day).toDouble() / 86400000.0 * scaleHeight).toInt().coerceAtLeast(dp(200))
+        // Fit the entire local calendar day into the fixed-height chart.
+        // Using actual day boundaries also handles 23/25-hour DST days.
+        val fullHeight = dp(480)
         val graph = object : View(this) {
             private val p = Paint(Paint.ANTI_ALIAS_FLAG)
             private var horizontalOffset = 0f
-            private var verticalOffset = 0f
-            private var initialVerticalOffset = 0f
             private var downX = 0f
             private var downY = 0f
             private var initialOffset = 0f
             private var swiping = false
-            private var verticalSwiping = false
-            private val trackStep get() = dp(19).toFloat()
-            private val trackWidth get() = dp(14).toFloat()
+            private val scaleWidth get() = dp(38).toFloat()
+            private val rightEdge get() = width * .40f
+            private val participantWidth get() = (rightEdge - scaleWidth - dp(6)).coerceAtLeast(dp(12).toFloat())
+            // Two participants fill the same width that many compact tracks would occupy.
+            private val visibleCapacity get() = (participantWidth / dp(19)).toInt().coerceAtLeast(1)
+            private val trackStep get() = if (activePeople.size <= visibleCapacity)
+                participantWidth / activePeople.size.coerceAtLeast(1) else dp(19).toFloat()
+            private val trackWidth get() = (trackStep - dp(3)).coerceAtLeast(dp(8).toFloat())
             private fun yAt(time: Long) = ((time - day).toDouble() / (end - day) * fullHeight).toFloat()
             override fun onTouchEvent(event: MotionEvent): Boolean {
-                val scaleWidth = dp(38).toFloat()
-                val participantWidth = width * .40f - scaleWidth
                 val maxOffset = (activePeople.size * trackStep - participantWidth).coerceAtLeast(0f)
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         downX = event.x; downY = event.y
                         initialOffset = horizontalOffset
-                        initialVerticalOffset = verticalOffset
-                        swiping = false; verticalSwiping = false
+                        swiping = false
+                        if (event.x in scaleWidth..rightEdge && maxOffset > 0f)
+                            parent.requestDisallowInterceptTouchEvent(true)
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - downX
                         val dy = event.y - downY
-                        if (!swiping && !verticalSwiping && maxOf(kotlin.math.abs(dx), kotlin.math.abs(dy)) > dp(8)) {
-                            swiping = event.x >= scaleWidth && event.x <= width * .40f &&
-                                kotlin.math.abs(dx) > kotlin.math.abs(dy) && maxOffset > 0f
-                            verticalSwiping = !swiping && kotlin.math.abs(dy) >= kotlin.math.abs(dx)
-                            if (swiping || verticalSwiping) parent.requestDisallowInterceptTouchEvent(true)
+                        if (!swiping && kotlin.math.abs(dx) > dp(8) &&
+                            kotlin.math.abs(dx) > kotlin.math.abs(dy) && maxOffset > 0f) {
+                            swiping = true
                         }
-                        if (swiping) horizontalOffset = (initialOffset - dx).coerceIn(0f, maxOffset)
-                        if (verticalSwiping) verticalOffset = (initialVerticalOffset - dy)
-                            .coerceIn(0f, (fullHeight - height).coerceAtLeast(0).toFloat())
-                        if (swiping || verticalSwiping) invalidate()
+                        if (swiping) {
+                            horizontalOffset = (initialOffset - dx).coerceIn(0f, maxOffset)
+                            invalidate()
+                        } else if (kotlin.math.abs(dy) > dp(8)) {
+                            parent.requestDisallowInterceptTouchEvent(false)
+                        }
                         return true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -1669,9 +1672,6 @@ class MainActivity : Activity() {
                 super.onDraw(canvas)
                 canvas.save()
                 canvas.clipRect(0f, 0f, width.toFloat(), height.toFloat())
-                canvas.translate(0f, -verticalOffset)
-                val scaleWidth = dp(38).toFloat()
-                val rightEdge = width * .40f
                 val eventLeft = rightEdge + dp(8)
                 val hourPaint = p
                 for (hour in 0..24) {
@@ -1679,9 +1679,10 @@ class MainActivity : Activity() {
                     val at = cal.timeInMillis
                     if (at > end) break
                     val y = yAt(at).coerceAtMost(fullHeight - dp(2).toFloat())
-                    hourPaint.color = muted
-                    hourPaint.strokeWidth = dp(1).toFloat()
+                    hourPaint.color = if (darkTheme) Color.rgb(70, 78, 91) else Color.rgb(226, 231, 238)
+                    hourPaint.strokeWidth = resources.displayMetrics.density
                     canvas.drawLine(scaleWidth - dp(5), y, rightEdge, y, hourPaint)
+                    hourPaint.color = muted
                     hourPaint.textSize = dp(10).toFloat()
                     hourPaint.textAlign = Paint.Align.LEFT
                     canvas.drawText(String.format(Locale.ROOT, "%02d", cal.get(Calendar.HOUR_OF_DAY)), dp(1).toFloat(),
@@ -1705,7 +1706,7 @@ class MainActivity : Activity() {
                         canvas.drawRoundRect(RectF(x, top, x + trackWidth, maxOf(top + dp(2), bottom)),
                             dp(5).toFloat(), dp(5).toFloat(), p)
                         if (longest != null && start == longest.second && finish == longest.third &&
-                            bottom - top > dp(45)) {
+                            bottom - top > dp(24)) {
                             canvas.save()
                             canvas.clipRect(x, top, x + trackWidth, bottom)
                             canvas.rotate(90f, x + trackWidth / 2, (top + bottom) / 2)
@@ -1748,8 +1749,8 @@ class MainActivity : Activity() {
                 canvas.restore()
             }
         }
-        // A fixed-size drawing surface avoids nested ScrollView measurement issues.
-        // Vertical scrolling is handled by the graph itself.
+        // The full day fits inside this fixed-height view, so sessions never
+        // disappear below the viewport. Horizontal swiping is limited to tracks.
         panel.addView(graph, LinearLayout.LayoutParams(-1, dp(480)))
         if (activePeople.size > 3) {
             gap(panel, 5)
