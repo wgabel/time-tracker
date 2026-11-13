@@ -9,9 +9,23 @@ android {
         applicationId = "pl.wgabel.timetracker"
         minSdk = 26
         targetSdk = 35
-        // Every CI run must have a higher versionCode than the previous release.
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 1000 + it } ?: 1000
-        versionName = "0.3"
+        // GitHub Actions run numbers increment for each new workflow run.
+        // Keep local builds usable without GitHub environment variables.
+        val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.takeIf { it > 0 }
+        versionCode = 1000 + (ciRunNumber ?: 0)
+
+        // The adjective and animal are selected deterministically per run:
+        // rebuilding the same run never changes the version identity.
+        val colors = listOf("amber", "azure", "blue", "coral", "crimson", "golden",
+            "green", "indigo", "ivory", "jade", "lavender", "olive", "orange",
+            "pink", "purple", "red", "silver", "teal", "turquoise", "violet")
+        val animals = listOf("badger", "bear", "bison", "cat", "deer", "dolphin",
+            "eagle", "falcon", "fox", "gecko", "heron", "jaguar", "koala",
+            "lynx", "otter", "owl", "panda", "rabbit", "tiger", "wolf")
+        val seed = ciRunNumber ?: 0
+        val color = colors[kotlin.random.Random(seed).nextInt(colors.size)]
+        val animal = animals[kotlin.random.Random(seed xor 0x5A17).nextInt(animals.size)]
+        versionName = "0.1.${ciRunNumber ?: 0}-$color-$animal"
     }
     val signingFile = System.getenv("ANDROID_KEYSTORE_FILE")
     val signingPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
