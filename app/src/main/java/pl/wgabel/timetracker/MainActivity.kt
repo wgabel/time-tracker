@@ -25,6 +25,8 @@ import android.graphics.drawable.Drawable
 import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.DashPathEffect
+import android.widget.FrameLayout
 import android.graphics.Path
 import android.graphics.RectF
 import android.view.MotionEvent
@@ -2036,12 +2038,15 @@ class MainActivity : Activity() {
         gap(c, 12)
         val selector = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(tr(R.string.day), tr(R.string.week), tr(R.string.month), tr(R.string.all)).forEachIndexed { index, name ->
-            selector.addView(action(name, if (statsPeriod == index) blue else subtleNeutral,
-                if (statsPeriod == index) Color.WHITE else ink) {
+            val chosen = statsPeriod == index
+            val control = action(name, if (chosen) darkHeader else subtleNeutral,
+                if (chosen) Color.WHITE else ink) {
                 statsPeriod = index
                 statsOffset = 0
                 renderContent()
-            }, LinearLayout.LayoutParams(0, dp(43), 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
+            }
+            selector.addView(if (chosen) outlinedSelection(control, darkHeader) else control,
+                LinearLayout.LayoutParams(0, dp(53), 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
         }
         c.addView(selector)
         gap(c, 8)
@@ -2070,12 +2075,57 @@ class MainActivity : Activity() {
         renderVerticalDailyTimeline()
     }
 
+    // The selected control retains its participant color. A dashed outline moves
+    // around a stationary rounded rectangle, 4dp outside the button.
+    private fun outlinedSelection(button: Button, color: Int): FrameLayout {
+        val wrapper = FrameLayout(this)
+        wrapper.setPadding(dp(5), dp(5), dp(5), dp(5))
+        wrapper.addView(button, FrameLayout.LayoutParams(-1, -1))
+        val outline = object : View(this) {
+            private val pen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = dp(2).toFloat()
+                this.color = color
+            }
+            private var phase = 0f
+            private var animator: ValueAnimator? = null
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val inset = dp(1).toFloat() + pen.strokeWidth / 2
+                val rect = RectF(inset, inset, width - inset, height - inset)
+                pen.pathEffect = DashPathEffect(floatArrayOf(dp(7).toFloat(), dp(5).toFloat()), phase)
+                canvas.drawRoundRect(rect, dp(21).toFloat(), dp(21).toFloat(), pen)
+            }
+            override fun onAttachedToWindow() {
+                super.onAttachedToWindow()
+                if (android.provider.Settings.Global.getFloat(
+                        contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) return
+                animator = ValueAnimator.ofFloat(0f, -dp(12).toFloat()).apply {
+                    duration = 1600L
+                    repeatCount = ValueAnimator.INFINITE
+                    interpolator = android.view.animation.LinearInterpolator()
+                    addUpdateListener { phase = it.animatedValue as Float; invalidate() }
+                    start()
+                }
+            }
+            override fun onDetachedFromWindow() {
+                animator?.cancel()
+                animator = null
+                super.onDetachedFromWindow()
+            }
+        }
+        wrapper.addView(outline, FrameLayout.LayoutParams(-1, -1))
+        outline.isClickable = false
+        outline.isFocusable = false
+        return wrapper
+    }
+
     private fun renderHistory() {
         // Day selection is the first control, followed by actions and participant filters.
         dayNavigator(true)
         gap(content, 12)
         if (!isArchived()) {
-            content.addView(action(tr(R.string.add_measurement), blue) { addSession() })
+            content.addView(action("＋  " + tr(R.string.add_measurement), if (darkTheme) blue else darkHeader) { addSession() })
             gap(content, 12)
         }
 
@@ -2087,7 +2137,7 @@ class MainActivity : Activity() {
         (listOf(0) + participants()).forEach { person ->
             val name = if (person == 0) tr(R.string.all_people) else personName(person)
             val selected = historyPerson == person
-            val participantColor = if (person == 0) blue else personColor(person)
+            val participantColor = if (person == 0) darkHeader else personColor(person)
             val filterColor = if (selected) participantColor else {
                 val blend = if (darkTheme) 0.20f else 0.14f
                 val base = if (darkTheme) surface else Color.WHITE
@@ -2108,7 +2158,7 @@ class MainActivity : Activity() {
                 isSingleLine = true
                 setAllCaps(false)
             }
-            val measuredWidth = (button.paint.measureText(name) + dp(34)).toInt()
+            val measuredWidth = (button.paint.measureText(name) + dp(if (selected) 44 else 34)).toInt()
                 .coerceAtLeast(dp(78)).coerceAtMost(availableWidth)
             val widthWithMargins = measuredWidth + dp(6)
             if (usedWidth > 0 && usedWidth + widthWithMargins > availableWidth) {
@@ -2116,9 +2166,10 @@ class MainActivity : Activity() {
                 filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 usedWidth = 0
             }
-            filterRow.addView(button, LinearLayout.LayoutParams(measuredWidth, dp(40)).apply {
-                setMargins(dp(2), dp(2), dp(4), dp(4))
-            })
+            filterRow.addView(if (selected) outlinedSelection(button, participantColor) else button,
+                LinearLayout.LayoutParams(measuredWidth, if (selected) dp(50) else dp(40)).apply {
+                    setMargins(dp(2), dp(2), dp(4), dp(4))
+                })
             usedWidth += widthWithMargins
         }
         if (filterRow.childCount > 0) filterRows.addView(filterRow)
