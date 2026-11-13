@@ -880,6 +880,20 @@ class MainActivity : Activity() {
                 }
             }
         }
+        // Event-only days should also be marked in the day navigator.
+        db.rawQuery(
+            "SELECT DISTINCT person,happened_at FROM events WHERE project_id=? AND happened_at>=? AND happened_at<?",
+            arrayOf(projectId.toString(), weekStart.toString(), weekEnd.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val date = Calendar.getInstance().apply {
+                    timeInMillis = cursor.getLong(1)
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                activity.getOrPut(date) { mutableSetOf() }.add(cursor.getInt(0))
+            }
+        }
         val panel = card()
         val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val headingText = SimpleDateFormat("EEEE, d MMMM", resources.configuration.locales[0])
