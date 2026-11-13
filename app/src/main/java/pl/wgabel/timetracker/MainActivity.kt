@@ -430,6 +430,17 @@ class MainActivity : Activity() {
         return action(text, fill, foreground, click)
     }
 
+    private fun participantAction(text: String, participantColor: Int, selected: Boolean,
+                                  click: () -> Unit): Button {
+        val base = if (darkTheme) surface else Color.WHITE
+        val blend = if (darkTheme) 0.20f else 0.14f
+        val fill = if (selected) participantColor else Color.rgb(
+            (Color.red(base) * (1f - blend) + Color.red(participantColor) * blend).toInt(),
+            (Color.green(base) * (1f - blend) + Color.green(participantColor) * blend).toInt(),
+            (Color.blue(base) * (1f - blend) + Color.blue(participantColor) * blend).toInt())
+        return action(text, fill, if (selected) Color.WHITE else ink, click)
+    }
+
     private fun participants(): List<Int> {
         val ids = mutableListOf<Int>()
         db.rawQuery("SELECT id FROM participants WHERE project_id=? ORDER BY id", arrayOf(projectId.toString())).use { c ->
@@ -721,9 +732,9 @@ class MainActivity : Activity() {
         val app = card()
         app.addView(label(tr(R.string.application), 19f, true))
         gap(app, 12)
-        app.addView(action("🌐  " + tr(R.string.language), subtle, secondaryButtonText) { selectLanguage() })
+        app.addView(styledAction("🌐  " + tr(R.string.language), ButtonRole.SECONDARY) { selectLanguage() })
         gap(app, 10)
-        app.addView(action("◐  " + tr(R.string.theme), subtle, secondaryButtonText) { selectTheme() })
+        app.addView(styledAction("◐  " + tr(R.string.theme), ButtonRole.SECONDARY) { selectTheme() })
         gap(app, 12)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "—" } catch (_: Exception) { "—" }
         app.addView(label(tr(R.string.version) + "v" + version, 14f, false, muted))
@@ -798,11 +809,11 @@ class MainActivity : Activity() {
             addCard(item)
         }
         if (showArchived) {
-            content.addView(action(tr(R.string.back_projects), subtleWarm, ink) {
+            content.addView(styledAction(tr(R.string.back_projects), ButtonRole.SECONDARY) {
                 showArchived = false; render()
             })
         } else {
-            content.addView(action(tr(R.string.archived_link), subtleWarm, Color.rgb(133, 76, 27)) {
+            content.addView(styledAction(tr(R.string.archived_link), ButtonRole.WARNING) {
                 showArchived = true; render()
             })
             gap(content, 18)
@@ -936,7 +947,7 @@ class MainActivity : Activity() {
             .format(Date(selected))
         heading.addView(label(headingText.replaceFirstChar { it.uppercase() }, 18f, true),
             LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(action("▦", subtleNeutral, ink) {
+        heading.addView(styledAction("▦", ButtonRole.SECONDARY) {
             val chosen = Calendar.getInstance().apply { timeInMillis = selected }
             DatePickerDialog(this, { _, year, month, day ->
                 val target = Calendar.getInstance().apply {
@@ -990,18 +1001,18 @@ class MainActivity : Activity() {
         }
         panel.addView(strip)
         val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        footer.addView(action("‹ " + if (polish) "Poprzedni tydzień" else "Previous week", subtleNeutral, ink) {
+        footer.addView(styledAction("‹ " + if (polish) "Poprzedni tydzień" else "Previous week", ButtonRole.SECONDARY) {
             val target = Calendar.getInstance().apply { timeInMillis = selected; add(Calendar.DAY_OF_YEAR, -7) }.timeInMillis
             var offset = selectedOffset
             while (dayStart(offset) > target) offset--
             if (forHistory) dayOffset = offset else timelineOffset = offset
             renderContent()
         }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        footer.addView(action(if (polish) "Dzisiaj" else "Today", subtle, blue) {
+        footer.addView(styledAction(if (polish) "Dzisiaj" else "Today", ButtonRole.SECONDARY) {
             if (forHistory) dayOffset = 0 else timelineOffset = 0
             renderContent()
         }, LinearLayout.LayoutParams(dp(100), dp(42)).apply { setMargins(dp(8), 0, dp(8), 0) })
-        footer.addView(action("›", subtleNeutral, if (weekStart + 7L * 86400000L <= today) ink else muted) {
+        footer.addView(styledAction("›", ButtonRole.SECONDARY) {
             val target = Calendar.getInstance().apply { timeInMillis = selected; add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
             if (target <= today) {
                 var offset = selectedOffset
@@ -1090,10 +1101,10 @@ class MainActivity : Activity() {
                     (if (note.isBlank()) "" else " · " + note)
                 item.addView(label(description, 13f, false, muted), LinearLayout.LayoutParams(0, -2, 1f))
                 if (tab == 2 && !isArchived()) {
-                    item.addView(action("✎", subtleNeutral, ink) {
+                    item.addView(styledAction("✎", ButtonRole.SECONDARY) {
                         editEvent(id, sessionId, person, timestamp, type, note)
                     }, LinearLayout.LayoutParams(dp(42), dp(40)))
-                    item.addView(action("×", subtleNeutral, ink) {
+                    item.addView(styledAction("×", ButtonRole.DANGER) {
                         AlertDialog.Builder(this).setTitle("Usunąć wydarzenie?")
                             .setNegativeButton(tr(R.string.cancel), null)
                             .setPositiveButton("Usuń") { _, _ ->
@@ -1133,12 +1144,13 @@ class MainActivity : Activity() {
                 statusLabel.text = tr(R.string.running_prefix) + duration(tick - active)
             }
             gap(c, 12)
-            val button = action(if (active == null) "▶  START" else "■  STOP",
-                if (active == null) personColor(person) else Color.rgb(185, 48, 48)) { toggle(person) }
+            val button = if (active == null)
+                action("▶  START", personColor(person)) { toggle(person) }
+            else styledAction("■  STOP", ButtonRole.DANGER) { toggle(person) }
             if (active != null) {
                 val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 controls.addView(button, LinearLayout.LayoutParams(0, dp(54), 2f))
-                controls.addView(action("⚑ EVENT", subtle, secondaryButtonText) { addEvent(person) },
+                controls.addView(styledAction("⚑ EVENT", ButtonRole.SECONDARY) { addEvent(person) },
                     LinearLayout.LayoutParams(0, dp(54), 1f).apply { leftMargin = dp(8) })
                 c.addView(controls)
             } else c.addView(button, LinearLayout.LayoutParams(-1, dp(54)))
@@ -1376,7 +1388,7 @@ class MainActivity : Activity() {
                 row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
                 if (tab == 2 && originalEnd != null && !isArchived()) {
                     val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                    controls.addView(iconButton("edit", blue) {
+                    controls.addView(iconButton("edit", if (darkTheme) Color.rgb(164, 208, 205) else darkHeader) {
                         editSession(id, person, originalStart, originalEnd)
                     }, LinearLayout.LayoutParams(dp(42), dp(40)))
                     gap(controls, 4)
@@ -1447,7 +1459,7 @@ class MainActivity : Activity() {
         val end = dayStart(1)
         val now = System.currentTimeMillis()
         sectionHeading(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants")
-        if (!isArchived()) content.addView(action(tr(R.string.add_person), subtle, secondaryButtonText) { addParticipant() })
+        if (!isArchived()) content.addView(styledAction(tr(R.string.add_person), ButtonRole.PRIMARY) { addParticipant() })
         gap(content, 12)
         if (participants().isEmpty()) {
             content.addView(label(tr(R.string.first_person), 16f, false, muted))
@@ -1459,7 +1471,7 @@ class MainActivity : Activity() {
         sectionHeading(if (resources.configuration.locales[0].language == "pl") "Wydarzenia" else "Events")
         selectedDayEvents(start, end)
         gap(content, 8)
-        content.addView(action(tr(R.string.full_history), subtle, secondaryButtonText) {
+        content.addView(styledAction(tr(R.string.full_history), ButtonRole.SECONDARY) {
             tab = 2
             render()
         })
@@ -2062,8 +2074,7 @@ class MainActivity : Activity() {
         val selector = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(tr(R.string.day), tr(R.string.week), tr(R.string.month), tr(R.string.all)).forEachIndexed { index, name ->
             val chosen = statsPeriod == index
-            val control = action(name, if (chosen) darkHeader else subtleNeutral,
-                if (chosen) Color.WHITE else ink) {
+            val control = styledAction(name, if (chosen) ButtonRole.PRIMARY else ButtonRole.SECONDARY) {
                 statsPeriod = index
                 statsOffset = 0
                 renderContent()
@@ -2075,12 +2086,12 @@ class MainActivity : Activity() {
         gap(c, 8)
         if (statsPeriod != 3) {
             val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            nav.addView(action("‹", subtleNeutral, ink) { statsOffset--; renderContent() },
+            nav.addView(styledAction("‹", ButtonRole.SECONDARY) { statsOffset--; renderContent() },
                 LinearLayout.LayoutParams(dp(50), dp(42)))
             val range = periodRange()
             nav.addView(label(dateFormat.format(Date(range.first)), 14f, true).apply { gravity = Gravity.CENTER },
                 LinearLayout.LayoutParams(0, dp(42), 1f))
-            nav.addView(action("›", subtleNeutral, ink) {
+            nav.addView(styledAction("›", ButtonRole.SECONDARY) {
                 if (statsOffset < 0) { statsOffset++; renderContent() }
             }, LinearLayout.LayoutParams(dp(50), dp(42)))
             c.addView(nav)
@@ -2165,7 +2176,7 @@ class MainActivity : Activity() {
         dayNavigator(true)
         gap(content, 12)
         if (!isArchived()) {
-            content.addView(action("＋  " + tr(R.string.add_measurement), if (darkTheme) blue else darkHeader) { addSession() })
+            content.addView(styledAction("＋  " + tr(R.string.add_measurement), ButtonRole.PRIMARY) { addSession() })
             gap(content, 12)
         }
 
@@ -2178,16 +2189,7 @@ class MainActivity : Activity() {
             val name = if (person == 0) tr(R.string.all_people) else personName(person)
             val selected = historyPerson == person
             val participantColor = if (person == 0) darkHeader else personColor(person)
-            val filterColor = if (selected) participantColor else {
-                val blend = if (darkTheme) 0.20f else 0.14f
-                val base = if (darkTheme) surface else Color.WHITE
-                Color.rgb(
-                    (Color.red(base) * (1f - blend) + Color.red(participantColor) * blend).toInt(),
-                    (Color.green(base) * (1f - blend) + Color.green(participantColor) * blend).toInt(),
-                    (Color.blue(base) * (1f - blend) + Color.blue(participantColor) * blend).toInt()
-                )
-            }
-            val button = action(name, filterColor, if (selected) Color.WHITE else ink) {
+            val button = participantAction(name, participantColor, selected) {
                 historyPerson = person
                 renderContent()
             }.apply {
