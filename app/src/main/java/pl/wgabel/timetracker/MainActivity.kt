@@ -1618,7 +1618,19 @@ class MainActivity : Activity() {
         val names = activePeople.associateWith { personName(it) }
         // The full local day is always shown. Grow the chart when event labels
         // need more vertical room, instead of clipping the bottom of the day.
-        val fullHeight = dp(maxOf(480, 48 + events.size * 64))
+        // Size for the actual distribution of events, not just their count.
+        // Dense clusters near midnight need extra room below their timestamps.
+        val labelGap = dp(64).toFloat()
+        var fullHeight = dp(480)
+        for (attempt in 0 until 200) {
+            var nextLabel = dp(12).toFloat()
+            for (event in events) {
+                val exactY = ((event.at - day).toDouble() / (end - day) * fullHeight).toFloat()
+                nextLabel = maxOf(exactY, nextLabel) + labelGap
+            }
+            if (events.isEmpty() || nextLabel - labelGap + dp(54) <= fullHeight) break
+            fullHeight += dp(64)
+        }
         val graph = object : View(this) {
             private val p = Paint(Paint.ANTI_ALIAS_FLAG)
             private var horizontalOffset = 0f
@@ -1755,17 +1767,11 @@ class MainActivity : Activity() {
                 canvas.restore()
                 // Keep dots at exact times. Lay out descriptions with a minimum
                 // separation, including clusters near the end of the day.
-                val labelPositions = events.map { yAt(it.at) }.toMutableList()
-                val separation = dp(64).toFloat()
-                for (i in 1 until labelPositions.size) {
-                    labelPositions[i] = maxOf(labelPositions[i], labelPositions[i - 1] + separation)
-                }
-                if (labelPositions.isNotEmpty()) {
-                    labelPositions[labelPositions.lastIndex] = minOf(
-                        labelPositions.last(), fullHeight - dp(24).toFloat())
-                    for (i in labelPositions.lastIndex - 1 downTo 0) {
-                        labelPositions[i] = minOf(labelPositions[i], labelPositions[i + 1] - separation)
-                    }
+                val labelPositions = mutableListOf<Float>()
+                events.forEach { event ->
+                    val minimum = if (labelPositions.isEmpty()) dp(12).toFloat()
+                        else labelPositions.last() + labelGap
+                    labelPositions.add(maxOf(yAt(event.at), minimum))
                 }
                 events.forEachIndexed { index, e ->
                     val y = yAt(e.at)
