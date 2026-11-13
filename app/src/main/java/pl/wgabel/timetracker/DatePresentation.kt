@@ -46,5 +46,5 @@ internal object DatePresentation {
         SimpleDateFormat("EEE", locale(resources))
 
     fun monthYear(resources: Resources): DateFormat =
-        SimpleDateFormat(if (locale.language == "pl") "MM.yy" else "MM/yy", locale(resources))
+        SimpleDateFormat(if (locale(resources).language == "pl") "MM.yy" else "MM/yy", locale(resources))
 }
