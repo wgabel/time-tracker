@@ -1468,14 +1468,37 @@ class MainActivity : Activity() {
         val start = dayStart(0)
         val end = dayStart(1)
         val now = System.currentTimeMillis()
-        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants")
-        if (!isArchived()) content.addView(styledAction(tr(R.string.add_person), ButtonRole.PRIMARY) { addParticipant() })
+        val participantsHeading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        participantsHeading.addView(
+            label(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants", 21f, true, ink).apply {
+                letterSpacing = -0.02f
+            },
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        if (!isArchived()) {
+            val addParticipantButton = styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
+                contentDescription = tr(R.string.add_person).removePrefix("+").trim()
+                textSize = 24f
+                minHeight = dp(40)
+                minimumHeight = dp(40)
+                minWidth = dp(44)
+                minimumWidth = dp(44)
+                setPadding(0, 0, 0, 0)
+            }
+            participantsHeading.addView(addParticipantButton, LinearLayout.LayoutParams(dp(44), dp(40)))
+        }
         gap(content, 12)
-        if (participants().isEmpty()) {
+        content.addView(participantsHeading)
+        gap(content, 12)
+        val currentParticipants = participants()
+        if (currentParticipants.isEmpty()) {
             content.addView(label(tr(R.string.first_person), 16f, false, muted))
             gap(content, 12)
         }
-        participants().forEach { timerCard(it, start, end, now) }
+        currentParticipants.forEach { timerCard(it, start, end, now) }
         sectionHeading(tr(R.string.selected_day_sessions))
         sessionList(start, end, 8)
         sectionHeading(if (resources.configuration.locales[0].language == "pl") "Wydarzenia" else "Events")
