@@ -410,7 +410,7 @@ class MainActivity : Activity() {
             minHeight = dp(48)
             isAllCaps = false
             setTextColor(fg)
-            background = shape(bg, 16)
+            background = shape(bg, 9)
             stateListAnimator = null
             elevation = 0f
             setOnClickListener { click() }
@@ -2110,7 +2110,7 @@ class MainActivity : Activity() {
                     floatArrayOf(dashLength, gapLength), dashPhase)
                 canvas.drawRoundRect(
                     RectF(inset, inset, width - inset, height - inset),
-                    dp(21).toFloat(), dp(21).toFloat(), outlinePaint)
+                    dp(14).toFloat(), dp(14).toFloat(), outlinePaint)
             }
 
             override fun onAttachedToWindow() {
