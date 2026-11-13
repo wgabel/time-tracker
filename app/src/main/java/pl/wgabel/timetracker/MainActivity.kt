@@ -416,6 +416,20 @@ class MainActivity : Activity() {
             setOnClickListener { click() }
         }
 
+    // Shared semantic button styles: callers choose intent, not ad-hoc colors.
+    private enum class ButtonRole { PRIMARY, SECONDARY, DANGER, WARNING }
+
+    private fun styledAction(text: String, role: ButtonRole, click: () -> Unit): Button {
+        val (fill, foreground) = when (role) {
+            ButtonRole.PRIMARY -> (if (darkTheme) blue else darkHeader) to Color.WHITE
+            ButtonRole.SECONDARY -> subtleNeutral to ink
+            ButtonRole.DANGER -> (if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233)) to
+                (if (darkTheme) Color.rgb(255, 165, 165) else Color.rgb(170, 42, 42))
+            ButtonRole.WARNING -> subtleWarm to (if (darkTheme) Color.rgb(245, 195, 140) else Color.rgb(143, 80, 28))
+        }
+        return action(text, fill, foreground, click)
+    }
+
     private fun participants(): List<Int> {
         val ids = mutableListOf<Int>()
         db.rawQuery("SELECT id FROM participants WHERE project_id=? ORDER BY id", arrayOf(projectId.toString())).use { c ->
@@ -2319,15 +2333,12 @@ class MainActivity : Activity() {
             gap(info, 10)
             info.addView(label(tr(R.string.locked_data), 14f, false, muted))
             addCard(info)
-            content.addView(action(tr(R.string.export_csv), subtleWarm, ink) { exportCsv() })
+            content.addView(styledAction(tr(R.string.export_csv), ButtonRole.SECONDARY) { exportCsv() })
             return
         }
         val project = card()
-        project.addView(label(tr(R.string.project), 13f, true, muted))
-        gap(project, 8)
-        project.addView(label(projectName(), 20f, true))
-        gap(project, 8)
-        project.addView(action(tr(R.string.rename_project), subtle, secondaryButtonText) {
+        // The project name already appears in the persistent app header.
+        project.addView(styledAction(tr(R.string.rename_project), ButtonRole.SECONDARY) {
             renameProject()
         })
         gap(project, 14)
@@ -2336,7 +2347,7 @@ class MainActivity : Activity() {
         iconRow.addView(label(tr(R.string.project_icon), 16f, true).apply { setPadding(dp(14), 0, 0, 0) })
         project.addView(iconRow)
         gap(project, 10)
-        project.addView(action(tr(R.string.regenerate_icon), subtle, secondaryButtonText) {
+        project.addView(styledAction(tr(R.string.regenerate_icon), ButtonRole.SECONDARY) {
             regenerateProjectIcon()
         })
         addCard(project)
@@ -2352,7 +2363,7 @@ class MainActivity : Activity() {
             row.addView(avatar(person), LinearLayout.LayoutParams(dp(36), dp(36)))
             val name = label(personName(person), 15f, true).apply { setPadding(dp(10), 0, dp(4), 0) }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(iconButton("edit", blue) { rename(person) },
+            row.addView(iconButton("edit", if (darkTheme) Color.rgb(164, 208, 205) else darkHeader) { rename(person) },
                 LinearLayout.LayoutParams(dp(42), dp(42)))
             gap(row, 5)
             row.addView(iconButton("delete", Color.rgb(170, 42, 42)) { removeParticipant(person) },
@@ -2360,7 +2371,7 @@ class MainActivity : Activity() {
             people.addView(row)
             gap(people, 7)
         }
-        people.addView(action(tr(R.string.add_participant), subtle, secondaryButtonText) {
+        people.addView(styledAction("＋  " + tr(R.string.add_participant), ButtonRole.PRIMARY) {
             addParticipant()
         })
         addCard(people)
@@ -2368,11 +2379,11 @@ class MainActivity : Activity() {
         val data = card()
         data.addView(label(tr(R.string.project_data), 19f, true))
         gap(data, 12)
-        data.addView(action(tr(R.string.export_csv), subtle, secondaryButtonText) {
+        data.addView(styledAction(tr(R.string.export_csv), ButtonRole.SECONDARY) {
             exportCsv()
         })
         gap(data, 8)
-        data.addView(action(tr(R.string.archive_project), subtleWarm, Color.rgb(143, 80, 28)) { archiveProject() })
+        data.addView(styledAction(tr(R.string.archive_project), ButtonRole.WARNING) { archiveProject() })
         addCard(data)
 
 
