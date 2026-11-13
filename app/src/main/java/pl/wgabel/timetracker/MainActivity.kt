@@ -1536,7 +1536,7 @@ class MainActivity : Activity() {
                     }
                     canvas.drawPath(bookmark, p)
                     canvas.drawLine(dp(16).toFloat(), dp(9).toFloat(), dp(23).toFloat(), dp(9).toFloat(), p)
-                    canvas.drawLine(dp(19.5f), dp(5.5f), dp(19.5f), dp(12.5f), p)
+                    canvas.drawLine(dp(19).toFloat(), dp(6).toFloat(), dp(19).toFloat(), dp(13).toFloat(), p)
                 } else if (kind == "edit") {
                     // Recognizable pencil: closed shaft, pointed nib and eraser cap.
                     val pencil = Path().apply {
