@@ -294,7 +294,7 @@ class MainActivity : Activity() {
 
     private fun activeCardBackground(): Drawable = object : Drawable(), android.graphics.drawable.Animatable {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        private var phase = 0f
+        // Use monotonic elapsed time so animator repeats cannot reset particle positions.
         // Generate particle properties once; never randomize inside draw().
         private val random = kotlin.random.Random(System.nanoTime())
         private val blocks = List(24) {
@@ -306,7 +306,7 @@ class MainActivity : Activity() {
             duration = 3600L
             repeatCount = ValueAnimator.INFINITE
             interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener { phase = it.animatedValue as Float; invalidateSelf() }
+            addUpdateListener { invalidateSelf() }
         }
         override fun setVisible(visible: Boolean, restart: Boolean): Boolean {
             val changed = super.setVisible(visible, restart)
@@ -337,7 +337,8 @@ class MainActivity : Activity() {
             canvas.clipPath(clip)
             for (block in blocks) {
                 // Independent randomized starting positions and speeds.
-                val progress = (phase * block.speed + block.offset) % 1f
+                val elapsedCycles = android.os.SystemClock.uptimeMillis().toDouble() / 3600.0
+                val progress = ((elapsedCycles * block.speed + block.offset) % 1.0).toFloat()
                 val eased = progress * progress * (3f - 2f * progress)
                 val side = dp(block.size).toFloat()
                 val x = -side + eased * (w + side * 2f)
