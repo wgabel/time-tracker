@@ -29,6 +29,12 @@ internal object DatePresentation {
     fun shortTime(resources: Resources): DateFormat =
         DateFormat.getTimeInstance(DateFormat.SHORT, locale(resources))
 
+    fun uses24HourClock(resources: Resources): Boolean {
+        val pattern = (shortTime(resources) as? SimpleDateFormat)?.toPattern() ?: return true
+        val hourSymbols = pattern.filter { it == 'H' || it == 'k' || it == 'h' || it == 'K' }
+        return hourSymbols.firstOrNull()?.let { it == 'H' || it == 'k' } ?: true
+    }
+
     fun weekdayHeading(resources: Resources, timestamp: Long): String {
         val locale = locale(resources)
         val pattern = if (locale.language == "pl") "EEEE, d MMMM" else "EEEE, MMMM d"
