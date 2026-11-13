@@ -2071,25 +2071,59 @@ class MainActivity : Activity() {
     }
 
     private fun renderHistory() {
-        if (!isArchived()) content.addView(action(tr(R.string.add_measurement), blue) { addSession() })
+        // Day selection is the first control, followed by actions and participant filters.
+        dayNavigator(true)
         gap(content, 12)
-        val filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        if (!isArchived()) {
+            content.addView(action(tr(R.string.add_measurement), blue) { addSession() })
+            gap(content, 12)
+        }
+
+        // Wrap filters into as many rows as needed, with no horizontal scrolling.
+        val availableWidth = resources.displayMetrics.widthPixels - dp(32)
+        val filterRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        var usedWidth = 0
         (listOf(0) + participants()).forEach { person ->
             val name = if (person == 0) tr(R.string.all_people) else personName(person)
-            val button = action(name, if (historyPerson == person) blue else subtleNeutral,
-                if (historyPerson == person) Color.WHITE else ink) {
+            val selected = historyPerson == person
+            val participantColor = if (person == 0) blue else personColor(person)
+            val filterColor = if (selected) participantColor else {
+                val blend = if (darkTheme) 0.20f else 0.14f
+                val base = if (darkTheme) surface else Color.WHITE
+                Color.rgb(
+                    (Color.red(base) * (1f - blend) + Color.red(participantColor) * blend).toInt(),
+                    (Color.green(base) * (1f - blend) + Color.green(participantColor) * blend).toInt(),
+                    (Color.blue(base) * (1f - blend) + Color.blue(participantColor) * blend).toInt()
+                )
+            }
+            val button = action(name, filterColor, if (selected) Color.WHITE else ink) {
                 historyPerson = person
                 renderContent()
+            }.apply {
+                textSize = 13f
+                minHeight = dp(38)
+                minimumHeight = dp(38)
+                setPadding(dp(12), 0, dp(12), 0)
+                isSingleLine = true
+                setAllCaps(false)
             }
-            filters.addView(button, LinearLayout.LayoutParams(dp(130), dp(46)).apply {
-                setMargins(dp(2), 0, dp(2), 0)
+            val measuredWidth = (button.paint.measureText(name) + dp(34)).toInt()
+                .coerceAtLeast(dp(78)).coerceAtMost(availableWidth)
+            val widthWithMargins = measuredWidth + dp(6)
+            if (usedWidth > 0 && usedWidth + widthWithMargins > availableWidth) {
+                filterRows.addView(filterRow)
+                filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                usedWidth = 0
+            }
+            filterRow.addView(button, LinearLayout.LayoutParams(measuredWidth, dp(40)).apply {
+                setMargins(dp(2), dp(2), dp(4), dp(4))
             })
+            usedWidth += widthWithMargins
         }
-        val filterScroll = HorizontalScrollView(this)
-        filterScroll.addView(filters)
-        content.addView(filterScroll)
+        if (filterRow.childCount > 0) filterRows.addView(filterRow)
+        content.addView(filterRows)
         gap(content, 12)
-        dayNavigator(true)
         renderTimeline(inHistory = true)
         sessionList(dayStart(dayOffset), dayStart(dayOffset + 1), 500)
     }
