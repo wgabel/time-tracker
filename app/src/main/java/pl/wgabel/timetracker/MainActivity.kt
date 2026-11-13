@@ -843,23 +843,126 @@ class MainActivity : Activity() {
         return sum
     }
 
-    private fun datePickerRow() {
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val previous = action("‹", Color.TRANSPARENT, ink) { dayOffset--; renderContent() }
-        row.addView(previous, LinearLayout.LayoutParams(dp(54), dp(48)))
-        val date = label(
-            if (dayOffset == 0) tr(R.string.today) + dateFormat.format(Date(dayStart(0))) else dateFormat.format(Date(dayStart(dayOffset))),
-            16f, true
-        ).apply { gravity = Gravity.CENTER }
-        row.addView(date, LinearLayout.LayoutParams(0, dp(48), 1f))
-        val next = action("›", Color.TRANSPARENT, if (dayOffset >= 0) muted else ink) {
-            if (dayOffset < 0) { dayOffset++; renderContent() }
+    // Shared day navigation for Statistics timelines and History. Timers always shows today.
+    private fun dayNavigator(forHistory: Boolean) {
+        val selectedOffset = if (forHistory) dayOffset else timelineOffset
+        val selected = dayStart(selectedOffset)
+        val today = dayStart(0)
+        val polish = resources.configuration.locales[0].language == "pl"
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = selected
+            firstDayOfWeek = Calendar.MONDAY
+            val back = (get(Calendar.DAY_OF_WEEK) + 5) % 7
+            add(Calendar.DAY_OF_YEAR, -back)
         }
-        row.addView(next, LinearLayout.LayoutParams(dp(54), dp(48)))
-        content.addView(row)
-        gap(content, 10)
+        val weekStart = calendar.timeInMillis
+        val weekEnd = Calendar.getInstance().apply {
+            timeInMillis = weekStart
+            add(Calendar.DAY_OF_YEAR, 7)
+        }.timeInMillis
+        val activity = mutableMapOf<Long, MutableSet<Int>>()
+        db.rawQuery(
+            "SELECT person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)",
+            arrayOf(projectId.toString(), weekEnd.toString(), weekStart.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val person = cursor.getInt(0)
+                val start = maxOf(weekStart, cursor.getLong(1))
+                val finish = minOf(weekEnd, if (cursor.isNull(2)) System.currentTimeMillis() else cursor.getLong(2))
+                val date = Calendar.getInstance().apply {
+                    timeInMillis = start
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                }
+                while (date.timeInMillis < finish) {
+                    activity.getOrPut(date.timeInMillis) { mutableSetOf() }.add(person)
+                    date.add(Calendar.DAY_OF_YEAR, 1)
+                }
+            }
+        }
+        val panel = card()
+        val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val headingText = SimpleDateFormat("EEEE, d MMMM", resources.configuration.locales[0])
+            .format(Date(selected))
+        heading.addView(label(headingText.replaceFirstChar { it.uppercase() }, 18f, true),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(action("▦", subtleNeutral, ink) {
+            val chosen = Calendar.getInstance().apply { timeInMillis = selected }
+            DatePickerDialog(this, { _, year, month, day ->
+                val target = Calendar.getInstance().apply {
+                    set(year, month, day, 0, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                var offset = 0
+                while (dayStart(offset) > target) offset--
+                while (dayStart(offset + 1) <= target) offset++
+                if (forHistory) dayOffset = offset else timelineOffset = offset
+                renderContent()
+            }, chosen.get(Calendar.YEAR), chosen.get(Calendar.MONTH), chosen.get(Calendar.DAY_OF_MONTH)).apply {
+                datePicker.maxDate = System.currentTimeMillis()
+            }.show()
+        }, LinearLayout.LayoutParams(dp(46), dp(42)))
+        panel.addView(heading)
+        gap(panel, 8)
+        val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val shortDay = SimpleDateFormat("EE", resources.configuration.locales[0])
+        for (index in 0 until 7) {
+            val date = Calendar.getInstance().apply {
+                timeInMillis = weekStart
+                add(Calendar.DAY_OF_YEAR, index)
+            }.timeInMillis
+            val chosen = date == selected
+            val future = date > today
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(1), dp(7), dp(1), dp(7))
+                background = shape(if (chosen) subtle else Color.TRANSPARENT, 12)
+                alpha = if (future) .40f else 1f
+            }
+            cell.addView(label(shortDay.format(Date(date)), 11f, false, muted).apply { gravity = Gravity.CENTER })
+            cell.addView(label(Calendar.getInstance().apply { timeInMillis = date }.get(Calendar.DAY_OF_MONTH).toString(),
+                16f, true, if (chosen) blue else ink).apply { gravity = Gravity.CENTER })
+            val dots = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+            activity[date]?.take(3)?.forEach { person ->
+                dots.addView(View(this).apply { background = shape(personColor(person), 4) },
+                    LinearLayout.LayoutParams(dp(5), dp(5)).apply { setMargins(dp(1), dp(3), dp(1), 0) })
+            }
+            cell.addView(dots, LinearLayout.LayoutParams(-1, dp(11)))
+            if (!future) cell.setOnClickListener {
+                var offset = 0
+                while (dayStart(offset) > date) offset--
+                while (dayStart(offset + 1) <= date) offset++
+                if (forHistory) dayOffset = offset else timelineOffset = offset
+                renderContent()
+            }
+            strip.addView(cell, LinearLayout.LayoutParams(0, dp(75), 1f))
+        }
+        panel.addView(strip)
+        val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        footer.addView(action("‹ " + if (polish) "Poprzedni tydzień" else "Previous week", subtleNeutral, ink) {
+            val target = Calendar.getInstance().apply { timeInMillis = selected; add(Calendar.DAY_OF_YEAR, -7) }.timeInMillis
+            var offset = selectedOffset
+            while (dayStart(offset) > target) offset--
+            if (forHistory) dayOffset = offset else timelineOffset = offset
+            renderContent()
+        }, LinearLayout.LayoutParams(0, dp(42), 1f))
+        footer.addView(action(if (polish) "Dzisiaj" else "Today", subtle, blue) {
+            if (forHistory) dayOffset = 0 else timelineOffset = 0
+            renderContent()
+        }, LinearLayout.LayoutParams(dp(100), dp(42)).apply { setMargins(dp(8), 0, dp(8), 0) })
+        footer.addView(action("›", subtleNeutral, if (weekStart + 7L * 86400000L <= today) ink else muted) {
+            val target = Calendar.getInstance().apply { timeInMillis = selected; add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
+            if (target <= today) {
+                var offset = selectedOffset
+                while (dayStart(offset + 1) <= target) offset++
+                if (forHistory) dayOffset = offset else timelineOffset = offset
+                renderContent()
+            }
+        }, LinearLayout.LayoutParams(dp(44), dp(42)))
+        panel.addView(footer)
+        addCard(panel)
     }
-
 
     private fun addEvent(person: Int) {
         val sessionId = db.rawQuery(
@@ -1290,9 +1393,8 @@ class MainActivity : Activity() {
     }
 
     private fun renderTimers() {
-        datePickerRow()
-        val start = dayStart(dayOffset)
-        val end = dayStart(dayOffset + 1)
+        val start = dayStart(0)
+        val end = dayStart(1)
         val now = System.currentTimeMillis()
         sectionHeading(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants")
         if (!isArchived()) content.addView(action(tr(R.string.add_person), subtle, secondaryButtonText) { addParticipant() })
@@ -1540,17 +1642,6 @@ class MainActivity : Activity() {
             gap(c, 8)
         }
         val day = dayStart(if (inHistory) dayOffset else timelineOffset)
-        if (!inHistory) {
-        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        nav.addView(action("‹", subtleNeutral, ink) { timelineOffset--; renderContent() },
-            LinearLayout.LayoutParams(dp(50), dp(44)))
-        nav.addView(label(dateFormat.format(Date(day)), 15f, true).apply { gravity = Gravity.CENTER },
-            LinearLayout.LayoutParams(0, dp(44), 1f))
-        nav.addView(action("›", subtleNeutral, ink) {
-            if (timelineOffset < 0) { timelineOffset++; renderContent() }
-        }, LinearLayout.LayoutParams(dp(50), dp(44)))
-        c.addView(nav)
-        }
         val people = if (inHistory && historyPerson != 0) participants().filter { it == historyPerson } else participants()
         if (people.isEmpty()) {
             c.addView(label(tr(R.string.timeline_hint), 14f, false, muted))
@@ -1668,17 +1759,6 @@ class MainActivity : Activity() {
         gap(panel, 8)
         val day = dayStart(timelineOffset)
         val end = dayStart(timelineOffset + 1)
-        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        nav.addView(action("‹", subtleNeutral, ink) { timelineOffset--; renderContent() },
-            LinearLayout.LayoutParams(dp(44), dp(42)))
-        nav.addView(label(dateFormat.format(Date(day)), 14f, true).apply { gravity = Gravity.CENTER },
-            LinearLayout.LayoutParams(0, dp(42), 1f))
-        nav.addView(action("›", subtleNeutral, ink) {
-            if (timelineOffset < 0) { timelineOffset++; renderContent() }
-        }, LinearLayout.LayoutParams(dp(44), dp(42)))
-        panel.addView(nav)
-        gap(panel, 8)
-
         val sessions = intervals(day, end)
         data class EventMark(val person: Int, val at: Long, val type: String, val note: String)
         val events = mutableListOf<EventMark>()
@@ -1959,6 +2039,8 @@ class MainActivity : Activity() {
             renderParticipantPie(from, to)
         }
         gap(content, 18)
+        dayNavigator(false)
+        gap(content, 18)
         renderTimeline()
         gap(content, 18)
         renderVerticalDailyTimeline()
@@ -1985,7 +2067,7 @@ class MainActivity : Activity() {
         filterScroll.addView(filters)
         content.addView(filterScroll)
         gap(content, 12)
-        datePickerRow()
+        dayNavigator(true)
         renderTimeline(inHistory = true)
         sessionList(dayStart(dayOffset), dayStart(dayOffset + 1), 500)
     }
