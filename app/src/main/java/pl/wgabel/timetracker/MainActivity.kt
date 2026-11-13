@@ -1361,6 +1361,8 @@ class MainActivity : Activity() {
                     tray.addView(edit, LinearLayout.LayoutParams(dp(48), dp(48)))
                     tray.addView(View(this), LinearLayout.LayoutParams(dp(8), dp(1)))
                     tray.addView(delete, LinearLayout.LayoutParams(dp(48), dp(48)))
+                    val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
+                    eventRow.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
                     eventRow.addView(tray, LinearLayout.LayoutParams(0, dp(48)))
                     var expanded = false
                     var animation: ValueAnimator? = null
@@ -1390,6 +1392,7 @@ class MainActivity : Activity() {
                                 }
                                 tray.translationX = fromOffset * (1f - fraction) +
                                     (if (expanded) 0f else dp(36).toFloat()) * fraction
+                                arrow.alpha = if (expanded) 1f - fraction else fraction
                                 tray.alpha = fromAlpha +
                                     ((if (expanded) 1f else 0f) - fromAlpha) * fraction
                             }
@@ -1756,6 +1759,8 @@ class MainActivity : Activity() {
                     tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
                     tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
                     tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
+                    row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
                     group.addView(tray, LinearLayout.LayoutParams(-1, 0))
                     var expanded = false
                     var animation: ValueAnimator? = null
@@ -1785,6 +1790,7 @@ class MainActivity : Activity() {
                                 }
                                 tray.translationX = fromOffset * (1f - fraction) +
                                     (if (expanded) 0f else dp(36).toFloat()) * fraction
+                                arrow.alpha = if (expanded) 1f - fraction else fraction
                                 tray.alpha = fromAlpha + ((if (expanded) 1f else 0f) - fromAlpha) * fraction
                             }
                             start()
@@ -2803,20 +2809,65 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(52)
             }
             row.addView(avatar(person), LinearLayout.LayoutParams(dp(36), dp(36)))
-            val name = label(personName(person), 15f, true).apply { setPadding(dp(10), 0, dp(4), 0) }
-            row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(label("●", 24f, true, personColor(person)).apply {
+            row.addView(label(personName(person), 15f, true).apply {
+                setPadding(dp(10), 0, dp(4), 0)
+                setSingleLine(true)
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
+            row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
+            val tray = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                clipChildren = true
+            }
+            tray.addView(label("●", 24f, true, personColor(person)).apply {
                 gravity = Gravity.CENTER
                 contentDescription = "Color"
                 setOnClickListener { editParticipantColor(person) }
-            }, LinearLayout.LayoutParams(dp(42), dp(42)))
-            row.addView(editIconButton { rename(person) },
-                LinearLayout.LayoutParams(dp(42), dp(42)))
-            gap(row, 5)
-            row.addView(deleteIconButton { removeParticipant(person) },
-                LinearLayout.LayoutParams(dp(42), dp(42)))
+            }, LinearLayout.LayoutParams(dp(42), dp(48)))
+            tray.addView(editIconButton { rename(person) },
+                LinearLayout.LayoutParams(dp(42), dp(48)))
+            tray.addView(deleteIconButton { removeParticipant(person) },
+                LinearLayout.LayoutParams(dp(42), dp(48)))
+            row.addView(tray, LinearLayout.LayoutParams(0, dp(48)))
+            var expanded = false
+            var animation: ValueAnimator? = null
+            row.isClickable = true
+            row.isFocusable = true
+            row.contentDescription = personName(person) +
+                ". Dotknij, aby pokazać lub ukryć akcje uczestnika"
+            row.setOnClickListener {
+                expanded = !expanded
+                animation?.cancel()
+                val currentWidth = tray.layoutParams.width.coerceAtLeast(0)
+                val targetWidth = if (expanded) dp(126) else 0
+                if (expanded && currentWidth == 0) {
+                    tray.translationX = dp(36).toFloat()
+                    tray.alpha = 0f
+                }
+                val fromOffset = tray.translationX
+                val fromAlpha = tray.alpha
+                val fromArrowAlpha = arrow.alpha
+                animation = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 260L
+                    interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+                    addUpdateListener { animator ->
+                        val fraction = animator.animatedValue as Float
+                        tray.layoutParams = tray.layoutParams.apply {
+                            width = currentWidth + ((targetWidth - currentWidth) * fraction).toInt()
+                        }
+                        tray.translationX = fromOffset * (1f - fraction) +
+                            (if (expanded) 0f else dp(36).toFloat()) * fraction
+                        tray.alpha = fromAlpha + ((if (expanded) 1f else 0f) - fromAlpha) * fraction
+                        arrow.alpha = fromArrowAlpha + ((if (expanded) 0f else 1f) - fromArrowAlpha) * fraction
+                    }
+                    start()
+                }
+            }
             people.addView(row)
             gap(people, 7)
         }
