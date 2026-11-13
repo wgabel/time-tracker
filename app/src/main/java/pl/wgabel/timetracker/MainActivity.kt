@@ -690,7 +690,7 @@ class MainActivity : Activity() {
         app.addView(action("◐  " + tr(R.string.theme), subtle, secondaryButtonText) { selectTheme() })
         gap(app, 12)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "—" } catch (_: Exception) { "—" }
-        app.addView(label(tr(R.string.version) + version, 14f, false, muted))
+        app.addView(label(tr(R.string.version) + "v" + version, 14f, false, muted))
         gap(app, 12)
         app.addView(label(tr(R.string.local_data), 13f, false, muted))
         addCard(app)
