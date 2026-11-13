@@ -23,8 +23,8 @@ android {
             "eagle", "falcon", "fox", "gecko", "heron", "jaguar", "koala",
             "lynx", "otter", "owl", "panda", "rabbit", "tiger", "wolf")
         val seed = ciRunNumber ?: 0
-        val color = colors[kotlin.random.Random(seed).nextInt(colors.size)]
-        val animal = animals[kotlin.random.Random(seed xor 0x5A17).nextInt(animals.size)]
+        val color = colors[java.util.Random(seed.toLong()).nextInt(colors.size)]
+        val animal = animals[java.util.Random((seed xor 0x5A17).toLong()).nextInt(animals.size)]
         versionName = "0.1.${ciRunNumber ?: 0}-$color-$animal"
     }
     val signingFile = System.getenv("ANDROID_KEYSTORE_FILE")
