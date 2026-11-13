@@ -1502,8 +1502,12 @@ class MainActivity : Activity() {
                 else area.left - side + eased * (area.width() + 2f * side)
             val y = if (vertical) area.top - side + eased * (area.height() + 2f * side)
                 else area.top + fraction(41) * (area.height() - side).coerceAtLeast(0f)
-            paint.color = Color.argb(135 + (fraction(53) * 90).toInt(),
-                255, 255, 255)
+            // Blend each participant's bar color toward white, retaining its hue.
+            val lighten = .35f + fraction(53) * .20f
+            paint.color = Color.argb(180 + (fraction(59) * 55).toInt(),
+                (Color.red(color) + (255 - Color.red(color)) * lighten).toInt(),
+                (Color.green(color) + (255 - Color.green(color)) * lighten).toInt(),
+                (Color.blue(color) + (255 - Color.blue(color)) * lighten).toInt())
             canvas.drawRoundRect(RectF(x, y, x + side, y + side), dp(1).toFloat(), dp(1).toFloat(), paint)
         }
         canvas.restore()
