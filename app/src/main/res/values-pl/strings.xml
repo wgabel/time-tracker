@@ -27,6 +27,7 @@
     <string name="archive_banner">▣  ARCHIWALNE · TYLKO DO ODCZYTU</string>
     <string name="add_measurement">+ Dodaj pomiar</string>
     <string name="selected_day_total">Suma wybranego dnia</string>
+    <string name="measurements_heading">Pomiary</string>
     <string name="selected_day_sessions">Sesje z wybranego dnia</string>
     <string name="full_history">Zobacz pełną historię</string>
     <string name="no_sessions">Brak sesji w wybranym dniu.</string>
