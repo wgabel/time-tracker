@@ -12,7 +12,6 @@ import java.util.Date
 class RecentActivityRenderer(
     private val context: Context,
     private val target: () -> LinearLayout,
-    private val sectionHeading: (String) -> Unit,
     private val text: (String, Float, Boolean, Int?) -> TextView,
     private val mutedColor: () -> Int,
     private val surfaceBackground: () -> android.graphics.drawable.Drawable,
@@ -24,7 +23,12 @@ class RecentActivityRenderer(
 ) {
     fun render(entries: List<RecentActivityEntry>) {
         val polish = context.resources.configuration.locales[0].language == "pl"
-        sectionHeading(if (polish) "Ostatnia aktywność" else "Recent activity")
+        val heading = text(if (polish) "Ostatnia aktywność" else "Recent activity", 21f, true, null).apply {
+            letterSpacing = -0.02f
+        }
+        target().addView(View(context), LinearLayout.LayoutParams(1, dp(12)))
+        target().addView(heading)
+        target().addView(View(context), LinearLayout.LayoutParams(1, dp(12)))
         if (entries.isEmpty()) {
             target().addView(text(if (polish) "Brak aktywności" else "No activity yet", 14f, false, mutedColor()))
         }
