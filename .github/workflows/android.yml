@@ -60,10 +60,7 @@ jobs:
           profile: pixel_2
           disable-animations: true
           emulator-boot-timeout: 600
-          script: |
-            set -e
-            gradle :app:connectedDebugAndroidTest --no-daemon
-            adb pull /sdcard/Android/data/pl.wgabel.timetracker/files/time-picker-screenshots app/build/reports/androidTests/ || true
+          script: gradle :app:connectedDebugAndroidTest --no-daemon
       - name: Upload Android test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,6 +69,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            app/build/outputs/connected_android_test_additional_output/
           if-no-files-found: ignore
   build:
     if: github.event_name != 'pull_request'

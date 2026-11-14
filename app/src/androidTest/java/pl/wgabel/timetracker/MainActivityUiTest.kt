@@ -249,6 +249,7 @@ class MainActivityUiTest {
             saved = it; true
         }
         try {
+            takePickerScreenshot("time-picker-dark.png")
             tapText("Seconds: 37")
             tapDescription("Increase second")
             instrumentation.runOnMainSync {
@@ -295,7 +296,10 @@ class MainActivityUiTest {
     }
 
     private fun takePickerScreenshot(name: String) {
-        val folder = File(context.getExternalFilesDir(null), "time-picker-screenshots").apply { mkdirs() }
+        // AGP pulls this directory before uninstalling the tested APK and clearing its app files.
+        val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")
+            ?.let(::File) ?: requireNotNull(context.getExternalFilesDir(null))
+        val folder = File(output, "time-picker-screenshots").apply { mkdirs() }
         assertTrue(device.takeScreenshot(File(folder, name)))
     }
     @Test fun runningTimerSurvivesActivityRestart() {
