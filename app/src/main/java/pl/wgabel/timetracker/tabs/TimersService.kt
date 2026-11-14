@@ -1,13 +1,14 @@
 package pl.wgabel.timetracker.tabs
 
-/** Owns the timers tab entry point, independent of its rendering implementation. */
+/** Collects timer-tab state and delegates its presentation to a renderer. */
 class TimersService(
-    renderer: ITabRenderer<TimersViewState> = TimersRenderer()
+    renderer: ITabRenderer<TimersViewState>,
+    private val loadState: (Long) -> TimersViewState
 ) : BaseTabService<TimersViewState>(renderer) {
     override fun onInitialize() = Unit
 
     fun render(projectId: Long) {
         initialize()
-        renderer.render(TimersViewState(projectId))
+        renderer.render(loadState(projectId))
     }
 }
