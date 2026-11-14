@@ -70,6 +70,7 @@ import pl.wgabel.timetracker.tabs.RecentActivityRenderer
 import pl.wgabel.timetracker.tabs.HistoryService
 import pl.wgabel.timetracker.tabs.StatisticsService
 import pl.wgabel.timetracker.tabs.SettingsService
+import pl.wgabel.timetracker.data.ProjectRepository
 
 class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
@@ -79,6 +80,7 @@ class MainActivity : Activity() {
     private val splashScreen: SplashScreenService by lazy {
         AnimatedSplashScreen(this, { darkTheme }, { blue }, { muted }, { ink })
     }
+    private val projectRepository get() = ProjectRepository(db)
     private val sessionRepository get() = SessionRepository(db)
     private val eventRepository get() = EventRepository(db, sessionRepository)
     private val timerSessionController get() = TimerSessionController(db)
@@ -405,11 +407,8 @@ class MainActivity : Activity() {
     private fun personName(person: Int): String =
         ParticipantDataSource(db).name(person, tr(R.string.person_fallback) + person)
 
-    private fun projectName(): String {
-        db.rawQuery("SELECT name FROM projects WHERE id=?", arrayOf(projectId.toString())).use { c ->
-            return if (c.moveToFirst()) c.getString(0) else tr(R.string.project_fallback)
-        }
-    }
+    private fun projectName(): String =
+        projectRepository.name(requireNotNull(projectId), getString(R.string.project_fallback))
     private fun createProject() {
         val input = EditText(this).apply { hint = tr(R.string.project_name_hint); setSingleLine(true) }
         val holder = LinearLayout(this).apply { setPadding(dp(20), 0, dp(20), 0); addView(input) }
@@ -419,7 +418,7 @@ class MainActivity : Activity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = input.text.toString().trim()
                 if (name.isEmpty()) { input.error = tr(R.string.name_required); return@setOnClickListener }
-                val id = db.insert("projects", null, ContentValues().apply { put("name", name) })
+                val id = projectRepository.create(name)
                 if (id > 0) { projectId = id; tab = 0; dayOffset = 0; historyPerson = 0; dialog.dismiss(); render() }
             }
         }
@@ -440,14 +439,11 @@ class MainActivity : Activity() {
     private fun addParticipant() = addParticipantDialog.show()
 
     // Deterministic, entirely offline miniature landscapes.
-    private fun iconVariant(id: Long): Long =
-        db.rawQuery("SELECT icon_variant FROM projects WHERE id=?", arrayOf(id.toString())).use {
-            if (it.moveToFirst()) it.getLong(0) else 0L
-        }
+    private fun iconVariant(id: Long): Long = projectRepository.iconVariant(id)
 
     private fun regenerateProjectIcon() {
         if (isArchived()) return
-        db.execSQL("UPDATE projects SET icon_variant=icon_variant+1 WHERE id=? AND archived=0", arrayOf(projectId))
+        projectRepository.regenerateIcon(requireNotNull(projectId))
         renderContent()
     }
 
@@ -640,18 +636,11 @@ class MainActivity : Activity() {
         contentDescription = tr(R.string.icon_description)
     }
 
-    private fun isArchived(): Boolean {
-        val id = projectId ?: return false
-        return db.rawQuery("SELECT archived FROM projects WHERE id=?", arrayOf(id.toString())).use {
-            it.moveToFirst() && it.getInt(0) == 1
-        }
-    }
+    private fun isArchived(): Boolean = projectId?.let(projectRepository::isArchived) ?: false
 
     private fun archiveProject() {
         if (isArchived()) return
-        val count = db.rawQuery("SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL", arrayOf(projectId.toString())).use {
-            if (it.moveToFirst()) it.getInt(0) else 0
-        }
+        val count = projectRepository.activeTimerCount(requireNotNull(projectId))
         if (count > 0) {
             AlertDialog.Builder(this).setTitle(tr(R.string.active_timers))
                 .setMessage(tr(R.string.stop_before_archive))
@@ -662,7 +651,7 @@ class MainActivity : Activity() {
             .setMessage(tr(R.string.archive_description))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.archive_verb)) { _, _ ->
-                db.execSQL("UPDATE projects SET archived=1 WHERE id=? AND archived=0", arrayOf(projectId))
+                if (!projectRepository.archiveIfNoActiveTimers(requireNotNull(projectId))) return@setPositiveButton
                 projectId = null
                 showArchived = false
                 render()
@@ -709,20 +698,14 @@ class MainActivity : Activity() {
         }
         content.addView(heading)
         gap(content, 14)
-        val projects = mutableListOf<Pair<Long, String>>()
-        db.rawQuery("SELECT id,name FROM projects WHERE archived=? ORDER BY id DESC", arrayOf(if (showArchived) "1" else "0")).use { c ->
-            while (c.moveToNext()) projects.add(c.getLong(0) to c.getString(1))
-        }
+        val projects = projectRepository.list(showArchived)
         if (projects.isEmpty()) {
             content.addView(label(tr(R.string.no_projects), 16f, false, muted))
             gap(content, 18)
         }
         projects.forEach { (id, name) ->
             val item = card()
-            val counts = db.rawQuery(
-                "SELECT (SELECT COUNT(*) FROM participants WHERE project_id=?), (SELECT COUNT(*) FROM sessions WHERE project_id=? AND ended_at IS NULL)",
-                arrayOf(id.toString(), id.toString())
-            ).use { c -> if (c.moveToFirst()) c.getInt(0) to c.getInt(1) else 0 to 0 }
+            val counts = projectRepository.participantAndActiveTimerCounts(id)
             val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             line.addView(projectIcon(id))
             line.addView(label(name, 19f, true).apply {
@@ -2392,8 +2375,7 @@ class MainActivity : Activity() {
             .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.save)) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
-                    db.update("projects", ContentValues().apply { put("name", name) }, "id=?",
-                        arrayOf(id.toString()))
+                    projectRepository.rename(id, name)
                     renderContent()
                 }
             }.show()
