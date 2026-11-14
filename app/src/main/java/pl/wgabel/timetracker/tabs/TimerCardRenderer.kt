@@ -109,7 +109,7 @@ internal class TimerCardRenderer(
             spacing = { container, size -> ui.gap(container, size) }
         )
         c.addView(cardView)
-        if (active != null) registerUpdate { tick ->
+        if (active != null) actions.registerUpdate { tick ->
             cardView.updateClock(clock, ring, strip, tick)
         }
         ui.addCard(c)
