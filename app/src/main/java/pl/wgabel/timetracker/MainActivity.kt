@@ -54,6 +54,7 @@ class MainActivity : Activity() {
     private lateinit var db: SQLiteDatabase
     private val sessionRepository get() = SessionRepository(db)
     private val eventRepository get() = EventRepository(db, sessionRepository)
+    private val timerSessionController get() = TimerSessionController(db)
     private lateinit var content: LinearLayout
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
@@ -928,11 +929,8 @@ class MainActivity : Activity() {
             }.show()
     }
 
-    private fun activeStart(person: Int): Long? {
-        db.rawQuery("SELECT started_at FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1", arrayOf(projectId.toString(), person.toString())).use {
-            return if (it.moveToFirst()) it.getLong(0) else null
-        }
-    }
+    private fun activeStart(person: Int): Long? =
+        timerSessionController.activeStart(projectId!!, person)
 
     // Quick backdated start, without changing the existing one-tap START behavior.
     private fun quickStartPicker(person: Int, sessionId: Long? = null) {
@@ -961,22 +959,13 @@ class MainActivity : Activity() {
     }
 
     private fun toggle(person: Int) {
-        val now = System.currentTimeMillis()
-        db.beginTransaction()
-        try {
-            if (activeStart(person) == null) {
-                db.execSQL("INSERT INTO sessions(project_id,person,started_at) VALUES (?,?,?)", arrayOf(projectId, person, now))
-            } else {
-                db.execSQL("UPDATE sessions SET ended_at=? WHERE project_id=? AND person=? AND ended_at IS NULL", arrayOf(now, projectId, person))
-            }
-            db.setTransactionSuccessful()
-        } finally { db.endTransaction() }
+        timerSessionController.toggle(projectId!!, person)
         syncTimerNotification()
         renderContent()
     }
 
     private fun syncTimerNotification() {
-        val hasActive = db.rawQuery("SELECT 1 FROM sessions WHERE ended_at IS NULL LIMIT 1", null).use { it.moveToFirst() }
+        val hasActive = timerSessionController.hasAnyActiveSession()
         val intent = Intent(this, TimerNotificationService::class.java)
         if (hasActive) {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
