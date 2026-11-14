@@ -978,25 +978,8 @@ class MainActivity : Activity() {
 
     private fun dayStart(offset: Int): Long = TimeMath.dayStart(offset)
 
-    private fun total(person: Int, start: Long, end: Long, now: Long = System.currentTimeMillis()): Long {
-        var sum = 0L
-        db.rawQuery(
-            "SELECT started_at,ended_at FROM sessions WHERE project_id=? AND person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)",
-            arrayOf(projectId.toString(), person.toString(), end.toString(), start.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val clipped = TimeMath.clippedInterval(
-                    cursor.getLong(0),
-                    if (cursor.isNull(1)) null else cursor.getLong(1),
-                    start,
-                    end,
-                    now
-                )
-                if (clipped != null) sum += clipped.second - clipped.first
-            }
-        }
-        return sum
-    }
+    private fun total(person: Int, start: Long, end: Long, now: Long = System.currentTimeMillis()): Long =
+        SessionDaySummary(db).totalDuration(projectId!!, person, start, end, now)
 
     private fun setCalendarHeadingExpanded(expanded: Boolean) {
         if (calendarHeadingExpanded == expanded) return
@@ -1423,18 +1406,12 @@ class MainActivity : Activity() {
         )
 
     private fun daySessionStrip(person: Int, start: Long, end: Long): View {
-        val segments = mutableListOf<Pair<Long, Long>>()
-        db.rawQuery(
-            "SELECT started_at,ended_at FROM sessions WHERE project_id=? AND person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
-            arrayOf(projectId.toString(), person.toString(), end.toString(), start.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val from = maxOf(start, cursor.getLong(0))
-                val to = if (cursor.isNull(1)) -1L else minOf(end, cursor.getLong(1))
-                if (to == -1L || to > from) segments.add(from to to)
-            }
-        }
-        return DaySessionStrip(this, start, end, segments, personColor(person), subtleNeutral)
+        val summary = SessionDaySummary(db)
+        val intervals = summary.intervals(projectId!!, person, start, end)
+        return DaySessionStrip(
+            this, start, end, summary.stripSegments(intervals, start, end),
+            personColor(person), subtleNeutral
+        )
     }
 
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
@@ -1443,6 +1420,9 @@ class MainActivity : Activity() {
             projectId!!, person, tr(R.string.person_fallback) + person
         )
         val active = cardData.activeStartedAt
+        val summary = SessionDaySummary(db)
+        val intervals = summary.intervals(projectId!!, person, start, end)
+        fun measuredDuration(tick: Long) = summary.duration(intervals, start, end, tick)
         if (active != null) markActive(c)
         val header = TimerCardHeader(
             this,
@@ -1452,7 +1432,7 @@ class MainActivity : Activity() {
                 12f, true, if (active == null) muted else cardData.participantColor),
             shape(cardData.participantColor, 6)
         )
-        val totalLabel = label(duration(total(person, start, end, now)), 36f, true).apply {
+        val totalLabel = label(duration(measuredDuration(now)), 36f, true).apply {
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             letterSpacing = -0.035f
             setFontFeatureSettings("tnum")
@@ -1466,11 +1446,21 @@ class MainActivity : Activity() {
             totalLabel,
             label(tr(R.string.selected_day_total), 13f, false, muted),
             statusLabel,
-            formatTotal = { tick -> duration(total(person, start, end, tick)) },
+            formatTotal = { tick -> duration(measuredDuration(tick)) },
             formatStatus = if (active != null) ({ tick: Long -> tr(R.string.running_prefix) + duration(tick - active) }) else null
         )
-        val ring = dayOccupancyRing(person, start, end, now)
-        val strip = daySessionStrip(person, start, end)
+        val ring = DayOccupancyRing(
+            this, start, end,
+            measuredDuration = { measuredDuration(System.currentTimeMillis()) },
+            participantColor = cardData.participantColor,
+            trackColor = subtleNeutral,
+            textColor = ink,
+            captionColor = muted
+        )
+        val strip = DaySessionStrip(
+            this, start, end, summary.stripSegments(intervals, start, end),
+            cardData.participantColor, subtleNeutral
+        )
         val controls = if (statusLabel == null) null else {
             val button = if (active == null)
                 action("▶  START", cardData.participantColor) { toggle(person) }
