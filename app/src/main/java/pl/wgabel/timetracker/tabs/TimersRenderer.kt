@@ -12,7 +12,6 @@ class TimersRenderer(
     private val content: () -> LinearLayout,
     private val title: () -> String,
     private val emptyMessage: () -> String,
-    private val addParticipantDescription: () -> String,
     private val text: (String, Float, Boolean) -> TextView,
     private val addButton: (() -> Unit) -> View,
     private val renderCard: (Int, Long, Long, Long) -> Unit,
