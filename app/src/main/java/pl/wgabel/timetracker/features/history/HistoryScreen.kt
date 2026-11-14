@@ -26,7 +26,7 @@ internal class HistoryScreen(
     private val rows = SessionRows(context, container, navigation)
     private val participantsEditor = ParticipantDialogs(context, container, navigation)
     private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
-        DateTimeEditor(this).show(DateTimeEditor.Config(
+        DateTimeEditor(this, appUi).show(DateTimeEditor.Config(
             title = title, initial = initial, max = System.currentTimeMillis()
         )) { chosen -> onChosen(chosen); true }
     }

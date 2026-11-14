@@ -4,6 +4,9 @@ import android.content.ContentValues
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.os.SystemClock
+import android.app.Dialog
+import android.widget.SeekBar
+import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -18,6 +21,11 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import pl.wgabel.timetracker.data.SQLiteDatabaseService
+import pl.wgabel.timetracker.design.AppUi
+import pl.wgabel.timetracker.ui.sessions.DateTimeEditor
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Real UI smoke tests: tap the same controls as a user, then verify persisted data.
@@ -166,8 +174,10 @@ class MainActivityUiTest {
         requireNotNull(row) { "History session row was not found" }.click()
         val edit = device.wait(Until.findObject(By.desc("Edit entry")), 8000)
         requireNotNull(edit) { "Edit action was not exposed after expanding session" }.click()
+        tapDescription("Shortcuts")
         tapText("30 min")
         tapSave()
+        tapDescription("Shortcuts")
         tapText("15 min")
         tapSave()
         database().use { db ->
@@ -180,6 +190,113 @@ class MainActivityUiTest {
                 assertTrue(end > start)
             }
         }
+    }
+
+    @Test fun timePickerSynchronizesRealSwipesArrowsAndDayScale() {
+        val date = LocalDate.of(2026, 11, 12)
+        val initial = date.atTime(13, 59, 37, 123_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        var saved: Long? = null
+        val dialog = showTimePicker(DateTimeEditor.Config("Session start", initial, quickOffsets = false)) {
+            saved = it; true
+        }
+        try {
+            // Drag only the minute field. Its hour must carry and the rail must follow exactly.
+            val minute = requireNotNull(device.findObject(By.res(context.packageName, "time_minute")))
+            val bounds = minute.visibleBounds
+            val distance = (18 * context.resources.displayMetrics.density * 1.2f).toInt()
+            device.swipe(bounds.centerX(), bounds.centerY() + distance / 2,
+                bounds.centerX(), bounds.centerY() - distance / 2, 20)
+            instrumentation.waitForIdleSync()
+            assertPickerTime(dialog, 14, 0)
+            val hour = requireNotNull(device.findObject(By.res(context.packageName, "time_hour")))
+            val hourBounds = hour.visibleBounds
+            device.swipe(hourBounds.centerX(), hourBounds.centerY() + distance / 2,
+                hourBounds.centerX(), hourBounds.centerY() - distance / 2, 20)
+            instrumentation.waitForIdleSync()
+            assertPickerTime(dialog, 15, 0)
+            tapDescription("Increase minute")
+            assertPickerTime(dialog, 15, 1)
+
+            // Now drag the actual SeekBar, then compare both fields with its final progress.
+            val scale = requireNotNull(device.findObject(By.res(context.packageName, "time_scale"))).visibleBounds
+            device.swipe(scale.centerX(), scale.centerY(), scale.left + scale.width() / 4, scale.centerY(), 20)
+            instrumentation.waitForIdleSync()
+            var selectedMinute = -1
+            instrumentation.runOnMainSync {
+                selectedMinute = dialog.findViewById<SeekBar>(R.id.time_scale).progress
+                assertEquals(0, selectedMinute % 5)
+            }
+            assertPickerTime(dialog, selectedMinute / 60, selectedMinute % 60)
+            assertTrue(selectedMinute in 1..700)
+            takePickerScreenshot("time-picker-light.png")
+            tapSave()
+            val result = requireNotNull(saved).let { java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()) }
+            assertEquals(date, result.toLocalDate())
+            assertEquals(selectedMinute, result.hour * 60 + result.minute)
+            assertEquals(37, result.second)
+            assertEquals(123_000_000, result.nano)
+        } finally {
+            instrumentation.runOnMainSync { dialog.dismiss() }
+        }
+    }
+
+    @Test fun timePickerKeepsExactSecondsAndRejectsOutOfSessionBounds() {
+        val initial = LocalDate.of(2026, 11, 12).atTime(13, 59, 37, 123_000_000)
+            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        var saved: Long? = null
+        val dialog = showTimePicker(DateTimeEditor.Config("Event time", initial,
+            min = initial, max = initial, seconds = true, quickOffsets = false), dark = true) {
+            saved = it; true
+        }
+        try {
+            tapText("Seconds: 37")
+            tapDescription("Increase second")
+            instrumentation.runOnMainSync {
+                assertFalse(dialog.findViewById<android.widget.Button>(R.id.time_picker_save).isEnabled)
+                assertEquals("38", dialog.findViewById<TextView>(R.id.time_second).text.toString())
+                assertTrue(dialog.findViewById<TextView>(R.id.time_picker_error).text.isNotBlank())
+            }
+            assertNull(saved)
+            takePickerScreenshot("time-picker-dark-bounds.png")
+        } finally {
+            instrumentation.runOnMainSync { dialog.dismiss() }
+        }
+        assertNull("Dismiss must not save an invalid selection", saved)
+        val unchanged = showTimePicker(DateTimeEditor.Config("Event time", initial,
+            min = initial, max = initial, seconds = true, quickOffsets = false)) { saved = it; true }
+        try {
+            tapSave()
+            assertEquals(initial, saved)
+        } finally {
+            instrumentation.runOnMainSync { unchanged.dismiss() }
+        }
+    }
+
+    private fun showTimePicker(config: DateTimeEditor.Config, dark: Boolean = false,
+                               onSave: (Long) -> Boolean): Dialog {
+        var dialog: Dialog? = null
+        instrumentation.runOnMainSync {
+            val host = requireNotNull(activity)
+            val tokens = (context.applicationContext as TimeTrackerApplication).container.designTokens
+            dialog = DateTimeEditor(host, AppUi(host, tokens) { dark }).show(config, onSave)
+        }
+        instrumentation.waitForIdleSync()
+        return requireNotNull(dialog)
+    }
+
+    private fun assertPickerTime(dialog: Dialog, hour: Int, minute: Int) {
+        instrumentation.runOnMainSync {
+            assertEquals(String.format(java.util.Locale.ENGLISH, "%02d", hour),
+                dialog.findViewById<TextView>(R.id.time_hour).text.toString())
+            assertEquals(String.format(java.util.Locale.ENGLISH, "%02d", minute),
+                dialog.findViewById<TextView>(R.id.time_minute).text.toString())
+            assertEquals(hour * 60 + minute, dialog.findViewById<SeekBar>(R.id.time_scale).progress)
+        }
+    }
+
+    private fun takePickerScreenshot(name: String) {
+        val folder = File(context.getExternalFilesDir(null), "time-picker-screenshots").apply { mkdirs() }
+        assertTrue(device.takeScreenshot(File(folder, name)))
     }
     @Test fun runningTimerSurvivesActivityRestart() {
         tapText("▶  START")

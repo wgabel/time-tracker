@@ -83,6 +83,7 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - History events use small category-specific, background-free outline icons. Use `ui/events/EventsScreen` drawing helper instead of emoji or a new icon family.
 - History and Statistics use a date navigator pinned under the persistent top header, outside the scrolling content; changing dates must update the corresponding view without losing the sticky behavior.
 - Reuse the existing `label`, `card`, `styledAction`, `iconButton`, `shape`, `densityPixels`, theme colors, and `ValueAnimator` conventions. Respect dark/light modes and touch targets. Do not add unrelated UI redesigns.
+- Session/event time selection shares `DateTimeEditor`: a themed card dialog with a 24-hour ticked rail for coarse five-minute selection and synchronized hour/minute fields with vertical swipes and side arrows. Date and optional seconds/relative-time shortcuts are secondary. `DateTimeSelection` owns exact wall-clock selection, timestamp bounds and DST validation; UI rendering must not round precise minutes or silently change the date. SQLite schema v6 is unchanged.
 - When proposing a preview/mockup, do not commit it unless the user asks to implement it. When explicitly asked to implement, modify the repository directly.
 
 ## Events: design and safety considerations

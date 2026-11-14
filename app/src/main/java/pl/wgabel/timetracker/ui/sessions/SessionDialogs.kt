@@ -20,7 +20,7 @@ internal class SessionDialogs(
             ?.takeIf { it.endedAt == null }?.startedAt
         if (sessionId != null && original == null) return
         val polish = resources.configuration.locales[0].language == "pl"
-        DateTimeEditor(this).show(DateTimeEditor.Config(
+        DateTimeEditor(this, appUi).show(DateTimeEditor.Config(
             title = if (polish) "Początek sesji" else "Session start",
             initial = original ?: System.currentTimeMillis() - 15 * 60_000L,
             max = System.currentTimeMillis()
@@ -56,7 +56,7 @@ internal class SessionDialogs(
         if (isArchived()) return
         if (ended == null) { showStartTimePicker(person, id); return }
         val pl = resources.configuration.locales[0].language == "pl"
-        SessionEditor(this).editCompleted(started, ended) { newStart, newEnd ->
+        SessionEditor(this, appUi).editCompleted(started, ended) { newStart, newEnd ->
             val updated = container.sessionService.updateSession(projectId!!, person, id, newStart, newEnd)
             if (updated) {
                 navigator.refreshContent()

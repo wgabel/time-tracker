@@ -1,0 +1,10 @@
+<resources>
+    <item name="time_scale" type="id" />
+    <item name="time_hour" type="id" />
+    <item name="time_minute" type="id" />
+    <item name="time_second" type="id" />
+    <item name="time_picker_save" type="id" />
+    <item name="time_picker_error" type="id" />
+    <item name="time_picker_selected" type="id" />
+    <item name="time_picker_shortcuts" type="id" />
+</resources>

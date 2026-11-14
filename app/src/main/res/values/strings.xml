@@ -135,4 +135,27 @@
     <string name="theme_dark">Dark theme</string>
     <string name="event_time_range">Choose event time (from %1$s to %2$s)</string>
     <string name="event_time_label">Time: %1$s</string>
+    <string name="time_choose_daytime">Choose time of day</string>
+    <string name="time_day_scale">Time of day, from 00:00 to 23:59</string>
+    <string name="time_scale_value">Time of day: %1$s</string>
+    <string name="time_hour">Hour</string>
+    <string name="time_minute">Minute</string>
+    <string name="time_seconds">Seconds</string>
+    <string name="time_hour_increase">Increase hour</string>
+    <string name="time_hour_decrease">Decrease hour</string>
+    <string name="time_minute_increase">Increase minute</string>
+    <string name="time_minute_decrease">Decrease minute</string>
+    <string name="time_second_increase">Increase second</string>
+    <string name="time_second_decrease">Decrease second</string>
+    <string name="time_part_accessibility">%1$s: %2$s. Swipe up or down to adjust.</string>
+    <string name="time_selected">Selected: %1$s, %2$s</string>
+    <string name="time_change_date">Change date</string>
+    <string name="time_shortcuts">Shortcuts</string>
+    <string name="time_seconds_value">Seconds: %1$02d</string>
+    <string name="time_minutes_ago">%1$d min</string>
+    <string name="time_before_minimum">Choose a time on or after %1$s.</string>
+    <string name="time_after_maximum">Choose a time on or before %1$s.</string>
+    <string name="time_missing_local_time">This local time does not exist because the clocks move forward. Choose another time.</string>
+    <string name="time_repeated_hour">Repeated hour: UTC%1$s · Change occurrence</string>
+    <string name="time_save_failed">This time cannot be saved. Check the session and event boundaries.</string>
 </resources>

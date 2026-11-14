@@ -10,11 +10,12 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import java.util.Date
 import pl.wgabel.timetracker.R
+import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.time.DatePresentation
 import pl.wgabel.timetracker.ui.sessions.DateTimeEditor
 
 /** Event form UI; persistence and session-bound checks remain with the caller. */
-internal class EventEditor(private val activity: Context) {
+internal class EventEditor(private val activity: Context, private val components: AppUi) {
     fun show(
         id: Long?,
         timestamp: Long,
@@ -46,7 +47,7 @@ internal class EventEditor(private val activity: Context) {
             dateTimeFormat.format(Date(sessionEnd))
         )))
         timeButton.setOnClickListener {
-            DateTimeEditor(activity).show(DateTimeEditor.Config(
+            DateTimeEditor(activity, components).show(DateTimeEditor.Config(
                 title = if (activity.resources.configuration.locales[0].language == "pl") "Czas wydarzenia" else "Event time",
                 initial = chosenTimestamp,
                 min = sessionBounds.first,
