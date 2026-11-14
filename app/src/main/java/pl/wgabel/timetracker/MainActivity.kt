@@ -86,7 +86,6 @@ class MainActivity : Activity() {
                 content = { content },
                 title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
                 emptyMessage = { tr(R.string.first_person) },
-                addParticipantDescription = { tr(R.string.add_person).removePrefix("+").trim() },
                 text = { value, size, bold -> label(value, size, bold) },
                 addButton = {
                     styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
