@@ -1,6 +1,8 @@
 package pl.wgabel.timetracker.tabs
 
-/** Placeholder renderer; existing MainActivity rendering remains in use. */
-class TimersRenderer : ITabRenderer<TimersViewState> {
-    override fun render(state: TimersViewState) = Unit
+/** Transitional renderer adapter. MainActivity still owns the legacy View tree. */
+class TimersRenderer(
+    private val renderLegacyView: (TimersViewState) -> Unit = {}
+) : ITabRenderer<TimersViewState> {
+    override fun render(state: TimersViewState) = renderLegacyView(state)
 }
