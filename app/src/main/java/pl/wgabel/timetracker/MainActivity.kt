@@ -1210,13 +1210,7 @@ class MainActivity : Activity() {
         currentType: String, currentNote: String,
         allowedRange: Pair<Long, Long>? = null
     ) {
-        val types = arrayOf("Lek", "Posiłek", "Sen", "Spacer", "Inne")
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(10), dp(20), dp(8))
-        }
-        // Resolve session boundaries for both newly created and existing events.
-        // Active sessions are bounded by the current time at save.
+        // Resolve session boundaries before opening the form.
         val sessionBounds = db.rawQuery(
             "SELECT started_at, ended_at FROM sessions WHERE id=? AND project_id=? AND person=?",
             arrayOf(sessionId.toString(), projectId.toString(), person.toString())
@@ -1229,67 +1223,31 @@ class MainActivity : Activity() {
             Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
             return
         }
-        val dateTimeFormat = DatePresentation.dateTime(resources)
-        var chosenTimestamp = timestamp
-        val timeButton = styledAction(dateTimeFormat.format(Date(chosenTimestamp)), ButtonRole.SECONDARY) {}
-        fun refreshTime() { timeButton.text = dateTimeFormat.format(Date(chosenTimestamp)) }
-        val sessionEnd = sessionBounds.second ?: System.currentTimeMillis()
-        panel.addView(label(
-            getString(R.string.event_time_range, dateTimeFormat.format(Date(sessionBounds.first)),
-                dateTimeFormat.format(Date(sessionEnd))),
-            13f, false, muted
-        ))
-        timeButton.setOnClickListener {
-            DateTimeEditor(this).show(DateTimeEditor.Config(
-                title = if (resources.configuration.locales[0].language == "pl") "Czas wydarzenia" else "Event time",
-                initial = chosenTimestamp,
-                min = sessionBounds.first,
-                max = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis()),
-                seconds = true
-            )) { chosen ->
-                chosenTimestamp = chosen
-                refreshTime()
-                true
-            }
-        }
-        panel.addView(timeButton)
-        val picker = Spinner(this)
-        picker.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
-        picker.setSelection(types.indexOf(currentType).coerceAtLeast(0))
-        panel.addView(picker)
-        val note = EditText(this).apply {
-            hint = "Opis (dla leku: nazwa, stężenie, dawka)"
-            setText(currentNote)
-            minLines = 2
-        }
-        panel.addView(note)
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(if (id == null) "Dodaj wydarzenie" else "Edytuj wydarzenie")
-            .setView(panel)
-            .setNegativeButton(tr(R.string.cancel), null)
-            .setPositiveButton(tr(R.string.save), null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val type = types[picker.selectedItemPosition]
-                val description = note.text.toString().trim()
-                val latestEnd = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis())
+        EventEditor(this).show(
+            id = id,
+            timestamp = timestamp,
+            currentType = currentType,
+            currentNote = currentNote,
+            sessionBounds = sessionBounds,
+            timeButtonFactory = { styledAction(it, ButtonRole.SECONDARY) {} },
+            rangeLabelFactory = { label(it, 13f, false, muted) },
+            cancelText = tr(R.string.cancel),
+            saveText = tr(R.string.save),
+            onSave = { chosenTimestamp, type, description ->
                 if (!sessionRepository.eventWithinSession(projectId!!, sessionId, person, chosenTimestamp)) {
-                    Toast.makeText(this, "Godzina wydarzenia musi mieścić się w czasie pomiaru",
-                        Toast.LENGTH_LONG).show()
-                } else if (type == "Lek" && description.isEmpty()) {
-                    note.error = "Wpisz nazwę i dawkę leku"
-                } else {
-                    if (eventRepository.save(projectId!!, sessionId, person, id,
-                            chosenTimestamp, type, description)) {
-                        dialog.dismiss()
-                        renderContent()
-                    } else Toast.makeText(this, tr(R.string.session_update_failed),
-                        Toast.LENGTH_LONG).show()
-                }
+                    false
+                } else if (eventRepository.save(projectId!!, sessionId, person, id, chosenTimestamp, type, description)) {
+                    renderContent()
+                    true
+                } else false
+            },
+            onInvalidTime = {
+                Toast.makeText(this, "Godzina wydarzenia musi mieścić się w czasie pomiaru", Toast.LENGTH_LONG).show()
+            },
+            onSaveFailed = {
+                Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
             }
-        }
-        dialog.show()
+        )
     }
 
     private fun eventCategoryIcon(type: String): View {
