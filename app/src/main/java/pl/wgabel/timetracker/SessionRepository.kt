@@ -53,5 +53,5 @@ internal class SessionRepository(private val db: SQLiteDatabase) {
             "AND started_at<=? AND (ended_at IS NULL OR ended_at>=?) LIMIT 1",
             arrayOf(sessionId.toString(), project.toString(), person.toString(),
                 time.toString(), time.toString())
-        ).use { it.moveToFirst() } && TimeValidator.eventWithin(time, TimeValidator.Interval(time, null), now)
+        ).use { it.moveToFirst() } && time <= now
 }
