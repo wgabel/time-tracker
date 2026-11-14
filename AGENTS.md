@@ -6,19 +6,18 @@ Native, offline-first Android app for recording how long different caregivers sp
 Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetrkr**; package/application ID: `pl.wgabel.timetracker`.
 
 ## Actual implementation (inspect code; this document is a guide, not a substitute)
-- Android app in Kotlin, programmatic native Views (not XML screen layouts, Compose, or React).
-- Main entry point and screen orchestration: `app/src/main/java/pl/wgabel/timetracker/MainActivity.kt` (still large; ~3,116 lines after PR #21). Do not move logic back into the Activity when dedicated components exist.
-- Pure Kotlin models in `model/`: `Session`, `TimeInterval`, `TimerCardData`. Keep models independent of Android Views and SQLite; create additional domain models only when real consumers justify them.
-- `data/TimerCardDataSource.kt` loads timer-card snapshots. `SessionRepository.kt`, `EventRepository.kt`, `TimerSessionController.kt` and `SessionDaySummary.kt` remain in the root package; migrate packages incrementally rather than moving every file at once.
-- UI components in the root package include `HistorySessionList`, `HistorySessionRow`, `HistoryActionTray`, `TimerCardView`, `TimerCardHeader`, `TimerCardControls`, `TimerVisualizations` and `AnimatedSelectionFrame`. Keep UI classes separate from POCO-like data models.
-- `HistorySessionList` currently still owns a parameterized SQLite query and a list container; it passes `model.Session` to an Activity-owned rendering callback. `HistorySessionRow` composes the history/recent session row and expanding action tray. This is an intermediate architecture, not a finished repository/UI separation.
-- Persistent foreground timer notification: `app/src/main/java/pl/wgabel/timetracker/TimerNotificationService.kt`; notification layout in `app/src/main/res/layout/notification_timer.xml`.
-- SQLite via `SQLiteOpenHelper` in `MainActivity.onCreate`, database file `sessions.db`, **schema version 6** as of 2026-11-14.
-- SharedPreferences `preferences` store UI choices including theme and language.
-- Android resource strings in `app/src/main/res/values/strings.xml` and `values-pl/strings.xml`. Existing code also contains hard-coded Polish labels, especially for the new EVENT feature; localize these before expanding language support.
-- Gradle Kotlin DSL: `app/build.gradle.kts`, root `build.gradle.kts`, `settings.gradle.kts`. As currently configured: compileSdk/targetSdk 35, minSdk 26, Java/Kotlin JVM target 17, versionName generated as `0.1.<run>-<color>-<animal>` (see Gradle file).
-- GitHub Actions: `.github/workflows/android.yml`. Push to main or workflow_dispatch builds **signed release** APK with Java 17, Gradle 8.9 and Android SDK 35. Artifact `timetrkr-release` contains `timetrkr-release.apk`. Secrets: `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`; keystore alias `time-tracker`. VersionCode uses `1000 + GITHUB_RUN_NUMBER` in CI.
-- Check latest workflow run and its logs after committing code. A successful commit is not proof of a successful build. Check the latest commit-specific Actions result; older successful runs do not validate newer changes. A CI pass is not a device test.
+- Kotlin Android app with programmatic native Views; one Gradle module, no Compose/Room/Hilt.
+- `MainActivity.kt` is the Android lifecycle/system host. `AppCoordinator.kt` owns navigation, persistent chrome and the sticky date host. `TimeTrackerApplication` / `AppContainer` own process-scoped repositories and wiring.
+- Feature screens are in `features/projects`, `features/timers`, `features/history`, `features/statistics`, and `features/settings`. Embedded event UI is in `ui/events`; shared session/calendar/timeline components are in `ui/`.
+- `TimersController` owns immutable `TimersViewState` snapshots and start/stop commands. History/statistics own their selection state; navigation, selections and pending export survive recreation through saved `Bundle` state. UI sends mutations through domain services, not Activity callbacks.
+- Pure persisted models are in `model/`. Domain services/calculations are in `domain/`; epoch/calendar rules and effective-language date presentation are in `time/`.
+- All SQL lives in entity repositories in `data/` or `SQLiteDatabaseService` schema/migrations. `sessions.db` remains **schema version 6**. Activity destruction does not close the process-scoped database used by notifications.
+- Persistent foreground notification: `TimerNotificationService.kt`, with state coordination in `notifications/TimerNotificationCoordinator.kt` and layout `res/layout/notification_timer.xml`. It reads through `SessionRepository`, without direct SQL.
+- Shared JSON tokens/components and stable participant colors are in `design/`; theme/language preferences and session-only CSV export are in `settings/`.
+- Resource strings remain in `res/values/strings.xml` and `values-pl/strings.xml`. Existing hard-coded Polish labels remain a localization follow-up; do not mistake a package move for translating them.
+- Gradle Kotlin DSL: compileSdk/targetSdk 35, minSdk 26, JVM target 17. CI uses Java 17 / Gradle 8.9. Version identity and signing configuration remain unchanged.
+- `.github/workflows/android.yml` runs PR `verify` (debug/release + JVM tests). Main/manual builds produce signed `timetrkr-release.apk` using existing signing secrets. Verify the **latest commit-specific run**, never an older green run; compilation is not a device test.
+- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for actual ownership, lifecycle, persistence safeguards and validation limits.
 
 ## Existing product behavior
 - Projects: create, rename, archive, and choose a generated project icon. A project has multiple participants (not limited to two). Archived projects are viewable with restrictions on edits.
@@ -26,10 +25,10 @@ Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetr
 - Timers tab: independent START/STOP for each participant; multiple people may be active simultaneously. Displays selected day's total, live running duration, and recent sessions. Navigation across calendar days.
 - Statistics tab: period navigation and visualizations including bar chart, participant comparison/pie, and timeline. Consult code for exact periods and aggregation.
 - History tab: day navigation, participant filtering, timeline, session list, manual session creation, session editing/deletion (when permitted).
-- Settings: theme (light/dark), language, CSV export, project/participant controls. Inspect `renderSettings` and `renderAppSettings` for exact behavior.
+- Settings: theme (light/dark), language, CSV export, project/participant controls. Inspect `features/settings/SettingsScreen.renderSettings` and `renderAppSettings` for exact behavior.
 - Active cards use an animated green-tinted gradient and floating squares. Drawable implements `Animatable`; animation must not restart every second.
 - Each participant's avatar initials, timer START button, chart/timeline markings use the same `personColor(person)` palette, backed by persisted participant colors and the `ParticipantColors` fallback. Do not derive colors from participant list order. STOP is red.
-- Events (introduced 2026-11-11): while a timer is active, EVENT beside STOP captures timestamp **immediately**, then opens an editor for type and note. Types currently hardcoded: `Lek`, `Posiłek`, `Sen`, `Spacer`, `Inne`. Medication type requires a nonempty free-text note (intended for name, concentration and administered dose). Events display beneath sessions in Timers and History; History allows editing type/note and deletion with confirmation, and adding an event to a completed session with a date/time/seconds picker constrained to the session's timestamps. Existing-event timestamp editing is not implemented. Events are **not** included in timing statistics/charts. Event editing currently does **not** change timestamp; adding events outside sessions is not implemented. Do not claim otherwise.
+- Events (introduced 2026-11-11): while a timer is active, EVENT beside STOP captures timestamp **immediately**, then opens an editor for type and note. Types currently hardcoded: `Lek`, `Posiłek`, `Sen`, `Spacer`, `Inne`. Medication type requires a nonempty free-text note (intended for name, concentration and administered dose). Events display beneath sessions in Timers and History; History allows editing type/note and deletion with confirmation, and adding an event to a completed session with a date/time/seconds picker constrained to the session's timestamps. Existing-event timestamp editing is supported by the baseline editor and remains constrained to its session. Events are **not** included in timing statistics/charts. The event editor can change an existing timestamp within its session; adding events outside sessions is not implemented. Do not claim otherwise.
 
 ## Database schema (v6)
 ```sql
@@ -72,7 +71,7 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 1. START persists a session; STOP persists `ended_at`. Never allow two active sessions for the same participant. Simultaneous sessions for different participants are supported.
 2. Timers derive elapsed time from persisted epoch timestamps, not from counting Handler ticks. Timers must remain accurate after app backgrounding, process death, and screen-off.
 3. Local calendar boundaries matter. Use `Calendar`/time-zone-aware boundaries for midnight and DST, not a fixed 86,400,000 ms day.
-4. `MainActivity` has a one-second Handler tick. It updates existing text labels via `timerUpdates` callbacks, rather than rebuilding the whole view every second. `renderContent()` clears/recreates views for actual state/navigation changes. **Do not reintroduce a once-per-second `renderContent()` call**: that restarts animated active-card backgrounds and causes visible jitter.
+4. `MainActivity` forwards a one-second Handler tick to `TimersScreen`. It updates existing text labels via screen-owned update callbacks, rather than rebuilding the whole view every second. Coordinator navigation refresh clears/recreates views for actual state/navigation changes. **Do not reintroduce a once-per-second `renderContent()` call**: that restarts animated active-card backgrounds and causes visible jitter.
 5. `activeCardBackground()` uses an animated Drawable; `Drawable.setCallback` is final and MUST NOT be overridden. Its `Animatable` lifecycle is coordinated with view attachment/detachment.
 6. Maintain participant color consistency via `personColor(person)` in avatar, timers, charts and timeline; do not revert to alternating blue/green by position.
 7. Never silently reset or delete existing sessions/events, even when changing visual UI or database schema.
@@ -81,9 +80,9 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - Project list rows show a right-facing chevron `›` as a persistent interaction affordance.
 - History session rows, History event rows, and participant rows in project Settings reveal contextual actions on tap with a ~260 ms easing animation. Their chevrons remain visible and rotate ~90 degrees to indicate expansion; **never fade out or hide the chevron when expanded**.
 - Session actions are in a tray below the row (add historical event, edit, delete); event actions slide into the row on the right (edit, delete); participant actions slide into the row on the right (color, rename, delete). Preserve different layouts where intentional.
-- History events use small category-specific, background-free outline icons. Use the existing drawing helper instead of emoji or a new icon family.
+- History events use small category-specific, background-free outline icons. Use `ui/events/EventsScreen` drawing helper instead of emoji or a new icon family.
 - History and Statistics use a date navigator pinned under the persistent top header, outside the scrolling content; changing dates must update the corresponding view without losing the sticky behavior.
-- Reuse the existing `label`, `card`, `styledAction`, `iconButton`, `shape`, `dp`, theme colors, and `ValueAnimator` conventions. Respect dark/light modes and touch targets. Do not add unrelated UI redesigns.
+- Reuse the existing `label`, `card`, `styledAction`, `iconButton`, `shape`, `densityPixels`, theme colors, and `ValueAnimator` conventions. Respect dark/light modes and touch targets. Do not add unrelated UI redesigns.
 - When proposing a preview/mockup, do not commit it unless the user asks to implement it. When explicitly asked to implement, modify the repository directly.
 
 ## Events: design and safety considerations
@@ -92,17 +91,18 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - Medication logging is a record of **what was actually administered**, not a dosing calculator, clinical recommendation, or automatic confirmation that administration was safe. Avoid implying that any dose or interval is medically approved.
 - The current medication description is unstructured free text. Future structured medication fields, history checks, duplicate-dose warnings and multi-device synchronization require explicit design, schema migrations, and tests.
 - The app is currently local-only, single-device, without accounts or synchronization. Do not imply one caregiver's phone automatically receives another's entries.
-- Current limitations to consider when relevant: no standalone event creation; no timestamp adjustment when editing an existing event (new historical events have a constrained picker); no event export verified; no automatic orphan cleanup; event editor labels are hard-coded Polish. Treat these as limitations, not completed features.
+- Current limitations to consider when relevant: no standalone event creation; no event export verified; legacy orphan records are not automatically cleaned; event editor labels are hard-coded Polish. Treat these as limitations, not completed features.
 
 ## CSV export and backup
 `exportCsv()` exists; inspect its SQL and output columns before changing it. **Do not assume EVENT entries are exported**: they were added after the export implementation. CSV export is not equivalent to a complete database backup. Be cautious with reinstall/uninstall and signing key changes: uninstalling may erase the local SQLite database. Never advise uninstalling as a casual fix.
 
 ## Architecture and model conventions (current direction)
-- A POCO-like Kotlin `data class` is not automatically a reason to create a new file. Put shared domain models in `model/`, one meaningful reusable model per file; keep tiny implementation-only types private or nested where appropriate.
-- `model.Session` represents persisted session identity/boundaries; `model.TimeInterval` represents a time range without identity; `model.TimerCardData` is an immutable timer-card snapshot. Do not create competing duplicates of these concepts without a documented distinction.
-- Keep SQLite queries and writes in `data/` or repository classes, Android View construction in UI components, and screen state/navigation in the Activity. Move existing classes incrementally with correct imports; avoid introducing unused `Project`, `Participant` or `Event` models just to fill a proposed directory structure.
-- Preserve existing `HistorySessionRow` layout, callbacks, action tray animations, active-card lifecycle and timer ticks during further extractions. `HistorySessionList` is used by both history and recent activity; changes must support both.
-- Favor small PRs with one clear responsibility and compile verification before squash merge. Avoid creating redundant wrappers or converting all existing files to packages in one large risky commit.
+- Keep persisted/shared models in `model/`, one meaningful reusable model per file. Tiny implementation-only types belong with their consumer. Do not create competing session/interval identities or speculative models.
+- Entity repositories own every query/write. Domain services own edit rules and notification change coordination; pure rules/aggregation remain JVM-testable. Android Views and dialogs stay in feature/shared UI packages.
+- `ScreenUi` provides shared native presentation primitives and project presentation access. Feature code must not depend on `MainActivity`, raw SQLite or another feature's screen. Use the narrow `AppNavigation` boundary for host actions.
+- Preserve `ui/sessions/HistorySessionRow`, contextual action animations, sticky calendar placement and timer background lifecycle. Do not restore the removed placeholder tab services, Activity adapters or duplicate SQL data sources.
+- Keep schema/migration bodies stable unless a real, safely tested data migration is required. Never delete old records as a side effect of reorganizing packages.
+- Preserve the synchronous snapshot/saved-state approach unless a concrete asynchronous/lifecycle requirement justifies introducing ViewModel/StateFlow. Avoid redundant wrappers or speculative modules.
 
 ## Naming conventions (mandatory)
 - **Never abbreviate method or function names.** A method name must clearly describe its purpose to a reviewer without opening its implementation. Use descriptive verbs and domain terms, e.g. `formatDuration()`, `synchronizeTimerNotifications()`, `getLocalizedString()` rather than `fmt()`, `sync()`, `tr()`.
@@ -114,14 +114,13 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 
 This section is the **primary roadmap** for continued refactoring. Do not optimize isolated line counts or create wrappers simply to move code out of MainActivity. Refactor cohesive systems end-to-end, maintaining app behavior and data.
 
-### Current verified baseline
-- MainActivity is still a ~2,738-line god object: navigation, project/participant management, history, statistics, event editing, SQL, View construction and notification coordination.
-- TimersScreenController/TimersRenderer and timer-card helpers are partially extracted but depend on Activity callbacks.
-- HistoryService, StatisticsService and SettingsService, and their renderers, are placeholders; actual features remain in MainActivity. Do not present them as completed modules.
-- SQLiteDatabaseService owns schema/migrations and exposes a raw database; direct SQL is still spread across MainActivity, repositories and data sources.
-- Timer operations are split across TimerSessionController, TimersInteractionService, SessionRepository, Activity and TimerNotificationService. State is partly held in Activity fields, despite ViewState types.
-- Some adapter/factory/interface classes add indirection without providing a real boundary. Audit their usefulness rather than multiplying them.
-- Database schema v6 has no declared foreign keys; guard against orphan events and data loss when deleting records.
+### Current implemented architecture
+- The systems described in the target below are extracted into functioning feature/domain/data/shared packages. `MainActivity` contains only Android host integration; app navigation lives in `AppCoordinator`.
+- Timer snapshots/actions live in `TimersController` / `TimersScreen`; history, statistics, projects and settings own their screens and selection state. Shared event/session forms do not route business logic through Activity.
+- Entity repositories own SQL and transactional session/event operations. Schema v6 creation and all legacy migration bodies are unchanged from `8430555`, the session's starting branch head.
+- Domain services enforce timer/event editing guards and trigger notification synchronization after successful session mutations. Statistics aggregation/calendar rules are pure Kotlin.
+- Placeholder services/renderers, tab lifecycle scaffolding, timer-card callback factories/hosts and obsolete SQL data sources have been removed.
+- Fast JVM architecture tests enforce data/UI boundaries and reject package cycles below the composition root. Device regression checks are still distinct from compilation and are not claimed as performed.
 
 ### Target system boundaries
 1. **Android host / app navigation:** MainActivity owns lifecycle, system integration, root container and navigation host only. AppCoordinator manages active project, active screen and navigation; no SQL or feature View rendering in Activity.
@@ -198,8 +197,9 @@ Every nontrivial PR must have a substantial, review-ready description. Include t
 - After merge, report the PR URL, merge commit SHA, verified CI run, and any remaining manual checks.
 
 ## Known technical debt / risks
-- `MainActivity.kt` remains monolithic and still performs some SQLite work on the UI thread. Repository/model/UI extraction is underway; continue incrementally without breaking migrations or existing behavior.
-- Events may become orphaned after session deletion; inspect delete paths before making changes involving data integrity.
+- Repository reads remain synchronous on the UI thread, preserving the current execution model. Add asynchronous loading only for a demonstrated performance need and preserve immutable rendering snapshots.
+- New session/event writes and deletion paths are transactional and guarded. Existing legacy orphan records are preserved; there is no destructive automatic cleanup.
+- Some existing user-facing labels are hard-coded Polish. Do not claim full localization merely because date formatting and preference services are shared.
 - Event notes contain potentially sensitive child health information: keep offline, minimize data exposure and avoid exposing details in notifications/logs without clear intent.
 - Tests are limited; successful CI compilation is not an emulator/device functional test.
 - Android 13+ notification permission is requested; foreground service and notification implementation must be reviewed if Android target requirements change.

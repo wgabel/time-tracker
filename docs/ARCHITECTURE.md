@@ -1,0 +1,45 @@
+# Architecture after PR #27
+
+The app remains a single-module, offline Android application using programmatic native Views and SQLite. Its application ID, Android Activity/service component names, database filename, schema version 6, preferences, design-token values, resources and notification layout remain compatible with existing installations.
+
+## Ownership and dependencies
+
+- `MainActivity` hosts Android lifecycle, permission requests, the document picker and the one-second clock callback. It contains no feature rendering or SQLite access.
+- `TimeTrackerApplication` owns `AppContainer`. The Activity and foreground notification service share its connection and repository instances; destroying an Activity cannot close a connection still used by notifications. Process teardown and existing isolated instrumentation fixtures explicitly release the container before replacing their test database.
+- `AppCoordinator` owns selected project/tab, the root layout, persistent header/footer, sticky calendar host and navigation. `AppNavigation` is the feature-to-host contract. Features never depend on `MainActivity`.
+- `features/projects` owns the project list, project creation and participant forms. `features/timers` owns the timer screen, immutable `TimersViewState` snapshots, start/stop controller, cards and recent activity. `features/history` owns selected day/participant, manual creation and session rows. `features/statistics` owns selected day/period and chart composition. `features/settings` owns project and application settings.
+- `ui/events` owns event forms, icons, contextual actions and session-bound event presentation. Events are embedded in sessions, rather than a new navigation tab. `ui/sessions`, `ui/calendar` and `ui/timeline` contain components shared by the consuming features.
+- `domain/SessionService` applies participant/project edit guards, coordinates timer transitions and reports successful mutations to notification coordination. `domain/EventService` applies archive/medication-note rules. `domain/StatisticsCalculator` owns duration clipping, calendar activity markers, period boundaries and trend aggregation. Neither domain nor model imports Android Views.
+- `data/ProjectRepository`, `ParticipantRepository`, `SessionRepository` and `EventRepository` own all SQL, including list queries, CSV snapshots and notification reads. `SQLiteDatabaseService` retains connection/schema/migration ownership. Raw SQLite does not escape the composition root into UI.
+- `design`, `time`, `settings` and `notifications` hold shared design tokens, participant colors, localized date presentation, preferences, export and foreground notification coordination. Shared components do not depend on feature screens.
+
+The main direction is Activity → coordinator → feature/controller → domain → repository → SQLite. Simple display reads can use repositories directly. No Compose, Room, Hilt, new AndroidX lifecycle dependency, Gradle module or unused tab-service interface was introduced.
+
+## State and lifecycle
+
+Timer snapshots contain participant identity/colors, persisted session intervals, archive state and recent activity. The one-second callback changes existing labels/rings/strips; it never reconstructs the view hierarchy. Active-card backgrounds retain attachment/detachment and pause/resume animation handling.
+
+History and statistics own their selection state. The coordinator serializes those values, current navigation and pending CSV project into Android `Bundle` state and restores them after recreation. These synchronous native screens use explicit controllers/snapshots and saved instance state; they do not need an observable asynchronous state pipeline. Dialog-local drafts retain the existing lifecycle behavior.
+
+Notifications synchronize after successful session changes and at host startup, and read all persisted active sessions. Rendering and tab changes do not control foreground service lifetime. Timestamps remain epoch milliseconds; live durations use current time minus stored boundaries.
+
+## Persistence safeguards
+
+- The schema creation and migration bodies are byte-identical to branch head `8430555` from the start of this session. No database rewrite, table recreation, orphan cleanup, schema bump or signing change is performed.
+- Session interval validation and writes share a transaction. Timer toggles use the same validated insert/update path. Completed-session deletion removes its dependent events in that transaction; active sessions cannot be deleted this way.
+- Event association/bounds validation and its write share a transaction. Updating session boundaries cannot strand an event outside the session.
+- Participant removal is rejected when sessions **or existing events** reference that participant. Project archival retains its active-timer guard and transaction.
+- The partial unique index still prevents two active sessions for a participant. Queries retain project scoping; persisted participant IDs and colors remain stable.
+- CSV keeps its BOM, semicolon separators, escaping, columns, machine-readable timestamp format and session-only content. It is not a database backup or event export.
+
+## Verification and limits
+
+Run `gradle :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest --no-daemon` with Gradle 8.9 and Android SDK 35. `:app:compileDebugAndroidTestKotlin` additionally compiles existing device tests without starting an emulator.
+
+The fast JVM suite checks interval/event boundaries, simultaneous participants, running totals, local midnight, 23/25-hour Warsaw DST days and architectural dependency rules. Architecture tests reject SQLite in UI, Android/feature imports in domain/models, Activity imports in presentation and package cycles below the app composition root.
+
+Local verification also compared every migration body with `8430555` and exercised fresh schema creation plus active-session uniqueness in host SQLite. This is not an Android upgrade/device test. The latest commit-specific PR `verify` job must pass before the change is considered verified; its URL and checked SHA belong in the PR description. Emulator jobs remain disabled per repository policy.
+
+Manual device checks remain relevant: parallel timers and rapid taps, screen-off/process restart, both themes/languages, sticky calendars, expanding action trays, archived restrictions, existing event edits/additions, participant colors, CSV document-picker return and updates over an existing signed installation. No emulator or physical-device result is claimed by compilation.
+
+Pre-existing product limitations remain: no accounts/sync, standalone events, event CSV or full database backup. Some existing labels remain hard-coded Polish; the refactor preserves them rather than redesigning UI. Existing-event timestamp selection is present in the actual baseline editor and remains constrained by session bounds.
