@@ -47,6 +47,26 @@ internal class SessionRepository(private val db: SQLiteDatabase) {
             arrayOf(id.toString(), project.toString(), person.toString())) == 1
     }
 
+    /** Delete only completed sessions; delete their events in the same transaction. */
+    fun deleteCompleted(project: Long, sessionId: Long): Boolean {
+        db.beginTransaction()
+        try {
+            val eligible = db.rawQuery(
+                "SELECT 1 FROM sessions WHERE id=? AND project_id=? AND ended_at IS NOT NULL",
+                arrayOf(sessionId.toString(), project.toString())
+            ).use { it.moveToFirst() }
+            if (!eligible) return false
+            db.delete("events", "session_id=? AND project_id=?",
+                arrayOf(sessionId.toString(), project.toString()))
+            val deleted = db.delete("sessions", "id=? AND project_id=? AND ended_at IS NOT NULL",
+                arrayOf(sessionId.toString(), project.toString())) == 1
+            if (deleted) db.setTransactionSuccessful()
+            return deleted
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun eventWithinSession(project: Long, sessionId: Long, person: Int, time: Long,
                            now: Long = System.currentTimeMillis()): Boolean =
         db.rawQuery("SELECT 1 FROM sessions WHERE id=? AND project_id=? AND person=? " +
