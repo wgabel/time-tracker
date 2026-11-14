@@ -1682,6 +1682,59 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    private fun editActiveSessionStart(id: Long, person: Int, started: Long) {
+        if (isArchived()) return
+        val current = db.rawQuery(
+            "SELECT started_at FROM sessions WHERE id=? AND project_id=? AND person=? AND ended_at IS NULL",
+            arrayOf(id.toString(), projectId.toString(), person.toString())
+        ).use { if (it.moveToFirst()) it.getLong(0) else null } ?: return
+        val cal = Calendar.getInstance().apply { timeInMillis = current }
+        DatePickerDialog(this, { _, year, month, day ->
+            val chosen = Calendar.getInstance().apply {
+                timeInMillis = current
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, day)
+            }
+            TimePickerDialog(this, { _, hour, minute ->
+                chosen.set(Calendar.HOUR_OF_DAY, hour)
+                chosen.set(Calendar.MINUTE, minute)
+                chosen.set(Calendar.SECOND, 0)
+                chosen.set(Calendar.MILLISECOND, 0)
+                val newStart = chosen.timeInMillis
+                val now = System.currentTimeMillis()
+                val firstEvent = db.rawQuery(
+                    "SELECT MIN(happened_at) FROM events WHERE project_id=? AND session_id=?",
+                    arrayOf(projectId.toString(), id.toString())
+                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
+                val previousEnd = db.rawQuery(
+                    "SELECT MAX(ended_at) FROM sessions WHERE project_id=? AND person=? AND id<>? AND ended_at IS NOT NULL AND started_at<?",
+                    arrayOf(projectId.toString(), person.toString(), id.toString(), now.toString())
+                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
+                if (newStart > now || (firstEvent != null && newStart > firstEvent) ||
+                    (previousEnd != null && newStart < previousEnd)) {
+                    Toast.makeText(this,
+                        if (resources.configuration.locales[0].language == "pl")
+                            "Początek musi być przed teraz i wydarzeniami oraz po poprzedniej sesji."
+                        else "Start must be before now and events, and after the previous session.",
+                        Toast.LENGTH_LONG).show()
+                    return@TimePickerDialog
+                }
+                val values = android.content.ContentValues().apply { put("started_at", newStart) }
+                val updated = db.update("sessions", values,
+                    "id=? AND project_id=? AND person=? AND ended_at IS NULL AND started_at=?",
+                    arrayOf(id.toString(), projectId.toString(), person.toString(), current.toString()))
+                if (updated == 1) {
+                    syncTimerNotification()
+                    renderContent()
+                } else {
+                    Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
+                }
+            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE),
+                DatePresentation.uses24HourClock(resources)).show()
+        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
+    }
+
     private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
         if (isArchived()) return
         if (ended == null) {
@@ -1879,7 +1932,7 @@ class MainActivity : Activity() {
                 }
                 val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 group.addView(row)
-                if (isHistory && originalEnd != null && !isArchived()) {
+                if (isHistory && !isArchived()) {
                     // Actions start hidden; tapping the session reveals a sliding action tray.
                     val tray = LinearLayout(this).apply {
                         orientation = LinearLayout.HORIZONTAL
@@ -1892,14 +1945,16 @@ class MainActivity : Activity() {
                         "bookmark-add",
                         if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
                     ) {
-                        addHistoricalEvent(id, person, originalStart, originalEnd)
+                        if (originalEnd == null) addEvent(person)
+                        else addHistoricalEvent(id, person, originalStart, originalEnd)
                     }.apply {
                         background = shape(
                             if (darkTheme) Color.rgb(34, 70, 59) else Color.rgb(229, 244, 237), 10)
                         contentDescription = "Dodaj wydarzenie"
                     }
                     val editAction = editIconButton {
-                        editSession(id, person, originalStart, originalEnd)
+                        if (originalEnd == null) editActiveSessionStart(id, person, originalStart)
+                        else editSession(id, person, originalStart, originalEnd)
                     }.apply { background = shape(subtle, 10) }
                     val deleteAction = deleteIconButton {
                         deleteSession(id)
@@ -1911,7 +1966,7 @@ class MainActivity : Activity() {
                     tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
                     tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
                     tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                    tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                    if (originalEnd != null) tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
                     val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
                     row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
                     group.addView(tray, LinearLayout.LayoutParams(-1, 0))
