@@ -241,4 +241,50 @@ class MainActivityUiTest {
         assertEquals(1, count("sessions"))
     }
 
+    private fun activeStart(): Long = database().use { db ->
+        db.rawQuery("SELECT started_at FROM sessions WHERE person=1 AND ended_at IS NULL", null).use {
+            assertTrue("Expected an active session", it.moveToFirst())
+            val start = it.getLong(0)
+            assertFalse("Only one active session should exist", it.moveToNext())
+            start
+        }
+    }
+
+    @Test fun runningTimerSurvivesBackgroundAndReturn() {
+        tapText("▶  START")
+        val startedAt = activeStart()
+        device.pressHome()
+        assertFalse("App should be in background", device.hasObject(By.text("■  STOP")))
+        SystemClock.sleep(1500)
+        assertEquals("Backgrounding must preserve the session", startedAt, activeStart())
+        device.executeShellCommand("am start -n ${context.packageName}/.MainActivity")
+        assertNotNull(device.wait(Until.findObject(By.text("■  STOP")), 8000))
+        assertEquals(startedAt, activeStart())
+        tapText("■  STOP")
+        assertEquals(1, count("sessions"))
+    }
+
+    @Test fun notificationOpensAppWithTimerStillRunning() {
+        tapText("▶  START")
+        val startedAt = activeStart()
+        device.pressHome()
+        SystemClock.sleep(1200)
+        device.openNotification()
+        val notification = device.wait(Until.findObject(By.text("UI project")), 8000)
+        requireNotNull(notification) { "Expected foreground timer notification" }.click()
+        instrumentation.waitForIdleSync()
+        assertNotNull(device.wait(Until.findObject(By.text("UI project")), 8000))
+        // Notification opens MainActivity at the project list; select our project.
+        if (device.hasObject(By.text("▶  START"))) {
+            fail("Notification returned to project but lost the running session")
+        }
+        if (!device.hasObject(By.text("■  STOP"))) {
+            tapText("UI project")
+        }
+        assertNotNull(device.wait(Until.findObject(By.text("■  STOP")), 8000))
+        assertEquals(startedAt, activeStart())
+        tapText("■  STOP")
+        assertEquals(1, count("sessions"))
+    }
+
 }
