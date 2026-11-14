@@ -1,16 +1,8 @@
-package pl.wgabel.timetracker
+package pl.wgabel.timetracker.data
 
 import android.database.sqlite.SQLiteDatabase
-
-/** Immutable data needed to initialize one participant timer card. */
-internal data class TimerCardData(
-    val participantId: Int,
-    val participantName: String,
-    val participantColor: Int,
-    val activeStartedAt: Long?
-) {
-    val isRunning: Boolean get() = activeStartedAt != null
-}
+import pl.wgabel.timetracker.model.TimerCardData
+import pl.wgabel.timetracker.ParticipantColors
 
 /**
  * Fetches participant identity and active-session state in one read.

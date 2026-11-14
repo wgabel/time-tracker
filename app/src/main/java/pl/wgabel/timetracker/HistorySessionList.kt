@@ -3,6 +3,7 @@ package pl.wgabel.timetracker
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.widget.LinearLayout
+import pl.wgabel.timetracker.model.Session
 
 /**
  * Session list container and query boundary for history and recent activity.
@@ -12,13 +13,6 @@ internal class HistorySessionList(
     context: Context,
     private val db: SQLiteDatabase
 ) : LinearLayout(context) {
-    internal data class Session(
-        val id: Long,
-        val participantId: Int,
-        val startedAt: Long,
-        val endedAt: Long?
-    )
-
     init {
         orientation = VERTICAL
     }
