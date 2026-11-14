@@ -1411,45 +1411,16 @@ class MainActivity : Activity() {
         }
     }
 
-    // Percentage of the full calendar day covered by this participant's sessions.
-    // The ring is an occupancy indicator, not a goal or a progress target.
-    private fun dayOccupancyRing(person: Int, start: Long, end: Long, now: Long): View {
-        val dayLength = (end - start).coerceAtLeast(1L)
-        return object : View(this) {
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = dp(7).toFloat()
-                strokeCap = Paint.Cap.ROUND
-            }
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val totalMs = total(person, start, end, System.currentTimeMillis())
-                val percent = (totalMs.toDouble() / dayLength * 100.0).coerceIn(0.0, 100.0)
-                val inset = dp(7).toFloat()
-                val rect = RectF(inset, inset, width - inset, height - inset)
-                paint.color = subtleNeutral
-                canvas.drawArc(rect, 0f, 360f, false, paint)
-                paint.color = personColor(person)
-                canvas.drawArc(rect, -90f, (percent * 3.6).toFloat(), false, paint)
-                paint.style = Paint.Style.FILL
-                paint.color = ink
-                paint.textAlign = Paint.Align.CENTER
-                paint.typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                paint.textSize = dp(16).toFloat()
-                canvas.drawText("${percent.toInt()}%", width / 2f,
-                    height / 2f - (paint.ascent() + paint.descent()) / 2f - dp(5), paint)
-                paint.typeface = Typeface.DEFAULT
-                paint.textSize = dp(10).toFloat()
-                paint.color = muted
-                canvas.drawText(if (resources.configuration.locales[0].language == "pl") "dnia" else "day",
-                    width / 2f, height / 2f + dp(14), paint)
-                paint.style = Paint.Style.STROKE
-            }
-        }.apply {
-            contentDescription = if (resources.configuration.locales[0].language == "pl")
-                "Procent doby objęty pomiarami" else "Percentage of day measured"
-        }
-    }
+    // Percentage of the calendar day covered by measurements, not a target.
+    private fun dayOccupancyRing(person: Int, start: Long, end: Long, now: Long): View =
+        DayOccupancyRing(
+            this, start, end,
+            measuredDuration = { total(person, start, end, System.currentTimeMillis()) },
+            participantColor = personColor(person),
+            trackColor = subtleNeutral,
+            textColor = ink,
+            captionColor = muted
+        )
 
     private fun daySessionStrip(person: Int, start: Long, end: Long): View {
         val segments = mutableListOf<Pair<Long, Long>>()
@@ -1463,22 +1434,7 @@ class MainActivity : Activity() {
                 if (to == -1L || to > from) segments.add(from to to)
             }
         }
-        return object : View(this) {
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val widthF = width.toFloat()
-                val dayLength = (end - start).coerceAtLeast(1L).toFloat()
-                paint.color = subtleNeutral
-                canvas.drawRoundRect(0f, 0f, widthF, height.toFloat(), dp(4).toFloat(), dp(4).toFloat(), paint)
-                paint.color = personColor(person)
-                segments.forEach { (from, to) ->
-                    val x1 = (from - start) / dayLength * widthF
-                    val x2 = ((if (to == -1L) minOf(end, System.currentTimeMillis()) else to) - start) / dayLength * widthF
-                    canvas.drawRoundRect(x1, 0f, x2, height.toFloat(), dp(3).toFloat(), dp(3).toFloat(), paint)
-                }
-            }
-        }
+        return DaySessionStrip(this, start, end, segments, personColor(person), subtleNeutral)
     }
 
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
