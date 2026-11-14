@@ -2,8 +2,6 @@ package pl.wgabel.timetracker.tabs
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import android.view.View
-import android.widget.LinearLayout
 import pl.wgabel.timetracker.design.AppUi
 
 /**
@@ -18,25 +16,19 @@ internal class TimerCardFactory(
     private val projectId: () -> Long,
     private val archived: () -> Boolean,
     private val components: AppUi,
-    private val placeCard: (LinearLayout) -> Unit,
-    private val animateActiveCard: (LinearLayout) -> Unit,
-    private val createIcon: (String, Int, () -> Unit) -> View,
-    private val resolveString: (Int) -> String,
-    private val formatDuration: (Long) -> String,
-    private val interactions: TimersInteractionService,
-    private val selectStartTime: (Int) -> Unit,
-    private val subscribeTick: ((Long) -> Unit) -> Unit
+    presentation: TimerCardPresentation,
+    commands: TimerCardCommands
 ) {
     private val host = TimerCardHost(
-        placeCard = placeCard,
-        animateActiveCard = animateActiveCard,
-        createIcon = createIcon,
-        resolveString = resolveString,
-        formatDuration = formatDuration,
-        toggleTimer = interactions::toggle,
-        createEvent = interactions::addEvent,
-        selectStartTime = selectStartTime,
-        subscribeTick = subscribeTick
+        placeCard = presentation.placeCard,
+        animateActiveCard = presentation.animateActiveCard,
+        createIcon = presentation.createIcon,
+        resolveString = presentation.resolveString,
+        formatDuration = presentation.formatDuration,
+        toggleTimer = commands.toggle,
+        createEvent = commands.addEvent,
+        selectStartTime = commands.selectStartTime,
+        subscribeTick = commands.subscribeTick
     )
 
     // A single instance for the current Activity; database access stays lazy.
