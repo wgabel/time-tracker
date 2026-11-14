@@ -2214,70 +2214,132 @@ class MainActivity : Activity() {
     }
 
     private fun barChart(from: Long, to: Long, target: LinearLayout) {
-        val points = mutableListOf<Pair<String, Long>>()
+        data class Bucket(val label: String, val start: Long, val end: Long, val millis: Long)
+        val points = mutableListOf<Bucket>()
         val cal = Calendar.getInstance().apply { timeInMillis = from }
-        val endLimit = if (statsPeriod == 3) System.currentTimeMillis() else to
+        val endLimit = minOf(to, System.currentTimeMillis())
         if (statsPeriod == 0) {
-            for (h in 0..23) {
+            for (hour in 0..23) {
                 val start = Calendar.getInstance().apply {
-                    timeInMillis = from; set(Calendar.HOUR_OF_DAY, h)
+                    timeInMillis = from
+                    set(Calendar.HOUR_OF_DAY, hour)
                 }.timeInMillis
-                val nextHour = Calendar.getInstance().apply {
-                    timeInMillis = start; add(Calendar.HOUR_OF_DAY, 1)
+                val end = Calendar.getInstance().apply {
+                    timeInMillis = start
+                    add(Calendar.HOUR_OF_DAY, 1)
                 }.timeInMillis
-                points.add(String.format(Locale.ROOT, "%02d", h) to intervals(start, nextHour).sumOf { it.third - it.second })
+                points.add(Bucket(String.format(Locale.ROOT, "%02d", hour), start, end,
+                    intervals(start, minOf(end, endLimit)).sumOf { it.third - it.second }))
             }
         } else {
             var count = 0
             while (cal.timeInMillis < endLimit && count < 1000) {
                 val start = cal.timeInMillis
                 when (statsPeriod) {
-                    1 -> cal.add(Calendar.DAY_OF_YEAR, 1)
-                    2 -> cal.add(Calendar.DAY_OF_YEAR, 1)
+                    1, 2 -> cal.add(Calendar.DAY_OF_YEAR, 1)
                     else -> cal.add(Calendar.MONTH, 1)
                 }
-                val finish = cal.timeInMillis
+                val end = cal.timeInMillis
                 val name = when (statsPeriod) {
                     1 -> DatePresentation.weekdayShort(resources).format(Date(start))
                     2 -> SimpleDateFormat("d", resources.configuration.locales[0]).format(Date(start))
                     else -> DatePresentation.monthYear(resources).format(Date(start))
                 }
-                points.add(name to intervals(start, finish).sumOf { it.third - it.second })
+                points.add(Bucket(name, start, end,
+                    intervals(start, minOf(end, endLimit)).sumOf { it.third - it.second }))
                 count++
             }
         }
         if (points.isEmpty()) {
-            content.addView(label(tr(R.string.no_measurements), 14f, false, muted))
+            target.addView(label(tr(R.string.no_measurements), 14f, false, muted))
             return
         }
-        val maxValue = (points.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+        val unit = when (statsPeriod) {
+            0 -> "godzinach"
+            1, 2 -> "dniach"
+            else -> "miesiącach"
+        }
+        target.addView(label("Suma czasów uczestników w kolejnych $unit", 13f, false, muted))
+        gap(target, 8)
+        val maxMillis = (points.maxOfOrNull { it.millis } ?: 0L).coerceAtLeast(1L)
+        val axisMaxMinutes = ((maxMillis / 60000.0 / 30.0).let { kotlin.math.ceil(it) } * 30.0)
+            .toLong().coerceAtLeast(30L)
+        val axisMax = axisMaxMinutes * 60000L
+        val selectedInfo = label("Dotknij słupka, aby zobaczyć dokładny czas", 13f, false, muted)
         val chart = object : View(this) {
             private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            private var selected = -1
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
-                val w = width.toFloat()
-                val h = height.toFloat()
+                val left = dp(52).toFloat()
+                val right = width.toFloat() - dp(4)
                 val top = dp(12).toFloat()
-                val bottom = h - dp(28)
-                val plotH = bottom - top
-                val step = (w - dp(8)) / points.size
+                val bottom = height.toFloat() - dp(30)
+                val plotHeight = bottom - top
+                val step = (right - left) / points.size
+                for (tick in 0..4) {
+                    val y = bottom - tick * plotHeight / 4f
+                    paint.color = subtle
+                    paint.strokeWidth = dp(1).toFloat()
+                    canvas.drawLine(left, y, right, y, paint)
+                    val minutes = axisMaxMinutes * tick / 4
+                    val tickLabel = if (minutes == 0L) "0" else if (minutes % 60L == 0L)
+                        "${minutes / 60} h" else if (minutes < 60L) "${minutes} min"
+                        else "${minutes / 60} h ${minutes % 60} m"
+                    paint.color = muted
+                    paint.textSize = dp(10).toFloat()
+                    paint.textAlign = Paint.Align.RIGHT
+                    canvas.drawText(tickLabel, left - dp(7), y + dp(4), paint)
+                }
                 points.forEachIndexed { index, point ->
-                    val bh = (point.second.toFloat() / maxValue * plotH).coerceAtLeast(if (point.second > 0) dp(2).toFloat() else 0f)
-                    paint.color = blue
-                    val x = dp(4) + index * step + step * 0.12f
-                    canvas.drawRoundRect(RectF(x, bottom - bh, x + step * 0.76f, bottom), dp(3).toFloat(), dp(3).toFloat(), paint)
+                    val barHeight = (point.millis.toDouble() / axisMax * plotHeight).toFloat()
+                        .coerceAtLeast(if (point.millis > 0L) dp(2).toFloat() else 0f)
+                    val x = left + index * step + step * .12f
+                    paint.color = if (selected == index) darkHeader else blue
+                    canvas.drawRoundRect(RectF(x, bottom - barHeight, x + step * .76f, bottom),
+                        dp(3).toFloat(), dp(3).toFloat(), paint)
                     if (points.size <= 12 || index % ((points.size + 7) / 8) == 0) {
                         paint.color = muted
                         paint.textSize = dp(10).toFloat()
                         paint.textAlign = Paint.Align.CENTER
-                        canvas.drawText(point.first, x + step * 0.38f, h - dp(8), paint)
+                        canvas.drawText(point.label, x + step * .38f, height - dp(7).toFloat(), paint)
                     }
                 }
             }
+            override fun onTouchEvent(event: MotionEvent): Boolean {
+                if (event.action == MotionEvent.ACTION_DOWN) return true
+                if (event.action != MotionEvent.ACTION_UP) return super.onTouchEvent(event)
+                val left = dp(52).toFloat()
+                val available = width.toFloat() - dp(56)
+                if (event.x < left || available <= 0f) return true
+                val index = (((event.x - left) / available) * points.size).toInt()
+                    .coerceIn(0, points.lastIndex)
+                selected = index
+                invalidate()
+                val point = points[index]
+                val dateTime = SimpleDateFormat("dd.MM HH:mm", resources.configuration.locales[0])
+                selectedInfo.text = "${dateTime.format(Date(point.start))} – " +
+                    "${dateTime.format(Date(point.end))}: ${duration(point.millis)}"
+                return true
+            }
         }
-        target.addView(chart, LinearLayout.LayoutParams(-1, dp(180)))
-        val minutes = points.sumOf { it.second } / 60000L
-        target.addView(label(getString(R.string.total_person_hours, minutes / 60, minutes % 60), 15f, true))
+        target.addView(chart, LinearLayout.LayoutParams(-1, dp(210)))
+        gap(target, 8)
+        target.addView(selectedInfo)
+        gap(target, 14)
+        val peak = points.maxByOrNull { it.millis }
+        val active = points.count { it.millis > 0L }
+        val average = if (active > 0) points.sumOf { it.millis } / active else 0L
+        val metrics = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        metrics.addView(label("Najwięcej: ${peak?.label ?: "—"} · ${duration(peak?.millis ?: 0L)}",
+            14f, true, ink))
+        gap(metrics, 7)
+        metrics.addView(label("Średnio na aktywny przedział: ${duration(average)}",
+            13f, false, muted))
+        gap(metrics, 7)
+        metrics.addView(label("Przedziały z aktywnością: $active / ${points.size}",
+            13f, false, muted))
+        target.addView(metrics)
     }
 
     private fun renderPeriodTotals(from: Long, to: Long) {
