@@ -52,7 +52,7 @@ import java.util.Locale
 import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
-import pl.wgabel.timetracker.tabs.TimerCardFactory
+import pl.wgabel.timetracker.tabs.TimersScreenController
 import pl.wgabel.timetracker.tabs.TimerCardPresentation
 import pl.wgabel.timetracker.tabs.TimerCardCommands
 import pl.wgabel.timetracker.tabs.TimerCardUi
@@ -102,8 +102,8 @@ class MainActivity : Activity() {
             openEventEditor = { session, person, time -> editEvent(null, session, person, time, "Inne", "") }
         )
     }
-    private val timerCards: TimerCardFactory by lazy {
-        TimerCardFactory(
+    private val timersScreen: TimersScreenController by lazy {
+        TimersScreenController(
             context = this,
             database = { db },
             projectId = { requireNotNull(projectId) },
@@ -121,26 +121,17 @@ class MainActivity : Activity() {
                 addEvent = timersInteractionService::addEvent,
                 selectStartTime = ::quickStartPicker,
                 subscribeTick = { update -> timerUpdates.add(update) }
-            )
-        )
-    }
-    private val timersService: TimersService by lazy {
-        TimersService(
-            renderer = TimersRenderer(
-                context = this,
-                content = { content },
-                title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
-                emptyMessage = { tr(R.string.first_person) },
-                ui = appUi,
-                addButtonDescription = { tr(R.string.add_person) },
-                onAddParticipant = ::addParticipant,
-                renderCard = { person, start, end, now -> timerCards.render(person, start, end, now) },
-                renderRecentActivity = {
-                    recentActivityRenderer.render(
-                        RecentActivityDataSource(db).load(requireNotNull(projectId))
-                    )
-                }
             ),
+            content = { content },
+            title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
+            emptyMessage = { tr(R.string.first_person) },
+            addButtonDescription = { tr(R.string.add_person) },
+            onAddParticipant = ::addParticipant,
+            renderRecentActivity = {
+                recentActivityRenderer.render(
+                    RecentActivityDataSource(db).load(requireNotNull(projectId))
+                )
+            },
             loadState = { id ->
                 pl.wgabel.timetracker.tabs.TimersViewState(
                     projectId = id,
@@ -170,7 +161,7 @@ class MainActivity : Activity() {
         )
     }
     private val tabServices: List<ITabService> by lazy {
-        listOf(timersService, StatisticsService(), HistoryService(), SettingsService())
+        listOf(timersScreen.service, StatisticsService(), HistoryService(), SettingsService())
     }
     private var visibleTabService: ITabService? = null
 
@@ -2629,7 +2620,7 @@ class MainActivity : Activity() {
             gap(content, 7)
         }
         when (tab) {
-            0 -> timersService.render(requireNotNull(projectId))
+            0 -> timersScreen.render(requireNotNull(projectId))
             1 -> renderStats()
             2 -> renderHistory()
             else -> renderSettings()
