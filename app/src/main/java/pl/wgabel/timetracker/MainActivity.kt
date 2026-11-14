@@ -53,6 +53,7 @@ import java.util.Locale
 class MainActivity : Activity() {
     private lateinit var db: SQLiteDatabase
     private val sessionRepository get() = SessionRepository(db)
+    private val eventRepository get() = EventRepository(db, sessionRepository)
     private lateinit var content: LinearLayout
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
@@ -1279,18 +1280,12 @@ class MainActivity : Activity() {
                 } else if (type == "Lek" && description.isEmpty()) {
                     note.error = "Wpisz nazwę i dawkę leku"
                 } else {
-                    val values = ContentValues().apply {
-                        put("project_id", projectId)
-                        put("session_id", sessionId)
-                        put("person", person)
-                        put("happened_at", chosenTimestamp)
-                        put("type", type)
-                        put("note", description)
-                    }
-                    if (id == null) db.insertOrThrow("events", null, values)
-                    else db.update("events", values, "id=? AND project_id=?", arrayOf(id.toString(), projectId.toString()))
-                    dialog.dismiss()
-                    renderContent()
+                    if (eventRepository.save(projectId!!, sessionId, person, id,
+                            chosenTimestamp, type, description)) {
+                        dialog.dismiss()
+                        renderContent()
+                    } else Toast.makeText(this, tr(R.string.session_update_failed),
+                        Toast.LENGTH_LONG).show()
                 }
             }
         }
