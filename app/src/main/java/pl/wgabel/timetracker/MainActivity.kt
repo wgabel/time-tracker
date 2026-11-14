@@ -52,6 +52,7 @@ import java.util.Locale
 import pl.wgabel.timetracker.tabs.TimerCardRenderer
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
+import pl.wgabel.timetracker.tabs.TimersInteractionService
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -83,6 +84,15 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
     // Tab services are lifecycle scaffolding. Existing UI is still rendered below.
+    private val timersInteractionService: TimersInteractionService by lazy {
+        TimersInteractionService(
+            context = this,
+            database = { db },
+            projectId = { requireNotNull(projectId) },
+            archived = { isArchived() },
+            refresh = { renderContent() }
+        )
+    }
     private val timerCardRenderer: TimerCardRenderer by lazy {
         TimerCardRenderer(
             context = this,
@@ -161,7 +171,6 @@ class MainActivity : Activity() {
         RecentActivityRenderer(
             context = this,
             target = { content },
-            sectionHeading = { sectionHeading(it) },
             text = { value, size, bold, color ->
                 if (color == null) label(value, size, bold) else label(value, size, bold, color)
             },
@@ -908,47 +917,12 @@ class MainActivity : Activity() {
     private fun activeStart(person: Int): Long? =
         timerSessionController.activeStart(projectId!!, person)
 
-    // Quick backdated start, without changing the existing one-tap START behavior.
-    private fun quickStartPicker(person: Int, sessionId: Long? = null) {
-        if (isArchived()) return
-        val original = if (sessionId == null) null else db.rawQuery(
-            "SELECT started_at FROM sessions WHERE id=? AND project_id=? AND person=? AND ended_at IS NULL",
-            arrayOf(sessionId.toString(), projectId.toString(), person.toString())
-        ).use { if (it.moveToFirst()) it.getLong(0) else null }
-        if (sessionId != null && original == null) return
-        val pl = resources.configuration.locales[0].language == "pl"
-        DateTimeEditor(this).show(DateTimeEditor.Config(
-            title = if (pl) "Początek sesji" else "Session start",
-            initial = original ?: System.currentTimeMillis() - 15 * 60_000L,
-            max = System.currentTimeMillis()
-        )) { selected ->
-            val changed = if (sessionId == null) {
-                sessionRepository.insert(projectId!!, person, selected, null)
-            } else {
-                sessionRepository.update(projectId!!, person, sessionId, selected, null)
-            }
-            if (changed) { syncTimerNotification(); renderContent() }
-            else Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
-                else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
-            changed
-        }
-    }
+    private fun quickStartPicker(person: Int, sessionId: Long? = null) =
+        timersInteractionService.quickStartPicker(person, sessionId)
 
-    private fun toggle(person: Int) {
-        timerSessionController.toggle(projectId!!, person)
-        syncTimerNotification()
-        renderContent()
-    }
+    private fun toggle(person: Int) = timersInteractionService.toggle(person)
 
-    private fun syncTimerNotification() {
-        val hasActive = timerSessionController.hasAnyActiveSession()
-        val intent = Intent(this, TimerNotificationService::class.java)
-        if (hasActive) {
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-        } else {
-            stopService(intent)
-        }
-    }
+    private fun syncTimerNotification() = timersInteractionService.syncNotification()
 
     private fun duration(ms: Long): String = TimeMath.duration(ms)
 
@@ -1341,26 +1315,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // Percentage of the calendar day covered by measurements, not a target.
-    private fun dayOccupancyRing(person: Int, start: Long, end: Long, now: Long): View =
-        DayOccupancyRing(
-            this, start, end,
-            measuredDuration = { total(person, start, end, System.currentTimeMillis()) },
-            participantColor = personColor(person),
-            trackColor = subtleNeutral,
-            textColor = ink,
-            captionColor = muted
-        )
-
-    private fun daySessionStrip(person: Int, start: Long, end: Long): View {
-        val summary = SessionDaySummary(db)
-        val intervals = summary.intervals(projectId!!, person, start, end)
-        return DaySessionStrip(
-            this, start, end, summary.stripSegments(intervals, start, end),
-            personColor(person), subtleNeutral
-        )
-    }
-
     private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
         DateTimeEditor(this).show(DateTimeEditor.Config(
             title = title, initial = initial, max = System.currentTimeMillis()
@@ -1603,15 +1557,6 @@ class MainActivity : Activity() {
         }
         if (count == 0) list.addView(label(tr(R.string.no_sessions), 15f, false, muted))
         content.addView(list, LinearLayout.LayoutParams(-1, -2))
-    }
-
-    // A quiet section heading, inspired by the approved mockup without changing timer controls.
-    private fun sectionHeading(title: String) {
-        gap(content, 12)
-        content.addView(label(title, 21f, true, ink).apply {
-            letterSpacing = -0.02f
-        })
-        gap(content, 12)
     }
 
     private fun selectedDayEvents(start: Long, end: Long) {
