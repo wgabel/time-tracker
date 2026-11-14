@@ -35,24 +35,12 @@ internal class TimerCardHeader(
  */
 internal class TimerCardClock(
     context: Context,
-    initialTotal: String,
+    val totalLabel: TextView,
     totalCaption: TextView,
-    initialStatus: String?,
+    val statusLabel: TextView?,
     private val formatTotal: (Long) -> String,
     private val formatStatus: ((Long) -> String)?
 ) {
-    val totalLabel = TextView(context).apply {
-        text = initialTotal
-        textSize = 36f
-        setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD), Typeface.BOLD)
-        letterSpacing = -0.035f
-        setFontFeatureSettings("tnum")
-    }
-
-    val statusLabel: TextView? = initialStatus?.let { value ->
-        TextView(context).apply { text = value; textSize = 16f }
-    }
-
     val totalColumn = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         addView(totalLabel)
