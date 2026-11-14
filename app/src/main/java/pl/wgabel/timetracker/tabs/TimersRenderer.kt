@@ -2,9 +2,9 @@ package pl.wgabel.timetracker.tabs
 
 import android.content.Context
 import android.view.Gravity
-import android.view.View
 import android.widget.LinearLayout
 import pl.wgabel.timetracker.design.AppUi
+import pl.wgabel.timetracker.design.AppUi.ButtonRole
 
 /** Native View composition for the Timers tab. Data and actions are injected. */
 internal class TimersRenderer(
@@ -13,7 +13,8 @@ internal class TimersRenderer(
     private val title: () -> String,
     private val emptyMessage: () -> String,
     private val ui: AppUi,
-    private val addButton: () -> View,
+    private val addButtonDescription: () -> String,
+    private val onAddParticipant: () -> Unit,
     private val renderCard: (Int, Long, Long, Long) -> Unit,
     private val renderRecentActivity: () -> Unit
 ) : ITabRenderer<TimersViewState> {
@@ -27,7 +28,15 @@ internal class TimersRenderer(
             letterSpacing = -0.02f
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (!state.archived) {
-            heading.addView(addButton(), LinearLayout.LayoutParams(ui.dp(44), ui.dp(40)))
+            heading.addView(ui.styledAction("＋", ButtonRole.PRIMARY, onAddParticipant).apply {
+                contentDescription = addButtonDescription().removePrefix("+").trim()
+                textSize = 24f
+                minHeight = ui.dp(40)
+                minimumHeight = ui.dp(40)
+                minWidth = ui.dp(44)
+                minimumWidth = ui.dp(44)
+                setPadding(0, 0, 0, 0)
+            }, LinearLayout.LayoutParams(ui.dp(44), ui.dp(40)))
         }
         ui.gap(target, 12)
         target.addView(heading)
