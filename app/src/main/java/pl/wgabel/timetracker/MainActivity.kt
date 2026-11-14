@@ -91,7 +91,8 @@ class MainActivity : Activity() {
             database = { db },
             projectId = { requireNotNull(projectId) },
             archived = { isArchived() },
-            refresh = { renderContent() }
+            refresh = { renderContent() },
+            openEventEditor = { session, person, time -> editEvent(null, session, person, time, "Inne", "") }
         )
     }
     private val timerCardRenderer: TimerCardRenderer by lazy {
@@ -1106,10 +1107,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun addEvent(person: Int) {
-        val sessionId = ParticipantDataSource(db).activeSessionId(requireNotNull(projectId), person) ?: return
-        editEvent(null, sessionId, person, System.currentTimeMillis(), "Inne", "")
-    }
+    private fun addEvent(person: Int) = timersInteractionService.addEvent(person)
 
     private fun addHistoricalEvent(sessionId: Long, person: Int, started: Long, ended: Long) {
         if (ended <= started || isArchived()) return
