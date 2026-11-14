@@ -53,6 +53,7 @@ import pl.wgabel.timetracker.tabs.TimerCardRenderer
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
 import pl.wgabel.timetracker.tabs.TimersInteractionService
+import pl.wgabel.timetracker.tabs.ParticipantDataSource
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -469,18 +470,12 @@ class MainActivity : Activity() {
         return action(text, fill, if (selected) Color.WHITE else ink, click)
     }
 
-    private fun participants(): List<Int> {
-        val ids = mutableListOf<Int>()
-        db.rawQuery("SELECT id FROM participants WHERE project_id=? ORDER BY id", arrayOf(projectId.toString())).use { c ->
-            while (c.moveToNext()) ids.add(c.getInt(0))
-        }
-        return ids
-    }
-    private fun personName(person: Int): String {
-        db.rawQuery("SELECT name FROM participants WHERE id=?", arrayOf(person.toString())).use { c ->
-            return if (c.moveToFirst()) c.getString(0) else tr(R.string.person_fallback) + person
-        }
-    }
+    private fun participants(): List<Int> =
+        ParticipantDataSource(db).ids(requireNotNull(projectId))
+
+    private fun personName(person: Int): String =
+        ParticipantDataSource(db).name(person, tr(R.string.person_fallback) + person)
+
     private fun projectName(): String {
         db.rawQuery("SELECT name FROM projects WHERE id=?", arrayOf(projectId.toString())).use { c ->
             return if (c.moveToFirst()) c.getString(0) else tr(R.string.project_fallback)
@@ -1112,12 +1107,8 @@ class MainActivity : Activity() {
     }
 
     private fun addEvent(person: Int) {
-        val sessionId = db.rawQuery(
-            "SELECT id FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1",
-            arrayOf(projectId.toString(), person.toString())
-        ).use { if (it.moveToFirst()) it.getLong(0) else return }
-        val timestamp = System.currentTimeMillis()
-        editEvent(null, sessionId, person, timestamp, "Inne", "")
+        val sessionId = ParticipantDataSource(db).activeSessionId(requireNotNull(projectId), person) ?: return
+        editEvent(null, sessionId, person, System.currentTimeMillis(), "Inne", "")
     }
 
     private fun addHistoricalEvent(sessionId: Long, person: Int, started: Long, ended: Long) {
