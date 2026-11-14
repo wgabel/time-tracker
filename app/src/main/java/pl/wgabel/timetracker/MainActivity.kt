@@ -1449,9 +1449,6 @@ class MainActivity : Activity() {
                 12f, true, if (active == null) muted else personColor(person)),
             shape(personColor(person), 6)
         )
-        c.addView(header)
-        gap(c, 12)
-        val timeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val totalLabel = label(duration(total(person, start, end, now)), 36f, true).apply {
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             letterSpacing = -0.035f
@@ -1469,34 +1466,13 @@ class MainActivity : Activity() {
             formatTotal = { tick -> duration(total(person, start, end, tick)) },
             formatStatus = if (active != null) ({ tick: Long -> tr(R.string.running_prefix) + duration(tick - active) }) else null
         )
-        timeRow.addView(clock.totalColumn, LinearLayout.LayoutParams(0, -2, 1f))
         val ring = dayOccupancyRing(person, start, end, now)
-        timeRow.addView(ring, LinearLayout.LayoutParams(dp(80), dp(80)))
-        c.addView(timeRow)
-        gap(c, 10)
         val strip = daySessionStrip(person, start, end)
-        c.addView(strip, LinearLayout.LayoutParams(-1, dp(9)))
-        if (active != null) timerUpdates.add { tick ->
-            clock.update(tick)
-            ring.invalidate()
-            strip.invalidate()
-        }
-        gap(c, 5)
-        val ticks = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf("00:00", "06:00", "12:00", "18:00", "24:00").forEachIndexed { index, text ->
-            ticks.addView(label(text, 10f, false, muted).apply {
-                gravity = when (index) { 0 -> Gravity.START; 4 -> Gravity.END; else -> Gravity.CENTER }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-        }
-        c.addView(ticks)
-        if (!isArchived()) {
-            gap(c, 14)
-            if (statusLabel != null) c.addView(statusLabel)
-            gap(c, 12)
+        val controls = if (statusLabel == null) null else {
             val button = if (active == null)
                 action("▶  START", personColor(person)) { toggle(person) }
             else styledAction("■  STOP", ButtonRole.DANGER) { toggle(person) }
-            val controls = if (active != null) {
+            if (active != null) {
                 TimerCardControls(
                     context = this,
                     running = true,
@@ -1524,7 +1500,18 @@ class MainActivity : Activity() {
                     onEventClick = null
                 )
             }
-            c.addView(controls)
+        }
+        val cardView = TimerCardView(
+            this, header, clock, ring, strip,
+            listOf("00:00", "06:00", "12:00", "18:00", "24:00").map {
+                label(it, 10f, false, muted)
+            },
+            statusLabel, controls,
+            spacing = { container, size -> gap(container, size) }
+        )
+        c.addView(cardView)
+        if (active != null) timerUpdates.add { tick ->
+            cardView.updateClock(clock, ring, strip, tick)
         }
         addCard(c)
     }
