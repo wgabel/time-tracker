@@ -1560,14 +1560,14 @@ class MainActivity : Activity() {
         val ring = dayOccupancyRing(person, start, end, now)
         timeRow.addView(ring, LinearLayout.LayoutParams(dp(80), dp(80)))
         c.addView(timeRow)
+        gap(c, 10)
+        val strip = daySessionStrip(person, start, end)
+        c.addView(strip, LinearLayout.LayoutParams(-1, dp(9)))
         if (active != null) timerUpdates.add { tick ->
             totalLabel.text = duration(total(person, start, end, tick))
             ring.invalidate()
             strip.invalidate()
         }
-        gap(c, 10)
-        val strip = daySessionStrip(person, start, end)
-        c.addView(strip, LinearLayout.LayoutParams(-1, dp(9)))
         gap(c, 5)
         val ticks = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf("00:00", "06:00", "12:00", "18:00", "24:00").forEachIndexed { index, text ->
