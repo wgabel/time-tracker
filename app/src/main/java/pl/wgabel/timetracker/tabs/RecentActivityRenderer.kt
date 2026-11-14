@@ -21,7 +21,7 @@ internal class RecentActivityRenderer(
 ) {
     fun render(entries: List<RecentActivityEntry>) {
         val polish = context.resources.configuration.locales[0].language == "pl"
-        val heading = components.label(if (polish) "Ostatnia aktywność" else "Recent activity", 21f, true, null).apply {
+        val heading = components.label(if (polish) "Ostatnia aktywność" else "Recent activity", 21f, true).apply {
             letterSpacing = -0.02f
         }
         target().addView(View(context), LinearLayout.LayoutParams(1, components.dp(12)))
@@ -50,7 +50,7 @@ internal class RecentActivityRenderer(
                 }
             }, LinearLayout.LayoutParams(components.dp(5), components.dp(40)).apply { rightMargin = components.dp(12) })
             val details = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-            details.addView(components.label((if (isEvent) "⚑  " else "◷  ") + title, 15f, true, null))
+            details.addView(components.label((if (isEvent) "⚑  " else "◷  ") + title, 15f, true))
             details.addView(components.label(participantName(person) + " · " + format.format(Date(whenAt)), 12f, false, components.color("muted")))
             row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
             target().addView(row)
