@@ -1696,23 +1696,14 @@ class MainActivity : Activity() {
         if (isArchived()) return
         if (ended == null) { editActiveSessionStart(id, person, started); return }
         val pl = resources.configuration.locales[0].language == "pl"
-        DateTimeEditor(this).show(DateTimeEditor.Config(
-            title = if (pl) "Początek sesji" else "Session start",
-            initial = started, max = System.currentTimeMillis()
-        )) { newStart ->
-            DateTimeEditor(this).show(DateTimeEditor.Config(
-                title = if (pl) "Koniec sesji" else "Session end",
-                initial = ended, min = newStart + 1L, max = System.currentTimeMillis()
-            )) { newEnd ->
-                val updated = sessionRepository.update(projectId!!, person, id, newStart, newEnd)
-                if (updated) {
-                    renderContent()
-                    Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show()
-                } else Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
-                    else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
-                updated
-            }
-            true
+        SessionEditor(this).editCompleted(started, ended) { newStart, newEnd ->
+            val updated = sessionRepository.update(projectId!!, person, id, newStart, newEnd)
+            if (updated) {
+                renderContent()
+                Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show()
+            } else Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
+                else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
+            updated
         }
     }
 
