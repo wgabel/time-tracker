@@ -66,7 +66,6 @@ import pl.wgabel.timetracker.tabs.ParticipantColorPicker
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
-import pl.wgabel.timetracker.tabs.RecentActivityDataSource
 import pl.wgabel.timetracker.tabs.RecentActivityRenderer
 import pl.wgabel.timetracker.tabs.HistoryService
 import pl.wgabel.timetracker.tabs.StatisticsService
@@ -132,11 +131,7 @@ class MainActivity : Activity() {
                 emptyMessage = { tr(R.string.first_person) },
                 addButtonDescription = { tr(R.string.add_person) },
                 onAddParticipant = ::addParticipant,
-                renderRecentActivity = {
-                    recentActivityRenderer.render(
-                        RecentActivityDataSource(db).load(requireNotNull(projectId))
-                    )
-                }
+                recentActivityRenderer = recentActivityRenderer
             )
 
         )
