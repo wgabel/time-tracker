@@ -54,6 +54,7 @@ import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
 import pl.wgabel.timetracker.tabs.TimersInteractionService
 import pl.wgabel.timetracker.tabs.ParticipantDataSource
+import pl.wgabel.timetracker.tabs.AddParticipantDialog
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -497,30 +498,20 @@ class MainActivity : Activity() {
         }
         dialog.show()
     }
-    private fun addParticipant() {
-        val input = EditText(this).apply { hint = tr(R.string.participant_hint); setSingleLine(true) }
-        val selectedColor = intArrayOf(nextParticipantColor())
-        val holder = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), 0, dp(20), 0)
-            addView(input)
-            addView(colorPicker(selectedColor[0]) { selectedColor[0] = it })
-        }
-        val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_participant)).setView(holder)
-            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.add), null).create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val name = input.text.toString().trim()
-                if (name.isEmpty()) { input.error = tr(R.string.name_required); return@setOnClickListener }
-                db.insert("participants", null, ContentValues().apply {
-                    put("project_id", projectId); put("name", name); put("color", selectedColor[0])
-                })
-                dialog.dismiss()
-                renderContent()
-            }
-        }
-        dialog.show()
+    private val addParticipantDialog: AddParticipantDialog by lazy {
+        AddParticipantDialog(
+            context = this,
+            db = { db },
+            projectId = { requireNotNull(projectId) },
+            nextColor = { nextParticipantColor() },
+            colorPicker = { color, onChange -> colorPicker(color, onChange) },
+            refresh = { renderContent() },
+            string = { tr(it) }
+        )
     }
+
+    private fun addParticipant() = addParticipantDialog.show()
+
     // Deterministic, entirely offline miniature landscapes.
     private fun iconVariant(id: Long): Long =
         db.rawQuery("SELECT icon_variant FROM projects WHERE id=?", arrayOf(id.toString())).use {
