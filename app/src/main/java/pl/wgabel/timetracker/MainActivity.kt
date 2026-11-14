@@ -52,6 +52,7 @@ import java.util.Locale
 import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
+import pl.wgabel.timetracker.tabs.TimerCardHost
 import pl.wgabel.timetracker.tabs.TimerCardRenderer
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
@@ -100,27 +101,28 @@ class MainActivity : Activity() {
             openEventEditor = { session, person, time -> editEvent(null, session, person, time, "Inne", "") }
         )
     }
+    private val timerCardHost: TimerCardHost by lazy {
+        TimerCardHost(
+            placeCard = ::addCard,
+            animateActiveCard = ::markActive,
+            createIcon = ::iconButton,
+            resolveString = ::tr,
+            formatDuration = ::duration,
+            toggleTimer = { person -> timersInteractionService.toggle(person) },
+            createEvent = { person -> timersInteractionService.addEvent(person) },
+            selectStartTime = ::quickStartPicker,
+            subscribeTick = { update -> timerUpdates.add(update) }
+        )
+    }
     private val timerCardRenderer: TimerCardRenderer by lazy {
         TimerCardRenderer(
             context = this,
             db = db,
             projectId = { requireNotNull(projectId) },
             archived = { isArchived() },
-            ui = object : TimerCardUi {
-                override fun addCard(view: LinearLayout) = this@MainActivity.addCard(view)
-                override fun markActive(view: LinearLayout) = this@MainActivity.markActive(view)
-                override fun iconButton(kind: String, color: Int, click: () -> Unit) =
-                    this@MainActivity.iconButton(kind, color, click)
-                override fun string(id: Int) = tr(id)
-                override fun duration(millis: Long) = this@MainActivity.duration(millis)
-            },
+            ui = timerCardHost,
             components = appUi,
-            actions = object : TimerCardActions {
-                override fun toggle(person: Int) = this@MainActivity.toggle(person)
-                override fun addEvent(person: Int) = this@MainActivity.addEvent(person)
-                override fun quickStartPicker(person: Int) = this@MainActivity.quickStartPicker(person)
-                override fun registerUpdate(update: (Long) -> Unit) { timerUpdates.add(update) }
-            }
+            actions = timerCardHost
         )
     }
     private val timersService: TimersService by lazy {
