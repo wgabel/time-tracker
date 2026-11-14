@@ -16,8 +16,14 @@ internal class TimersInteractionService(
     private val database: () -> SQLiteDatabase,
     private val projectId: () -> Long,
     private val archived: () -> Boolean,
-    private val refresh: () -> Unit
+    private val refresh: () -> Unit,
+    private val openEventEditor: (Long, Int, Long) -> Unit
 ) {
+    fun addEvent(person: Int) {
+        val sessionId = ParticipantDataSource(database()).activeSessionId(projectId(), person) ?: return
+        openEventEditor(sessionId, person, System.currentTimeMillis())
+    }
+
     fun toggle(person: Int) {
         TimerSessionController(database()).toggle(projectId(), person)
         syncNotification()
