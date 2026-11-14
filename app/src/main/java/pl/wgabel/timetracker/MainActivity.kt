@@ -1509,11 +1509,10 @@ class MainActivity : Activity() {
             "SELECT started_at,ended_at FROM sessions WHERE project_id=? AND person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
             arrayOf(projectId.toString(), person.toString(), end.toString(), start.toString())
         ).use { cursor ->
-            val now = System.currentTimeMillis()
             while (cursor.moveToNext()) {
                 val from = maxOf(start, cursor.getLong(0))
-                val to = minOf(end, if (cursor.isNull(1)) now else cursor.getLong(1))
-                if (to > from) segments.add(from to to)
+                val to = if (cursor.isNull(1)) -1L else minOf(end, cursor.getLong(1))
+                if (to == -1L || to > from) segments.add(from to to)
             }
         }
         return object : View(this) {
@@ -1527,7 +1526,7 @@ class MainActivity : Activity() {
                 paint.color = personColor(person)
                 segments.forEach { (from, to) ->
                     val x1 = (from - start) / dayLength * widthF
-                    val x2 = (to - start) / dayLength * widthF
+                    val x2 = ((if (to == -1L) minOf(end, System.currentTimeMillis()) else to) - start) / dayLength * widthF
                     canvas.drawRoundRect(x1, 0f, x2, height.toFloat(), dp(3).toFloat(), dp(3).toFloat(), paint)
                 }
             }
