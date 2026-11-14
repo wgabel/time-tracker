@@ -7,7 +7,11 @@ Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetr
 
 ## Actual implementation (inspect code; this document is a guide, not a substitute)
 - Android app in Kotlin, programmatic native Views (not XML screen layouts, Compose, or React).
-- Primary Activity and most business logic: `app/src/main/java/pl/wgabel/timetracker/MainActivity.kt`.
+- Main entry point and screen orchestration: `app/src/main/java/pl/wgabel/timetracker/MainActivity.kt` (still large; ~3,116 lines after PR #21). Do not move logic back into the Activity when dedicated components exist.
+- Pure Kotlin models in `model/`: `Session`, `TimeInterval`, `TimerCardData`. Keep models independent of Android Views and SQLite; create additional domain models only when real consumers justify them.
+- `data/TimerCardDataSource.kt` loads timer-card snapshots. `SessionRepository.kt`, `EventRepository.kt`, `TimerSessionController.kt` and `SessionDaySummary.kt` remain in the root package; migrate packages incrementally rather than moving every file at once.
+- UI components in the root package include `HistorySessionList`, `HistorySessionRow`, `HistoryActionTray`, `TimerCardView`, `TimerCardHeader`, `TimerCardControls`, `TimerVisualizations` and `AnimatedSelectionFrame`. Keep UI classes separate from POCO-like data models.
+- `HistorySessionList` currently still owns a parameterized SQLite query and a list container; it passes `model.Session` to an Activity-owned rendering callback. `HistorySessionRow` composes the history/recent session row and expanding action tray. This is an intermediate architecture, not a finished repository/UI separation.
 - Persistent foreground timer notification: `app/src/main/java/pl/wgabel/timetracker/TimerNotificationService.kt`; notification layout in `app/src/main/res/layout/notification_timer.xml`.
 - SQLite via `SQLiteOpenHelper` in `MainActivity.onCreate`, database file `sessions.db`, **schema version 6** as of 2026-11-14.
 - SharedPreferences `preferences` store UI choices including theme and language.
@@ -24,7 +28,7 @@ Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetr
 - History tab: day navigation, participant filtering, timeline, session list, manual session creation, session editing/deletion (when permitted).
 - Settings: theme (light/dark), language, CSV export, project/participant controls. Inspect `renderSettings` and `renderAppSettings` for exact behavior.
 - Active cards use an animated green-tinted gradient and floating squares. Drawable implements `Animatable`; animation must not restart every second.
-- Each participant's avatar initials, timer START button, chart/timeline markings use the same `personColor(person)` palette derived from participant ID, not participant list order. STOP is red. Palette is defined once in `MainActivity.kt`.
+- Each participant's avatar initials, timer START button, chart/timeline markings use the same `personColor(person)` palette, backed by persisted participant colors and the `ParticipantColors` fallback. Do not derive colors from participant list order. STOP is red.
 - Events (introduced 2026-11-11): while a timer is active, EVENT beside STOP captures timestamp **immediately**, then opens an editor for type and note. Types currently hardcoded: `Lek`, `Posiłek`, `Sen`, `Spacer`, `Inne`. Medication type requires a nonempty free-text note (intended for name, concentration and administered dose). Events display beneath sessions in Timers and History; History allows editing type/note and deletion with confirmation, and adding an event to a completed session with a date/time/seconds picker constrained to the session's timestamps. Existing-event timestamp editing is not implemented. Events are **not** included in timing statistics/charts. Event editing currently does **not** change timestamp; adding events outside sessions is not implemented. Do not claim otherwise.
 
 ## Database schema (v6)
@@ -93,6 +97,13 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 ## CSV export and backup
 `exportCsv()` exists; inspect its SQL and output columns before changing it. **Do not assume EVENT entries are exported**: they were added after the export implementation. CSV export is not equivalent to a complete database backup. Be cautious with reinstall/uninstall and signing key changes: uninstalling may erase the local SQLite database. Never advise uninstalling as a casual fix.
 
+## Architecture and model conventions (current direction)
+- A POCO-like Kotlin `data class` is not automatically a reason to create a new file. Put shared domain models in `model/`, one meaningful reusable model per file; keep tiny implementation-only types private or nested where appropriate.
+- `model.Session` represents persisted session identity/boundaries; `model.TimeInterval` represents a time range without identity; `model.TimerCardData` is an immutable timer-card snapshot. Do not create competing duplicates of these concepts without a documented distinction.
+- Keep SQLite queries and writes in `data/` or repository classes, Android View construction in UI components, and screen state/navigation in the Activity. Move existing classes incrementally with correct imports; avoid introducing unused `Project`, `Participant` or `Event` models just to fill a proposed directory structure.
+- Preserve existing `HistorySessionRow` layout, callbacks, action tray animations, active-card lifecycle and timer ticks during further extractions. `HistorySessionList` is used by both history and recent activity; changes must support both.
+- Favor small PRs with one clear responsibility and compile verification before squash merge. Avoid creating redundant wrappers or converting all existing files to packages in one large risky commit.
+
 ## Engineering quality and code composition (mandatory)
 - Apply established Kotlin/Android software engineering practices to every change: readable names, clear responsibilities, cohesive functions, appropriate visibility, null safety, and consistent error handling.
 - Prefer small, composable, reusable helpers over duplicated logic or new responsibilities inside the monolithic Activity. Separate presentation/formatting, persistence, and UI behavior when doing so reduces coupling without risky refactors.
@@ -110,8 +121,14 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 6. Preserve UI consistency, themes, both supported languages, and existing notification behavior. Avoid unnecessary network permissions, analytics or SDKs.
 7. Tell the user in Polish what changed, what was not implemented, commit SHA, build status, and link to the relevant Actions run/APK when available. If CI fails, do not treat the change as delivered until corrected or clearly disclosed.
 
+## PR and CI policy (2026-11-14)
+- For incremental refactors, create a feature branch and pull request; wait for the PR-specific GitHub Actions `verify` job (debug/release compilation and JVM tests) to complete successfully before squash-merging into `main`.
+- PR `integration-tests` (Android emulator) and `build` jobs being **skipped** is expected. The user explicitly asked to stop adding/running slow emulator UI tests for now. Do not enable them or add more UI tests unless asked.
+- A push/merge into `main` triggers the separate release build workflow; verify that run separately when reporting release APK status. A green PR `verify` is not proof of an APK generated on `main`.
+- If `verify` fails, read the failing job logs, fix the actual error and recheck the new head commit before merging. Never merge solely because a previous run was green.
+
 ## Known technical debt / risks
-- `MainActivity.kt` is monolithic and performs SQLite work on the UI thread; a future refactor into repository/database/UI layers would help but must not break migrations.
+- `MainActivity.kt` remains monolithic and still performs some SQLite work on the UI thread. Repository/model/UI extraction is underway; continue incrementally without breaking migrations or existing behavior.
 - Events may become orphaned after session deletion; inspect delete paths before making changes involving data integrity.
 - Event notes contain potentially sensitive child health information: keep offline, minimize data exposure and avoid exposing details in notifications/logs without clear intent.
 - Tests are limited; successful CI compilation is not an emulator/device functional test.
