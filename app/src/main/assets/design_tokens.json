@@ -16,7 +16,8 @@
       "dangerText": "#AA2A2A",
       "warningText": "#8F501C",
       "headerBackground": "#182F35",
-      "cardStroke": "#E7EAF1"
+      "cardStroke": "#E7EAF1",
+      "eventIcon": "#237C62"
     },
     "dark": {
       "blue": "#71A9FF",
@@ -33,7 +34,8 @@
       "dangerText": "#FFA5A5",
       "warningText": "#F5C38C",
       "headerBackground": "#191F2B",
-      "cardStroke": "#3F495B"
+      "cardStroke": "#3F495B",
+      "eventIcon": "#85E0B4"
     }
   },
   "dimensions": {
