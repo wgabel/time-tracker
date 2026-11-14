@@ -1,4 +1,11 @@
 package pl.wgabel.timetracker.tabs
 
-/** Immutable render request for the timers tab. */
-data class TimersViewState(val projectId: Long)
+/** Snapshot used to build the timers screen. */
+data class TimersViewState(
+    val projectId: Long,
+    val dayStart: Long,
+    val dayEnd: Long,
+    val now: Long,
+    val participantIds: List<Int>,
+    val archived: Boolean
+)
