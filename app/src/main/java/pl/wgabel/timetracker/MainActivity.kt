@@ -1353,41 +1353,12 @@ class MainActivity : Activity() {
                     val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
                     eventRow.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
                     eventRow.addView(tray, LinearLayout.LayoutParams(0, dp(48)))
-                    var expanded = false
-                    var animation: ValueAnimator? = null
-                    eventRow.isClickable = true
-                    eventRow.isFocusable = true
-                    eventRow.contentDescription = eventTitle +
-                        ". Dotknij, aby pokazać lub ukryć akcje wydarzenia"
-                    eventRow.setOnClickListener {
-                        expanded = !expanded
-                        animation?.cancel()
-                        val targetWidth = if (expanded) dp(104) else 0
-                        val currentWidth = tray.layoutParams.width.coerceAtLeast(0)
-                        if (expanded && currentWidth == 0) {
-                            tray.translationX = dp(36).toFloat()
-                            tray.alpha = 0f
-                        }
-                        val fromOffset = tray.translationX
-                        val fromAlpha = tray.alpha
-                        animation = ValueAnimator.ofFloat(0f, 1f).apply {
-                            duration = 260L
-                            interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
-                            addUpdateListener { animator ->
-                                val fraction = animator.animatedValue as Float
-                                tray.layoutParams = tray.layoutParams.apply {
-                                    width = currentWidth +
-                                        ((targetWidth - currentWidth) * fraction).toInt()
-                                }
-                                tray.translationX = fromOffset * (1f - fraction) +
-                                    (if (expanded) 0f else dp(36).toFloat()) * fraction
-                                arrow.rotation = (if (expanded) 90f else 0f) * fraction + (if (expanded) 0f else 90f) * (1f - fraction)
-                                tray.alpha = fromAlpha +
-                                    ((if (expanded) 1f else 0f) - fromAlpha) * fraction
-                            }
-                            start()
-                        }
-                    }
+                    HistoryActionTray(
+                        eventRow, tray, arrow,
+                        HistoryActionTray.Dimension.WIDTH,
+                        expandedSizePx = dp(104),
+                        slideOffsetPx = dp(36)
+                    ).attach(eventTitle + ". Dotknij, aby pokazać lub ukryć akcje wydarzenia")
                 }
                 container.addView(eventRow)
             }
@@ -1773,40 +1744,13 @@ class MainActivity : Activity() {
                     val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
                     row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
                     group.addView(tray, LinearLayout.LayoutParams(-1, 0))
-                    var expanded = false
-                    var animation: ValueAnimator? = null
-                    row.isClickable = true
-                    row.isFocusable = true
-                    row.contentDescription = personName(person) + ", " +
-                        duration(until - from) + ". Dotknij, aby pokazać lub ukryć akcje"
-                    row.setOnClickListener {
-                        expanded = !expanded
-                        animation?.cancel()
-                        val targetHeight = if (expanded) dp(64) else 0
-                        val currentHeight = tray.layoutParams.height.coerceAtLeast(0)
-                        val initialOffset = if (expanded) dp(36).toFloat() else 0f
-                        if (expanded && currentHeight == 0) {
-                            tray.translationX = initialOffset
-                            tray.alpha = 0f
-                        }
-                        val fromOffset = tray.translationX
-                        val fromAlpha = tray.alpha
-                        animation = ValueAnimator.ofFloat(0f, 1f).apply {
-                            duration = 260L
-                            interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
-                            addUpdateListener { animator ->
-                                val fraction = animator.animatedValue as Float
-                                tray.layoutParams = tray.layoutParams.apply {
-                                    height = currentHeight + ((targetHeight - currentHeight) * fraction).toInt()
-                                }
-                                tray.translationX = fromOffset * (1f - fraction) +
-                                    (if (expanded) 0f else dp(36).toFloat()) * fraction
-                                arrow.rotation = (if (expanded) 90f else 0f) * fraction + (if (expanded) 0f else 90f) * (1f - fraction)
-                                tray.alpha = fromAlpha + ((if (expanded) 1f else 0f) - fromAlpha) * fraction
-                            }
-                            start()
-                        }
-                    }
+                    HistoryActionTray(
+                        row, tray, arrow,
+                        HistoryActionTray.Dimension.HEIGHT,
+                        expandedSizePx = dp(64),
+                        slideOffsetPx = dp(36)
+                    ).attach(personName(person) + ", " + duration(until - from) +
+                        ". Dotknij, aby pokazać lub ukryć akcje")
                 }
                 if (isHistory) eventList(id, person, group)
                 content.addView(group, LinearLayout.LayoutParams(-1, -2))
