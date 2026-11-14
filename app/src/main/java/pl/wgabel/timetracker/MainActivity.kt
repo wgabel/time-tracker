@@ -53,6 +53,7 @@ import pl.wgabel.timetracker.data.TimerCardDataSource
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
+import pl.wgabel.timetracker.tabs.RecentActivityDataSource
 import pl.wgabel.timetracker.tabs.HistoryService
 import pl.wgabel.timetracker.tabs.StatisticsService
 import pl.wgabel.timetracker.tabs.SettingsService
@@ -1688,19 +1689,7 @@ class MainActivity : Activity() {
 
     private fun recentActivity() {
         sectionHeading(if (resources.configuration.locales[0].language == "pl") "Ostatnia aktywność" else "Recent activity")
-        val rows = mutableListOf<Triple<Long, Int, String>>()
-        db.rawQuery(
-            """SELECT occurred_at,person,description FROM (
-                SELECT COALESCE(ended_at,started_at) AS occurred_at,person,'session' AS description
-                FROM sessions WHERE project_id=?
-                UNION ALL
-                SELECT happened_at AS occurred_at,person,'event:' || type || ':' || note AS description
-                FROM events WHERE project_id=?
-            ) ORDER BY occurred_at DESC LIMIT 6""",
-            arrayOf(projectId.toString(), projectId.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) rows.add(Triple(cursor.getLong(0), cursor.getInt(1), cursor.getString(2)))
-        }
+        val rows = RecentActivityDataSource(db).load(requireNotNull(projectId))
         if (rows.isEmpty()) content.addView(label(
             if (resources.configuration.locales[0].language == "pl") "Brak aktywności" else "No activity yet",
             14f, false, muted))
