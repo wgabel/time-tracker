@@ -49,6 +49,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.tabs.TimerCardRenderer
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
@@ -213,16 +214,19 @@ class MainActivity : Activity() {
     private var showAppSettings = false
     private val timerUpdates = mutableListOf<(Long) -> Unit>()
     private val darkTheme get() = themeService.isDark
-    private val blue get() = if (darkTheme) Color.rgb(113, 169, 255) else Color.rgb(34, 112, 237)
-    private val green get() = if (darkTheme) Color.rgb(101, 211, 142) else Color.rgb(48, 158, 80)
-    private val ink get() = if (darkTheme) Color.rgb(238, 241, 248) else Color.rgb(26, 34, 43)
-    private val muted get() = if (darkTheme) Color.rgb(171, 181, 196) else Color.rgb(99, 109, 120)
-    private val surface get() = if (darkTheme) Color.rgb(35, 42, 54) else Color.WHITE
-    private val background get() = if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(245, 240, 232)
-    private val darkHeader = Color.rgb(24, 47, 53)
-    private val subtle get() = if (darkTheme) Color.rgb(52, 62, 79) else Color.rgb(226, 235, 252)
-    private val subtleNeutral get() = if (darkTheme) Color.rgb(51, 59, 72) else Color.rgb(235, 238, 244)
-    private val subtleWarm get() = if (darkTheme) Color.rgb(73, 56, 42) else Color.rgb(245, 229, 209)
+    // Theme values are loaded once from assets/design_tokens.json, not hardcoded in Activity.
+    private val designTokens: DesignTokens by lazy { DesignTokens(this) }
+    private fun themeColor(name: String) = designTokens.color(name, darkTheme)
+    private val blue get() = themeColor("blue")
+    private val green get() = themeColor("green")
+    private val ink get() = themeColor("ink")
+    private val muted get() = themeColor("muted")
+    private val surface get() = themeColor("surface")
+    private val background get() = themeColor("background")
+    private val darkHeader get() = themeColor("darkHeader")
+    private val subtle get() = themeColor("subtle")
+    private val subtleNeutral get() = themeColor("subtleNeutral")
+    private val subtleWarm get() = themeColor("subtleWarm")
     private val secondaryButtonText get() = if (darkTheme) ink else blue
     private val dateFormat get() = DatePresentation.date(resources)
     private val clockFormat get() = DatePresentation.time(resources)
@@ -235,12 +239,12 @@ class MainActivity : Activity() {
         themeService.applyThemeToSystem()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else darkHeader)
+            setBackgroundColor(themeColor("headerBackground"))
         }
         topHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else darkHeader)
+            setBackgroundColor(themeColor("headerBackground"))
             setPadding(dp(12), dp(7), dp(12), dp(7))
             minimumHeight = dp(54)
         }
@@ -309,7 +313,7 @@ class MainActivity : Activity() {
     // Animated startup overlay, shown once on Activity creation. The project screen
     // is already rendered underneath so the transition never flashes a blank frame.
     private fun dp(n: Int): Int = (n * resources.displayMetrics.density + .5f).toInt()
-    private fun shape(color: Int, radius: Int = 18): GradientDrawable =
+    private fun shape(color: Int, radius: Int = designTokens.dimension("shapeRadiusDp")): GradientDrawable =
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
     private fun tr(id: Int): String = getString(id)
@@ -329,9 +333,12 @@ class MainActivity : Activity() {
 
     private fun card(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(18), dp(18), dp(18), dp(18))
-        background = shape(surface, 22).apply { setStroke(dp(1), if (darkTheme) Color.rgb(63, 73, 91) else Color.rgb(231, 234, 241)) }
-        elevation = dp(1).toFloat()
+        setPadding(dp(designTokens.dimension("cardPaddingDp")), dp(designTokens.dimension("cardPaddingDp")),
+            dp(designTokens.dimension("cardPaddingDp")), dp(designTokens.dimension("cardPaddingDp")))
+        background = shape(surface, designTokens.dimension("cardRadiusDp")).apply {
+            setStroke(dp(designTokens.dimension("cardStrokeDp")), themeColor("cardStroke"))
+        }
+        elevation = dp(designTokens.dimension("cardElevationDp")).toFloat()
     }
 
     private data class AnimatedBlock(val offset: Float, val y: Float, val speed: Float, val size: Int, val opacity: Int)
@@ -445,9 +452,8 @@ class MainActivity : Activity() {
         val (fill, foreground) = when (role) {
             ButtonRole.PRIMARY -> (if (darkTheme) blue else darkHeader) to Color.WHITE
             ButtonRole.SECONDARY -> subtleNeutral to ink
-            ButtonRole.DANGER -> (if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233)) to
-                (if (darkTheme) Color.rgb(255, 165, 165) else Color.rgb(170, 42, 42))
-            ButtonRole.WARNING -> subtleWarm to (if (darkTheme) Color.rgb(245, 195, 140) else Color.rgb(143, 80, 28))
+            ButtonRole.DANGER -> themeColor("dangerBackground") to themeColor("dangerText")
+            ButtonRole.WARNING -> subtleWarm to themeColor("warningText")
         }
         return action(text, fill, foreground, click)
     }
