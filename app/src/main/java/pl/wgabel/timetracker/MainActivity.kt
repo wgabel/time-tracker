@@ -132,17 +132,8 @@ class MainActivity : Activity() {
                 title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
                 emptyMessage = { tr(R.string.first_person) },
                 ui = appUi,
-                addButton = {
-                    styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
-                        contentDescription = tr(R.string.add_person).removePrefix("+").trim()
-                        textSize = 24f
-                        minHeight = dp(40)
-                        minimumHeight = dp(40)
-                        minWidth = dp(44)
-                        minimumWidth = dp(44)
-                        setPadding(0, 0, 0, 0)
-                    }
-                },
+                addButtonDescription = { tr(R.string.add_person) },
+                onAddParticipant = ::addParticipant,
                 renderCard = { person, start, end, now -> timerCards.render(person, start, end, now) },
                 renderRecentActivity = {
                     recentActivityRenderer.render(
