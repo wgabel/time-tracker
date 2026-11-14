@@ -53,6 +53,8 @@ import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
 import pl.wgabel.timetracker.tabs.TimersScreenController
+import pl.wgabel.timetracker.tabs.TimersScreenEnvironment
+import pl.wgabel.timetracker.tabs.TimersScreenView
 import pl.wgabel.timetracker.tabs.TimerCardPresentation
 import pl.wgabel.timetracker.tabs.TimerCardCommands
 import pl.wgabel.timetracker.tabs.TimerCardUi
@@ -104,11 +106,13 @@ class MainActivity : Activity() {
     }
     private val timersScreen: TimersScreenController by lazy {
         TimersScreenController(
-            context = this,
-            database = { db },
-            projectId = { requireNotNull(projectId) },
-            archived = { isArchived() },
-            components = appUi,
+            environment = TimersScreenEnvironment(
+                context = this,
+                database = { db },
+                projectId = { requireNotNull(projectId) },
+                archived = { isArchived() },
+                components = appUi
+            ),
             presentation = TimerCardPresentation(
                 placeCard = ::addCard,
                 animateActiveCard = ::markActive,
@@ -122,16 +126,18 @@ class MainActivity : Activity() {
                 selectStartTime = ::quickStartPicker,
                 subscribeTick = { update -> timerUpdates.add(update) }
             ),
-            content = { content },
-            title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
-            emptyMessage = { tr(R.string.first_person) },
-            addButtonDescription = { tr(R.string.add_person) },
-            onAddParticipant = ::addParticipant,
-            renderRecentActivity = {
-                recentActivityRenderer.render(
-                    RecentActivityDataSource(db).load(requireNotNull(projectId))
-                )
-            },
+            view = TimersScreenView(
+                content = { content },
+                title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
+                emptyMessage = { tr(R.string.first_person) },
+                addButtonDescription = { tr(R.string.add_person) },
+                onAddParticipant = ::addParticipant,
+                renderRecentActivity = {
+                    recentActivityRenderer.render(
+                        RecentActivityDataSource(db).load(requireNotNull(projectId))
+                    )
+                }
+            ),
             loadState = { id ->
                 pl.wgabel.timetracker.tabs.TimersViewState(
                     projectId = id,
