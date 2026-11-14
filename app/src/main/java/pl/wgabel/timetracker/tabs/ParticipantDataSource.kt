@@ -1,6 +1,7 @@
 package pl.wgabel.timetracker.tabs
 
 import android.database.sqlite.SQLiteDatabase
+import pl.wgabel.timetracker.ParticipantColors
 
 /** Participant queries shared by timer and project screens. */
 internal class ParticipantDataSource(private val db: SQLiteDatabase) {
@@ -17,6 +18,14 @@ internal class ParticipantDataSource(private val db: SQLiteDatabase) {
         db.rawQuery("SELECT name FROM participants WHERE id=?", arrayOf(person.toString())).use {
             if (it.moveToFirst()) it.getString(0) else fallback
         }
+
+    fun suggestedColor(projectId: Long): Int {
+        val count = db.rawQuery("SELECT COUNT(*) FROM participants WHERE project_id=?",
+            arrayOf(projectId.toString())).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+        return ParticipantColors.suggested(count)
+    }
 
     fun activeSessionId(projectId: Long, person: Int): Long? =
         db.rawQuery(
