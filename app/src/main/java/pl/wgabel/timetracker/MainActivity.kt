@@ -55,6 +55,7 @@ import pl.wgabel.timetracker.tabs.TimerCardActions
 import pl.wgabel.timetracker.tabs.TimersInteractionService
 import pl.wgabel.timetracker.tabs.ParticipantDataSource
 import pl.wgabel.timetracker.tabs.AddParticipantDialog
+import pl.wgabel.timetracker.tabs.ParticipantColorPicker
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -858,34 +859,14 @@ class MainActivity : Activity() {
         return ParticipantColors.suggested(count)
     }
 
-    private fun colorPicker(initial: Int, onSelected: (Int) -> Unit): LinearLayout {
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val swatches = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        var selectedColor = initial
-        val preview = label("●", 30f, true, initial).apply { gravity = Gravity.CENTER }
-        container.addView(preview)
-        ParticipantColors.palette.toList().chunked(5).forEach { rowColors ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-            rowColors.forEach { color ->
-                val swatch = label("●", 29f, true, color).apply {
-                    gravity = Gravity.CENTER
-                    contentDescription = String.format(Locale.ROOT, "#%06X", color and 0xFFFFFF)
-                    setOnClickListener {
-                        selectedColor = color
-                        preview.setTextColor(selectedColor)
-                        onSelected(selectedColor)
-                    }
-                }
-                row.addView(swatch, LinearLayout.LayoutParams(0, dp(50), 1f))
-            }
-            swatches.addView(row)
+    private val participantColorPicker: ParticipantColorPicker by lazy {
+        ParticipantColorPicker(this) { value, size, bold, color ->
+            label(value, size, bold, color)
         }
-        container.addView(swatches)
-        return container
     }
+
+    private fun colorPicker(initial: Int, onSelected: (Int) -> Unit): LinearLayout =
+        participantColorPicker.create(initial, onSelected)
 
     private fun editParticipantColor(person: Int) {
         if (isArchived()) return
