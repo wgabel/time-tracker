@@ -39,6 +39,7 @@ class MainActivityUiTest {
             db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
             db.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
             db.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
+            db.version = 6 // Match the app SQLiteOpenHelper schema version.
             db.insertOrThrow("projects", null, ContentValues().apply {
                 put("id", 1); put("name", "UI project")
             })
