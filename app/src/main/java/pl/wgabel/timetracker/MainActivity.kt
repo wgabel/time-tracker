@@ -49,7 +49,21 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import pl.wgabel.timetracker.data.TimerCardDataSource
+import pl.wgabel.timetracker.tabs.TimerCardRenderer
+import pl.wgabel.timetracker.tabs.TimerCardUi
+import pl.wgabel.timetracker.tabs.TimerCardActions
+import pl.wgabel.timetracker.tabs.TimersInteractionService
+import pl.wgabel.timetracker.tabs.ParticipantDataSource
+import pl.wgabel.timetracker.tabs.AddParticipantDialog
+import pl.wgabel.timetracker.tabs.ParticipantColorPicker
+import pl.wgabel.timetracker.tabs.ITabService
+import pl.wgabel.timetracker.tabs.TimersService
+import pl.wgabel.timetracker.tabs.TimersRenderer
+import pl.wgabel.timetracker.tabs.RecentActivityDataSource
+import pl.wgabel.timetracker.tabs.RecentActivityRenderer
+import pl.wgabel.timetracker.tabs.HistoryService
+import pl.wgabel.timetracker.tabs.StatisticsService
+import pl.wgabel.timetracker.tabs.SettingsService
 
 class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
@@ -72,6 +86,122 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
+    // Tab services are lifecycle scaffolding. Existing UI is still rendered below.
+    private val timersInteractionService: TimersInteractionService by lazy {
+        TimersInteractionService(
+            context = this,
+            database = { db },
+            projectId = { requireNotNull(projectId) },
+            archived = { isArchived() },
+            refresh = { renderContent() },
+            openEventEditor = { session, person, time -> editEvent(null, session, person, time, "Inne", "") }
+        )
+    }
+    private val timerCardRenderer: TimerCardRenderer by lazy {
+        TimerCardRenderer(
+            context = this,
+            db = db,
+            projectId = { requireNotNull(projectId) },
+            archived = { isArchived() },
+            ui = object : TimerCardUi {
+                override val ink get() = this@MainActivity.ink
+                override val muted get() = this@MainActivity.muted
+                override val subtleNeutral get() = this@MainActivity.subtleNeutral
+                override val darkTheme get() = this@MainActivity.darkTheme
+                override fun card() = this@MainActivity.card()
+                override fun addCard(view: LinearLayout) = this@MainActivity.addCard(view)
+                override fun markActive(view: LinearLayout) = this@MainActivity.markActive(view)
+                override fun label(value: String, size: Float, bold: Boolean, color: Int) =
+                    this@MainActivity.label(value, size, bold, color)
+                override fun shape(color: Int, radius: Int) = this@MainActivity.shape(color, radius)
+                override fun gap(container: LinearLayout, size: Int) = this@MainActivity.gap(container, size)
+                override fun action(title: String, color: Int, click: () -> Unit) =
+                    this@MainActivity.action(title, color, click = click)
+                override fun stopButton(title: String, click: () -> Unit) =
+                    styledAction(title, ButtonRole.DANGER, click)
+                override fun iconButton(kind: String, color: Int, click: () -> Unit) =
+                    this@MainActivity.iconButton(kind, color, click)
+                override fun string(id: Int) = tr(id)
+                override fun duration(millis: Long) = this@MainActivity.duration(millis)
+            },
+            actions = object : TimerCardActions {
+                override fun toggle(person: Int) = this@MainActivity.toggle(person)
+                override fun addEvent(person: Int) = this@MainActivity.addEvent(person)
+                override fun quickStartPicker(person: Int) = this@MainActivity.quickStartPicker(person)
+                override fun registerUpdate(update: (Long) -> Unit) { timerUpdates.add(update) }
+            }
+        )
+    }
+    private val timersService: TimersService by lazy {
+        TimersService(
+            renderer = TimersRenderer(
+                context = this,
+                content = { content },
+                title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
+                emptyMessage = { tr(R.string.first_person) },
+                text = { value, size, bold -> label(value, size, bold) },
+                addButton = {
+                    styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
+                        contentDescription = tr(R.string.add_person).removePrefix("+").trim()
+                        textSize = 24f
+                        minHeight = dp(40)
+                        minimumHeight = dp(40)
+                        minWidth = dp(44)
+                        minimumWidth = dp(44)
+                        setPadding(0, 0, 0, 0)
+                    }
+                },
+                renderCard = { person, start, end, now -> timerCardRenderer.render(person, start, end, now) },
+                renderRecentActivity = {
+                    recentActivityRenderer.render(
+                        RecentActivityDataSource(db).load(requireNotNull(projectId))
+                    )
+                },
+                gap = { height -> gap(content, height) }
+            ),
+            loadState = { id ->
+                pl.wgabel.timetracker.tabs.TimersViewState(
+                    projectId = id,
+                    dayStart = dayStart(0),
+                    dayEnd = dayStart(1),
+                    now = System.currentTimeMillis(),
+                    participantIds = participants(),
+                    archived = isArchived()
+                )
+            }
+        )
+    }
+    private val recentActivityRenderer: RecentActivityRenderer by lazy {
+        RecentActivityRenderer(
+            context = this,
+            target = { content },
+            text = { value, size, bold, color ->
+                if (color == null) label(value, size, bold) else label(value, size, bold, color)
+            },
+            mutedColor = { muted },
+            surfaceBackground = { shape(surface, 12) },
+            participantColor = { personColor(it) },
+            participantName = { personName(it) },
+            dateFormat = { DatePresentation.shortDateTime(resources) },
+            action = { title, onClick -> styledAction(title, ButtonRole.SECONDARY, onClick) },
+            openHistory = { tab = 2; render() }
+        )
+    }
+    private val tabServices: List<ITabService> by lazy {
+        listOf(timersService, StatisticsService(), HistoryService(), SettingsService())
+    }
+    private var visibleTabService: ITabService? = null
+
+    private fun synchronizeTabService(): ITabService? {
+        val next = if (projectId == null) null else tabServices.getOrNull(tab)
+        if (visibleTabService !== next) {
+            visibleTabService?.onHide()
+            visibleTabService = next
+            next?.onShow()
+        }
+        return next
+    }
+
     private var pendingExportProject: Long? = null
     private var dayOffset = 0
     private var statsPeriod = 1
@@ -343,18 +473,12 @@ class MainActivity : Activity() {
         return action(text, fill, if (selected) Color.WHITE else ink, click)
     }
 
-    private fun participants(): List<Int> {
-        val ids = mutableListOf<Int>()
-        db.rawQuery("SELECT id FROM participants WHERE project_id=? ORDER BY id", arrayOf(projectId.toString())).use { c ->
-            while (c.moveToNext()) ids.add(c.getInt(0))
-        }
-        return ids
-    }
-    private fun personName(person: Int): String {
-        db.rawQuery("SELECT name FROM participants WHERE id=?", arrayOf(person.toString())).use { c ->
-            return if (c.moveToFirst()) c.getString(0) else tr(R.string.person_fallback) + person
-        }
-    }
+    private fun participants(): List<Int> =
+        ParticipantDataSource(db).ids(requireNotNull(projectId))
+
+    private fun personName(person: Int): String =
+        ParticipantDataSource(db).name(person, tr(R.string.person_fallback) + person)
+
     private fun projectName(): String {
         db.rawQuery("SELECT name FROM projects WHERE id=?", arrayOf(projectId.toString())).use { c ->
             return if (c.moveToFirst()) c.getString(0) else tr(R.string.project_fallback)
@@ -375,30 +499,20 @@ class MainActivity : Activity() {
         }
         dialog.show()
     }
-    private fun addParticipant() {
-        val input = EditText(this).apply { hint = tr(R.string.participant_hint); setSingleLine(true) }
-        val selectedColor = intArrayOf(nextParticipantColor())
-        val holder = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), 0, dp(20), 0)
-            addView(input)
-            addView(colorPicker(selectedColor[0]) { selectedColor[0] = it })
-        }
-        val dialog = AlertDialog.Builder(this).setTitle(tr(R.string.new_participant)).setView(holder)
-            .setNegativeButton(tr(R.string.cancel), null).setPositiveButton(tr(R.string.add), null).create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val name = input.text.toString().trim()
-                if (name.isEmpty()) { input.error = tr(R.string.name_required); return@setOnClickListener }
-                db.insert("participants", null, ContentValues().apply {
-                    put("project_id", projectId); put("name", name); put("color", selectedColor[0])
-                })
-                dialog.dismiss()
-                renderContent()
-            }
-        }
-        dialog.show()
+    private val addParticipantDialog: AddParticipantDialog by lazy {
+        AddParticipantDialog(
+            context = this,
+            db = { db },
+            projectId = { requireNotNull(projectId) },
+            nextColor = { nextParticipantColor() },
+            colorPicker = { color, onChange -> colorPicker(color, onChange) },
+            refresh = { renderContent() },
+            string = { tr(it) }
+        )
     }
+
+    private fun addParticipant() = addParticipantDialog.show()
+
     // Deterministic, entirely offline miniature landscapes.
     private fun iconVariant(id: Long): Long =
         db.rawQuery("SELECT icon_variant FROM projects WHERE id=?", arrayOf(id.toString())).use {
@@ -737,42 +851,17 @@ class MainActivity : Activity() {
             else ParticipantColors.legacyColor(person)
         }
 
-    private fun nextParticipantColor(): Int {
-        val count = db.rawQuery("SELECT COUNT(*) FROM participants WHERE project_id=?",
-            arrayOf(projectId.toString())).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+    private fun nextParticipantColor(): Int =
+        ParticipantDataSource(db).suggestedColor(requireNotNull(projectId))
+
+    private val participantColorPicker: ParticipantColorPicker by lazy {
+        ParticipantColorPicker(this) { value, size, bold, color ->
+            label(value, size, bold, color)
         }
-        return ParticipantColors.suggested(count)
     }
 
-    private fun colorPicker(initial: Int, onSelected: (Int) -> Unit): LinearLayout {
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val swatches = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        var selectedColor = initial
-        val preview = label("●", 30f, true, initial).apply { gravity = Gravity.CENTER }
-        container.addView(preview)
-        ParticipantColors.palette.toList().chunked(5).forEach { rowColors ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-            rowColors.forEach { color ->
-                val swatch = label("●", 29f, true, color).apply {
-                    gravity = Gravity.CENTER
-                    contentDescription = String.format(Locale.ROOT, "#%06X", color and 0xFFFFFF)
-                    setOnClickListener {
-                        selectedColor = color
-                        preview.setTextColor(selectedColor)
-                        onSelected(selectedColor)
-                    }
-                }
-                row.addView(swatch, LinearLayout.LayoutParams(0, dp(50), 1f))
-            }
-            swatches.addView(row)
-        }
-        container.addView(swatches)
-        return container
-    }
+    private fun colorPicker(initial: Int, onSelected: (Int) -> Unit): LinearLayout =
+        participantColorPicker.create(initial, onSelected)
 
     private fun editParticipantColor(person: Int) {
         if (isArchived()) return
@@ -791,47 +880,12 @@ class MainActivity : Activity() {
     private fun activeStart(person: Int): Long? =
         timerSessionController.activeStart(projectId!!, person)
 
-    // Quick backdated start, without changing the existing one-tap START behavior.
-    private fun quickStartPicker(person: Int, sessionId: Long? = null) {
-        if (isArchived()) return
-        val original = if (sessionId == null) null else db.rawQuery(
-            "SELECT started_at FROM sessions WHERE id=? AND project_id=? AND person=? AND ended_at IS NULL",
-            arrayOf(sessionId.toString(), projectId.toString(), person.toString())
-        ).use { if (it.moveToFirst()) it.getLong(0) else null }
-        if (sessionId != null && original == null) return
-        val pl = resources.configuration.locales[0].language == "pl"
-        DateTimeEditor(this).show(DateTimeEditor.Config(
-            title = if (pl) "Początek sesji" else "Session start",
-            initial = original ?: System.currentTimeMillis() - 15 * 60_000L,
-            max = System.currentTimeMillis()
-        )) { selected ->
-            val changed = if (sessionId == null) {
-                sessionRepository.insert(projectId!!, person, selected, null)
-            } else {
-                sessionRepository.update(projectId!!, person, sessionId, selected, null)
-            }
-            if (changed) { syncTimerNotification(); renderContent() }
-            else Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
-                else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
-            changed
-        }
-    }
+    private fun quickStartPicker(person: Int, sessionId: Long? = null) =
+        timersInteractionService.quickStartPicker(person, sessionId)
 
-    private fun toggle(person: Int) {
-        timerSessionController.toggle(projectId!!, person)
-        syncTimerNotification()
-        renderContent()
-    }
+    private fun toggle(person: Int) = timersInteractionService.toggle(person)
 
-    private fun syncTimerNotification() {
-        val hasActive = timerSessionController.hasAnyActiveSession()
-        val intent = Intent(this, TimerNotificationService::class.java)
-        if (hasActive) {
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-        } else {
-            stopService(intent)
-        }
-    }
+    private fun syncTimerNotification() = timersInteractionService.syncNotification()
 
     private fun duration(ms: Long): String = TimeMath.duration(ms)
 
@@ -1020,14 +1074,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun addEvent(person: Int) {
-        val sessionId = db.rawQuery(
-            "SELECT id FROM sessions WHERE project_id=? AND person=? AND ended_at IS NULL LIMIT 1",
-            arrayOf(projectId.toString(), person.toString())
-        ).use { if (it.moveToFirst()) it.getLong(0) else return }
-        val timestamp = System.currentTimeMillis()
-        editEvent(null, sessionId, person, timestamp, "Inne", "")
-    }
+    private fun addEvent(person: Int) = timersInteractionService.addEvent(person)
 
     private fun addHistoricalEvent(sessionId: Long, person: Int, started: Long, ended: Long) {
         if (ended <= started || isArchived()) return
@@ -1222,121 +1269,6 @@ class MainActivity : Activity() {
                 container.addView(eventRow)
             }
         }
-    }
-
-    // Percentage of the calendar day covered by measurements, not a target.
-    private fun dayOccupancyRing(person: Int, start: Long, end: Long, now: Long): View =
-        DayOccupancyRing(
-            this, start, end,
-            measuredDuration = { total(person, start, end, System.currentTimeMillis()) },
-            participantColor = personColor(person),
-            trackColor = subtleNeutral,
-            textColor = ink,
-            captionColor = muted
-        )
-
-    private fun daySessionStrip(person: Int, start: Long, end: Long): View {
-        val summary = SessionDaySummary(db)
-        val intervals = summary.intervals(projectId!!, person, start, end)
-        return DaySessionStrip(
-            this, start, end, summary.stripSegments(intervals, start, end),
-            personColor(person), subtleNeutral
-        )
-    }
-
-    private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
-        val c = card()
-        val cardData = TimerCardDataSource(db).load(
-            projectId!!, person, tr(R.string.person_fallback) + person
-        )
-        val active = cardData.activeStartedAt
-        val summary = SessionDaySummary(db)
-        val intervals = summary.intervals(projectId!!, person, start, end)
-        fun measuredDuration(tick: Long) = summary.duration(intervals, start, end, tick)
-        if (active != null) markActive(c)
-        val header = TimerCardHeader(
-            this,
-            label(cardData.participantName, 19f, true, ink),
-            label(if (active == null) "● " + tr(R.string.timer_stopped)
-                else "● " + (if (resources.configuration.locales[0].language == "pl") "TRWA" else "RUNNING"),
-                12f, true, if (active == null) muted else cardData.participantColor),
-            shape(cardData.participantColor, 6)
-        )
-        val totalLabel = label(duration(measuredDuration(now)), 36f, true).apply {
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            letterSpacing = -0.035f
-            setFontFeatureSettings("tnum")
-        }
-        val statusLabel = if (!isArchived()) label(
-            if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active),
-            16f, false, muted
-        ) else null
-        val clock = TimerCardClock(
-            this,
-            totalLabel,
-            label(tr(R.string.selected_day_total), 13f, false, muted),
-            statusLabel,
-            formatTotal = { tick -> duration(measuredDuration(tick)) },
-            formatStatus = if (active != null) ({ tick: Long -> tr(R.string.running_prefix) + duration(tick - active) }) else null
-        )
-        val ring = DayOccupancyRing(
-            this, start, end,
-            measuredDuration = { measuredDuration(System.currentTimeMillis()) },
-            participantColor = cardData.participantColor,
-            trackColor = subtleNeutral,
-            textColor = ink,
-            captionColor = muted
-        )
-        val strip = DaySessionStrip(
-            this, start, end, summary.stripSegments(intervals, start, end),
-            cardData.participantColor, subtleNeutral
-        )
-        val controls = if (statusLabel == null) null else {
-            val button = if (active == null)
-                action("▶  START", cardData.participantColor) { toggle(person) }
-            else styledAction("■  STOP", ButtonRole.DANGER) { toggle(person) }
-            if (active != null) {
-                TimerCardControls(
-                    context = this,
-                    running = true,
-                    primaryButton = button,
-                    secondaryIcon = iconButton(
-                        "bookmark-add",
-                        if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
-                    ) { addEvent(person) },
-                    eventLabel = label("EVENT", 13f, true, ink),
-                    secondaryBackground = shape(subtleNeutral, 12),
-                    onEventClick = { addEvent(person) }
-                )
-            } else {
-                val backdate = iconButton("clock", ink) { quickStartPicker(person) }.apply {
-                    contentDescription = if (resources.configuration.locales[0].language == "pl")
-                        "Rozpocznij sesję wcześniej" else "Start session in the past"
-                }
-                TimerCardControls(
-                    context = this,
-                    running = false,
-                    primaryButton = button,
-                    secondaryIcon = backdate,
-                    eventLabel = null,
-                    secondaryBackground = shape(subtleNeutral, 12),
-                    onEventClick = null
-                )
-            }
-        }
-        val cardView = TimerCardView(
-            this, header, clock, ring, strip,
-            listOf("00:00", "06:00", "12:00", "18:00", "24:00").map {
-                label(it, 10f, false, muted)
-            },
-            statusLabel, controls,
-            spacing = { container, size -> gap(container, size) }
-        )
-        c.addView(cardView)
-        if (active != null) timerUpdates.add { tick ->
-            cardView.updateClock(clock, ring, strip, tick)
-        }
-        addCard(c)
     }
 
     private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
@@ -1583,15 +1515,6 @@ class MainActivity : Activity() {
         content.addView(list, LinearLayout.LayoutParams(-1, -2))
     }
 
-    // A quiet section heading, inspired by the approved mockup without changing timer controls.
-    private fun sectionHeading(title: String) {
-        gap(content, 12)
-        content.addView(label(title, 21f, true, ink).apply {
-            letterSpacing = -0.02f
-        })
-        gap(content, 12)
-    }
-
     private fun selectedDayEvents(start: Long, end: Long) {
         val events = mutableListOf<Triple<Int, String, String>>()
         db.rawQuery(
@@ -1627,93 +1550,6 @@ class MainActivity : Activity() {
             content.addView(row, LinearLayout.LayoutParams(-1, -2))
             gap(content, 8)
         }
-    }
-
-    private fun recentActivity() {
-        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Ostatnia aktywność" else "Recent activity")
-        val rows = mutableListOf<Triple<Long, Int, String>>()
-        db.rawQuery(
-            """SELECT occurred_at,person,description FROM (
-                SELECT COALESCE(ended_at,started_at) AS occurred_at,person,'session' AS description
-                FROM sessions WHERE project_id=?
-                UNION ALL
-                SELECT happened_at AS occurred_at,person,'event:' || type || ':' || note AS description
-                FROM events WHERE project_id=?
-            ) ORDER BY occurred_at DESC LIMIT 6""",
-            arrayOf(projectId.toString(), projectId.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) rows.add(Triple(cursor.getLong(0), cursor.getInt(1), cursor.getString(2)))
-        }
-        if (rows.isEmpty()) content.addView(label(
-            if (resources.configuration.locales[0].language == "pl") "Brak aktywności" else "No activity yet",
-            14f, false, muted))
-        val format = DatePresentation.shortDateTime(resources)
-        rows.forEach { (whenAt, person, description) ->
-            val isEvent = description.startsWith("event:")
-            val title = if (isEvent) {
-                val parts = description.removePrefix("event:").split(":", limit = 2)
-                parts.getOrElse(1) { "" }.ifBlank { parts[0] }
-            } else if (resources.configuration.locales[0].language == "pl") "Sesja" else "Session"
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-                if (!isEvent) background = shape(surface, 12)
-            }
-            row.addView(View(this).apply { background = shape(personColor(person), 3) },
-                LinearLayout.LayoutParams(dp(5), dp(40)).apply { rightMargin = dp(12) })
-            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            details.addView(label((if (isEvent) "⚑  " else "◷  ") + title, 15f, true))
-            details.addView(label(personName(person) + " · " + format.format(Date(whenAt)), 12f, false, muted))
-            row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-            content.addView(row)
-            gap(content, 7)
-        }
-        content.addView(styledAction(
-            if (resources.configuration.locales[0].language == "pl") "Pokaż wszystkie  →" else "Show all  →",
-            ButtonRole.SECONDARY
-        ) {
-            tab = 2
-            render()
-        })
-    }
-
-    private fun renderTimers() {
-        val start = dayStart(0)
-        val end = dayStart(1)
-        val now = System.currentTimeMillis()
-        val participantsHeading = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        participantsHeading.addView(
-            label(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants", 21f, true, ink).apply {
-                letterSpacing = -0.02f
-            },
-            LinearLayout.LayoutParams(0, -2, 1f)
-        )
-        if (!isArchived()) {
-            val addParticipantButton = styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
-                contentDescription = tr(R.string.add_person).removePrefix("+").trim()
-                textSize = 24f
-                minHeight = dp(40)
-                minimumHeight = dp(40)
-                minWidth = dp(44)
-                minimumWidth = dp(44)
-                setPadding(0, 0, 0, 0)
-            }
-            participantsHeading.addView(addParticipantButton, LinearLayout.LayoutParams(dp(44), dp(40)))
-        }
-        gap(content, 12)
-        content.addView(participantsHeading)
-        gap(content, 12)
-        val currentParticipants = participants()
-        if (currentParticipants.isEmpty()) {
-            content.addView(label(tr(R.string.first_person), 16f, false, muted))
-            gap(content, 12)
-        }
-        currentParticipants.forEach { timerCard(it, start, end, now) }
-        recentActivity()
     }
 
     private fun periodRange(): Pair<Long, Long> {
@@ -2824,6 +2660,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderContent() {
+        synchronizeTabService()?.refresh()
         timerUpdates.clear()
         content.removeAllViews()
         calendarHeadingAnimator?.cancel()
@@ -2844,7 +2681,7 @@ class MainActivity : Activity() {
             gap(content, 7)
         }
         when (tab) {
-            0 -> renderTimers()
+            0 -> timersService.render(requireNotNull(projectId))
             1 -> renderStats()
             2 -> renderHistory()
             else -> renderSettings()
