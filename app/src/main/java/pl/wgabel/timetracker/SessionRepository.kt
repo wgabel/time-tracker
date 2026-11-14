@@ -13,10 +13,9 @@ internal class SessionRepository(private val db: SQLiteDatabase) {
         if (start > now || (end != null && (end <= start || end > now))) return false
         val until = end ?: now
         val conflict = db.rawQuery(
-            "SELECT 1 FROM sessions WHERE project_id=? AND person=? AND (? IS NULL OR id<>?) " +
+            "SELECT 1 FROM sessions WHERE project_id=? AND person=? AND id<>? " +
                 "AND started_at<? AND (ended_at IS NULL OR ended_at>?) LIMIT 1",
-            arrayOf(project.toString(), person.toString(), excludeId?.toString(),
-                excludeId?.toString(), until.toString(), start.toString())
+            arrayOf(project.toString(), person.toString(), (excludeId ?: -1L).toString(), until.toString(), start.toString())
         ).use { it.moveToFirst() }
         if (conflict) return false
         if (excludeId != null) {
