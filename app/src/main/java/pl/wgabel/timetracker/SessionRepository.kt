@@ -10,7 +10,7 @@ import android.database.sqlite.SQLiteDatabase
 internal class SessionRepository(private val db: SQLiteDatabase) {
     fun validInterval(project: Long, person: Int, start: Long, end: Long?,
                       excludeId: Long? = null, now: Long = System.currentTimeMillis()): Boolean {
-        if (start > now || (end != null && (end <= start || end > now))) return false
+        if (!TimeValidator.valid(TimeValidator.Interval(start, end), now)) return false
         val until = end ?: now
         val conflict = db.rawQuery(
             "SELECT 1 FROM sessions WHERE project_id=? AND person=? AND id<>? " +
@@ -53,5 +53,5 @@ internal class SessionRepository(private val db: SQLiteDatabase) {
             "AND started_at<=? AND (ended_at IS NULL OR ended_at>=?) LIMIT 1",
             arrayOf(sessionId.toString(), project.toString(), person.toString(),
                 time.toString(), time.toString())
-        ).use { it.moveToFirst() } && time <= now
+        ).use { it.moveToFirst() } && TimeValidator.eventWithin(time, TimeValidator.Interval(time, null), now)
 }
