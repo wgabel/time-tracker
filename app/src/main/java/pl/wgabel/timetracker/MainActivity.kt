@@ -52,6 +52,7 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var db: SQLiteDatabase
+    private val sessionRepository get() = SessionRepository(db)
     private lateinit var content: LinearLayout
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
@@ -946,34 +947,15 @@ class MainActivity : Activity() {
             initial = original ?: System.currentTimeMillis() - 15 * 60_000L,
             max = System.currentTimeMillis()
         )) { selected ->
-            val now = System.currentTimeMillis()
-            val firstEvent = if (sessionId == null) null else db.rawQuery(
-                "SELECT MIN(happened_at) FROM events WHERE project_id=? AND session_id=?",
-                arrayOf(projectId.toString(), sessionId.toString())
-            ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
-            val previousEnd = db.rawQuery(
-                "SELECT MAX(ended_at) FROM sessions WHERE project_id=? AND person=? AND ended_at IS NOT NULL AND started_at<?",
-                arrayOf(projectId.toString(), person.toString(), now.toString())
-            ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
-            if (selected > now || (firstEvent != null && selected > firstEvent) ||
-                (previousEnd != null && selected < previousEnd)) {
-                Toast.makeText(this, if (pl) "Początek koliduje z wydarzeniami lub poprzednią sesją."
-                    else "Start conflicts with events or a previous session.", Toast.LENGTH_LONG).show()
-                false
+            val changed = if (sessionId == null) {
+                sessionRepository.insert(projectId!!, person, selected, null)
             } else {
-                val changed = if (sessionId == null) {
-                    activeStart(person) == null && db.insert("sessions", null, ContentValues().apply {
-                        put("project_id", projectId)
-                        put("person", person)
-                        put("started_at", selected)
-                    }) != -1L
-                } else db.update("sessions", ContentValues().apply { put("started_at", selected) },
-                    "id=? AND project_id=? AND person=? AND ended_at IS NULL AND started_at=?",
-                    arrayOf(sessionId.toString(), projectId.toString(), person.toString(), original.toString())) == 1
-                if (changed) { syncTimerNotification(); renderContent() }
-                else Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
-                changed
+                sessionRepository.update(projectId!!, person, sessionId, selected, null)
             }
+            if (changed) { syncTimerNotification(); renderContent() }
+            else Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
+                else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
+            changed
         }
     }
 
@@ -1291,7 +1273,7 @@ class MainActivity : Activity() {
                 val type = types[picker.selectedItemPosition]
                 val description = note.text.toString().trim()
                 val latestEnd = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis())
-                if (chosenTimestamp < sessionBounds.first || chosenTimestamp > latestEnd) {
+                if (!sessionRepository.eventWithinSession(projectId!!, sessionId, person, chosenTimestamp)) {
                     Toast.makeText(this, "Godzina wydarzenia musi mieścić się w czasie pomiaru",
                         Toast.LENGTH_LONG).show()
                 } else if (type == "Lek" && description.isEmpty()) {
@@ -1668,23 +1650,13 @@ class MainActivity : Activity() {
                 val now = System.currentTimeMillis()
                 pickDateTime(now - 3600000L, tr(R.string.start_measurement)) { start ->
                     pickDateTime(now, tr(R.string.end_measurement)) { end ->
-                        if (start >= end || end > System.currentTimeMillis()) {
-                            Toast.makeText(this, tr(R.string.invalid_measurement), Toast.LENGTH_LONG).show()
-                        } else {
-                            val values = ContentValues().apply {
-                                put("person", person)
-                                put("project_id", projectId)
-                                put("started_at", start)
-                                put("ended_at", end)
-                            }
-                            if (db.insert("sessions", null, values) != -1L) {
-                                dayOffset = 0
-                                while (dayStart(dayOffset) > start) dayOffset--
-                                while (dayStart(dayOffset + 1) <= start) dayOffset++
-                                renderContent()
-                                Toast.makeText(this, tr(R.string.measurement_added), Toast.LENGTH_SHORT).show()
-                            } else Toast.makeText(this, tr(R.string.measurement_add_failed), Toast.LENGTH_LONG).show()
-                        }
+                        if (sessionRepository.insert(projectId!!, person, start, end)) {
+                            dayOffset = 0
+                            while (dayStart(dayOffset) > start) dayOffset--
+                            while (dayStart(dayOffset + 1) <= start) dayOffset++
+                            renderContent()
+                            Toast.makeText(this, tr(R.string.measurement_added), Toast.LENGTH_SHORT).show()
+                        } else Toast.makeText(this, tr(R.string.invalid_measurement), Toast.LENGTH_LONG).show()
                     }
                 }
             }.setNegativeButton(tr(R.string.cancel), null).show()
@@ -1737,27 +1709,13 @@ class MainActivity : Activity() {
                 title = if (pl) "Koniec sesji" else "Session end",
                 initial = ended, min = newStart + 1L, max = System.currentTimeMillis()
             )) { newEnd ->
-                val conflicting = db.rawQuery(
-                    "SELECT 1 FROM sessions WHERE project_id=? AND person=? AND id<>? AND started_at<? AND (ended_at IS NULL OR ended_at>?) LIMIT 1",
-                    arrayOf(projectId.toString(), person.toString(), id.toString(), newEnd.toString(), newStart.toString())
-                ).use { it.moveToFirst() }
-                val invalidEvents = db.rawQuery(
-                    "SELECT 1 FROM events WHERE project_id=? AND session_id=? AND (happened_at<? OR happened_at>?) LIMIT 1",
-                    arrayOf(projectId.toString(), id.toString(), newStart.toString(), newEnd.toString())
-                ).use { it.moveToFirst() }
-                if (conflicting || invalidEvents || newEnd <= newStart || newEnd > System.currentTimeMillis()) {
-                    Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
-                        else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
-                    false
-                } else {
-                    val updated = db.update("sessions", ContentValues().apply {
-                        put("started_at", newStart); put("ended_at", newEnd)
-                    }, "id=? AND project_id=? AND person=? AND ended_at IS NOT NULL",
-                        arrayOf(id.toString(), projectId.toString(), person.toString())) == 1
-                    if (updated) { renderContent(); Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show() }
-                    else Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
-                    updated
-                }
+                val updated = sessionRepository.update(projectId!!, person, id, newStart, newEnd)
+                if (updated) {
+                    renderContent()
+                    Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
+                    else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
+                updated
             }
             true
         }
