@@ -104,6 +104,52 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - Preserve existing `HistorySessionRow` layout, callbacks, action tray animations, active-card lifecycle and timer ticks during further extractions. `HistorySessionList` is used by both history and recent activity; changes must support both.
 - Favor small PRs with one clear responsibility and compile verification before squash merge. Avoid creating redundant wrappers or converting all existing files to packages in one large risky commit.
 
+## Naming conventions (mandatory)
+- **Never abbreviate method or function names.** A method name must clearly describe its purpose to a reviewer without opening its implementation. Use descriptive verbs and domain terms, e.g. `formatDuration()`, `synchronizeTimerNotifications()`, `getLocalizedString()` rather than `fmt()`, `sync()`, `tr()`.
+- Apply this to new methods and to existing methods when refactoring their callers. Avoid creating one-line aliases for existing framework methods unless the wrapper adds meaningful behavior; prefer Android `getString()` over a redundant `tr()` helper.
+- Use clear, consistent names for callbacks and interface methods too. Do not introduce terse abbreviations merely to reduce typing.
+- When renaming existing methods, update all references and verify compilation. Keep unrelated renames out of focused behavior changes.
+
+## Architectural refactoring directive — approved target (2026-11-14)
+
+This section is the **primary roadmap** for continued refactoring. Do not optimize isolated line counts or create wrappers simply to move code out of MainActivity. Refactor cohesive systems end-to-end, maintaining app behavior and data.
+
+### Current verified baseline
+- MainActivity is still a ~2,738-line god object: navigation, project/participant management, history, statistics, event editing, SQL, View construction and notification coordination.
+- TimersScreenController/TimersRenderer and timer-card helpers are partially extracted but depend on Activity callbacks.
+- HistoryService, StatisticsService and SettingsService, and their renderers, are placeholders; actual features remain in MainActivity. Do not present them as completed modules.
+- SQLiteDatabaseService owns schema/migrations and exposes a raw database; direct SQL is still spread across MainActivity, repositories and data sources.
+- Timer operations are split across TimerSessionController, TimersInteractionService, SessionRepository, Activity and TimerNotificationService. State is partly held in Activity fields, despite ViewState types.
+- Some adapter/factory/interface classes add indirection without providing a real boundary. Audit their usefulness rather than multiplying them.
+- Database schema v6 has no declared foreign keys; guard against orphan events and data loss when deleting records.
+
+### Target system boundaries
+1. **Android host / app navigation:** MainActivity owns lifecycle, system integration, root container and navigation host only. AppCoordinator manages active project, active screen and navigation; no SQL or feature View rendering in Activity.
+2. **Feature UI:** projects, timers, history, statistics, events and settings each own their screen/View composition and screen state. Prefer Android ViewModel with observable StateFlow where it meaningfully handles lifecycle and state; preserve programmatic Android Views and existing animations. A feature's UI sends actions to its ViewModel/controller and renders state, rather than invoking Activity for feature logic.
+3. **Domain:** TimerService/SessionService/EventService and StatisticsCalculator encapsulate business rules: timer start/stop, interval validation, event association, aggregates. Do not move Android View or dialog construction here. Simple reads may go directly to repositories; avoid use-case classes for trivial calls.
+4. **Data:** ProjectRepository, ParticipantRepository, SessionRepository and EventRepository own queries and mutations for their entities. DatabaseService/SQLiteDatabaseService own connection, schema, migration and transaction infrastructure, not every entity's SQL. Keep SQL out of Activity and UI renderers. Ensure operations affecting sessions/events are transactional and preserve data.
+5. **Shared systems:** design tokens/components, localization/date presentation, foreground timer notification coordination and time utilities. Shared modules must not depend on MainActivity or a specific screen.
+6. **Composition:** centralize construction/wiring at the app boundary (a lightweight AppContainer is acceptable). Inject narrow dependencies; avoid redundant aliases, callback bundles and interfaces with one implementation unless they define a meaningful boundary or support tests.
+
+### Desired dependency direction
+MainActivity -> AppCoordinator -> feature screen/ViewModel -> domain service -> repository -> SQLiteDatabaseService.
+Feature screens may read repositories for simple display data. Shared systems are used by their consumers and do not depend on the Activity. Notifications respond to persisted timer state, not View rendering.
+
+### Execution sequence (finish cohesive slices)
+1. Define and document boundaries and remove misleading placeholders only when replaced with functioning features.
+2. Consolidate SQL and transactional data integrity in repositories; preserve schema v6 and all existing migrations, introduce safe migrations only when necessary.
+3. Complete Timers end-to-end as reference architecture (screen state, start/stop, events, recent activity, notifications, live updates, archived restrictions).
+4. Migrate projects/participants, history, statistics, events and settings one feature at a time. Preserve pinned navigators, visuals, localization, participant colors, session/event behavior and CSV.
+5. Reduce MainActivity to host/navigation, remove dead delegates/adapters and enforce package dependency boundaries. No unnecessary migration to Compose, Room, Hilt or multiple Gradle modules.
+
+### Definition of done for each slice
+- Feature code owns its screen and actions; no feature SQL or View-building in Activity.
+- Domain logic is independently testable; repository owns SQL; no new cyclic dependencies.
+- Existing data, events, notification and timer invariants preserved; no destructive database migration.
+- No unnecessary abstractions, placeholder services or abbreviated method names.
+- Verify latest commit-specific CI before declaring done; do not confuse compilation with device tests. Follow user's request not to add long-running tests.
+- Keep PR description and AGENTS.md accurate as architecture changes. Do not merge a failed or unverified head.
+
 ## Engineering quality and code composition (mandatory)
 - Apply established Kotlin/Android software engineering practices to every change: readable names, clear responsibilities, cohesive functions, appropriate visibility, null safety, and consistent error handling.
 - Prefer small, composable, reusable helpers over duplicated logic or new responsibilities inside the monolithic Activity. Separate presentation/formatting, persistence, and UI behavior when doing so reduces coupling without risky refactors.

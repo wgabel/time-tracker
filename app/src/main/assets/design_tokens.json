@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "colors": {
+    "light": {
+      "blue": "#2270ED",
+      "green": "#309E50",
+      "ink": "#1A222B",
+      "muted": "#636D78",
+      "surface": "#FFFFFF",
+      "background": "#F5F0E8",
+      "darkHeader": "#182F35",
+      "subtle": "#E2EBFC",
+      "subtleNeutral": "#EBEEF4",
+      "subtleWarm": "#F5E5D1",
+      "dangerBackground": "#FCE9E9",
+      "dangerText": "#AA2A2A",
+      "warningText": "#8F501C",
+      "headerBackground": "#182F35",
+      "cardStroke": "#E7EAF1",
+      "eventIcon": "#237C62"
+    },
+    "dark": {
+      "blue": "#71A9FF",
+      "green": "#65D38E",
+      "ink": "#EEF1F8",
+      "muted": "#ABB5C4",
+      "surface": "#232A36",
+      "background": "#151A23",
+      "darkHeader": "#182F35",
+      "subtle": "#343E4F",
+      "subtleNeutral": "#333B48",
+      "subtleWarm": "#49382A",
+      "dangerBackground": "#4C2D31",
+      "dangerText": "#FFA5A5",
+      "warningText": "#F5C38C",
+      "headerBackground": "#191F2B",
+      "cardStroke": "#3F495B",
+      "eventIcon": "#85E0B4"
+    }
+  },
+  "dimensions": {
+    "shapeRadiusDp": 18,
+    "cardRadiusDp": 22,
+    "cardPaddingDp": 18,
+    "cardStrokeDp": 1,
+    "cardElevationDp": 1,
+    "buttonRadiusDp": 9,
+    "buttonMinHeightDp": 48,
+    "buttonTextSp": 15,
+    "defaultTextSp": 16,
+    "defaultGapDp": 12
+  }
+}
