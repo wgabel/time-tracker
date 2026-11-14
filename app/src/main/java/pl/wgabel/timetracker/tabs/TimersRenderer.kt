@@ -7,7 +7,7 @@ import android.widget.LinearLayout
 import pl.wgabel.timetracker.design.AppUi
 
 /** Native View composition for the Timers tab. Data and actions are injected. */
-class TimersRenderer(
+internal class TimersRenderer(
     private val context: Context,
     private val content: () -> LinearLayout,
     private val title: () -> String,
