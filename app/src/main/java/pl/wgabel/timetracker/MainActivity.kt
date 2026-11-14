@@ -1657,62 +1657,34 @@ class MainActivity : Activity() {
             val originalEnd = session.endedAt
             val from = maxOf(start, originalStart)
             val until = minOf(end, originalEnd ?: System.currentTimeMillis())
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(10), dp(10), dp(10))
-                background = shape(surface, 12)
-            }
-            if (originalEnd == null) markActive(row)
             val isHistory = tab == 2
-            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             val running = if (originalEnd == null) "  • trwa" else ""
             val rangeLabel = label(clockFormat.format(Date(from)) + " – " +
                 clockFormat.format(Date(until)) + running, 13f, false, muted)
             val elapsedLabel = label(duration(until - from), 16f, true)
-            if (isHistory) {
-                row.addView(avatar(person), LinearLayout.LayoutParams(dp(38), dp(38)).apply {
-                    rightMargin = dp(10)
-                })
-                left.addView(label(personName(person), 16f, true))
-                gap(left, 4)
-                left.addView(rangeLabel)
-            } else {
-                val heading = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-                heading.addView(avatar(person), LinearLayout.LayoutParams(dp(29), dp(29)))
-                heading.addView(label("  " + personName(person) + "  •  " +
-                    dateFormat.format(Date(originalStart)), 13f, true))
-                left.addView(heading)
-                gap(left, 5)
-                left.addView(rangeLabel)
-                gap(left, 3)
-                left.addView(elapsedLabel)
-            }
+            val name = personName(person)
+            val group = HistorySessionRow(
+                this,
+                historyMode = isHistory,
+                rowBackground = shape(surface, 12),
+                avatar = avatar(person),
+                participantName = label(name, 16f, true),
+                dateLabel = if (isHistory) null else label(
+                    "  " + name + "  •  " + dateFormat.format(Date(originalStart)), 13f, true
+                ),
+                rangeLabel = rangeLabel,
+                elapsedLabel = elapsedLabel,
+                gap = { container, size -> gap(container, size) },
+                dp = { size -> dp(size) }
+            )
+            if (originalEnd == null) markActive(group.mainRow)
             if (originalEnd == null && tab == 0) timerUpdates.add { tick ->
                 val currentEnd = minOf(end, tick)
                 rangeLabel.text = clockFormat.format(Date(from)) + " – " +
                     clockFormat.format(Date(currentEnd)) + running
                 elapsedLabel.text = duration(currentEnd - from)
             }
-            row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
-            if (isHistory) {
-                row.addView(elapsedLabel.apply { setSingleLine(true) },
-                    LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
-            }
-            val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            group.addView(row)
             if (isHistory && !isArchived()) {
-                // Actions start hidden; tapping the session reveals a sliding action tray.
-                val tray = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
-                    setPadding(dp(12), 0, dp(12), 0)
-                    background = shape(surface, 12)
-                    clipChildren = true
-                }
                 val addEventAction = iconButton(
                     "bookmark-add",
                     if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
@@ -1728,27 +1700,21 @@ class MainActivity : Activity() {
                     if (originalEnd == null) editActiveSessionStart(id, person, originalStart)
                     else editSession(id, person, originalStart, originalEnd)
                 }.apply { background = shape(subtle, 10) }
-                val deleteAction = deleteIconButton {
+                val deleteAction = if (originalEnd == null) null else deleteIconButton {
                     deleteSession(id)
                 }.apply {
                     background = shape(
                         if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
                 }
-                tray.addView(addEventAction, LinearLayout.LayoutParams(dp(52), dp(48)))
-                tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
-                tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                if (originalEnd != null) tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
-                val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
-                row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
-                group.addView(tray, LinearLayout.LayoutParams(-1, 0))
-                HistoryActionTray(
-                    row, tray, arrow,
-                    HistoryActionTray.Dimension.HEIGHT,
-                    expandedSizePx = dp(64),
-                    slideOffsetPx = dp(36)
-                ).attach(personName(person) + ", " + duration(until - from) +
-                    ". Dotknij, aby pokazać lub ukryć akcje")
+                group.attachActions(
+                    trayBackground = shape(surface, 12),
+                    addEvent = addEventAction,
+                    edit = editAction,
+                    delete = deleteAction,
+                    arrow = label("›", 23f, false, muted),
+                    description = name + ", " + duration(until - from) +
+                        ". Dotknij, aby pokazać lub ukryć akcje"
+                )
             }
             if (isHistory) eventList(id, person, group)
             list.addView(group, LinearLayout.LayoutParams(-1, -2))
