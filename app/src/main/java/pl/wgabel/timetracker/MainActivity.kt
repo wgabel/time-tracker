@@ -1935,6 +1935,10 @@ class MainActivity : Activity() {
                     canvas.drawPath(bookmark, p)
                     canvas.drawLine(dp(16).toFloat(), dp(9).toFloat(), dp(23).toFloat(), dp(9).toFloat(), p)
                     canvas.drawLine(dp(19).toFloat(), dp(6).toFloat(), dp(19).toFloat(), dp(13).toFloat(), p)
+                } else if (kind == "clock") {
+                    canvas.drawCircle(dp(12).toFloat(), dp(12).toFloat(), dp(9).toFloat(), p)
+                    canvas.drawLine(dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), dp(6).toFloat(), p)
+                    canvas.drawLine(dp(12).toFloat(), dp(12).toFloat(), dp(16).toFloat(), dp(14).toFloat(), p)
                 } else if (kind == "edit") {
                     // Recognizable pencil: closed shaft, pointed nib and eraser cap.
                     val pencil = Path().apply {
@@ -1960,10 +1964,14 @@ class MainActivity : Activity() {
                 canvas.restore()
             }
         }.apply {
-            background = shape(if (kind == "edit") if (darkTheme) Color.rgb(43, 60, 83) else Color.rgb(232, 239, 253) else if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 9)
+            background = shape(if (kind == "edit" || kind == "clock") if (darkTheme) Color.rgb(43, 60, 83) else Color.rgb(232, 239, 253) else if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 9)
             stateListAnimator = null
             elevation = 0f
-            contentDescription = if (kind == "edit") tr(R.string.edit_entry) else tr(R.string.delete_entry)
+            contentDescription = when (kind) {
+                "edit" -> tr(R.string.edit_entry)
+                "clock" -> if (resources.configuration.locales[0].language == "pl") "Rozpocznij sesję wcześniej" else "Start session in the past"
+                else -> tr(R.string.delete_entry)
+            }
             isClickable = true
             setOnClickListener { onClick() }
         }
