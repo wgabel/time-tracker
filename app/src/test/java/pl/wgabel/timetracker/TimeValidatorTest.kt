@@ -26,5 +26,5 @@ class TimeValidatorTest {
     @Test fun eventAfterEndRejected() = assertFalse(TimeValidator.eventWithin(21, interval(10, 20), now))
     @Test fun eventInFutureRejected() = assertFalse(TimeValidator.eventWithin(now + 1, interval(10), now))
     @Test fun shorteningSessionPastEventRejected() = assertFalse(TimeValidator.canSave(interval(10, 20), emptyList(), listOf(21), now))
-    @Test fun midnightCrossingIsAllowed() = assertTrue(TimeValidator.valid(interval(86_399_000L, 86_401_000L), now))
+    @Test fun midnightCrossingIsAllowed() = assertTrue(TimeValidator.valid(interval(86_399_000L, 86_401_000L), 86_402_000L))
 }
