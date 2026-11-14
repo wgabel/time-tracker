@@ -50,6 +50,11 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import pl.wgabel.timetracker.data.TimerCardDataSource
+import pl.wgabel.timetracker.tabs.ITabService
+import pl.wgabel.timetracker.tabs.TimersService
+import pl.wgabel.timetracker.tabs.HistoryService
+import pl.wgabel.timetracker.tabs.StatisticsService
+import pl.wgabel.timetracker.tabs.SettingsService
 
 class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
@@ -72,6 +77,22 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
+    // Tab services are lifecycle scaffolding. Existing UI is still rendered below.
+    private val tabServices: List<ITabService> by lazy {
+        listOf(TimersService(), StatisticsService(), HistoryService(), SettingsService())
+    }
+    private var visibleTabService: ITabService? = null
+
+    private fun synchronizeTabService(): ITabService? {
+        val next = if (projectId == null) null else tabServices.getOrNull(tab)
+        if (visibleTabService !== next) {
+            visibleTabService?.onHide()
+            visibleTabService = next
+            next?.onShow()
+        }
+        return next
+    }
+
     private var pendingExportProject: Long? = null
     private var dayOffset = 0
     private var statsPeriod = 1
@@ -2824,6 +2845,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderContent() {
+        synchronizeTabService()?.refresh()
         timerUpdates.clear()
         content.removeAllViews()
         calendarHeadingAnimator?.cancel()
