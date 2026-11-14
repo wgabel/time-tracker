@@ -1214,25 +1214,8 @@ class MainActivity : Activity() {
             .setMessage(tr(R.string.delete_measurement_warning))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.delete)) { _, _ ->
-                var deleted = 0
-                db.beginTransaction()
-                try {
-                    val eligible = db.rawQuery(
-                        "SELECT 1 FROM sessions WHERE id=? AND project_id=? AND ended_at IS NOT NULL",
-                        arrayOf(id.toString(), projectId.toString())
-                    ).use { it.moveToFirst() }
-                    if (eligible) {
-                        db.delete("events", "session_id=? AND project_id=?",
-                            arrayOf(id.toString(), projectId.toString()))
-                        deleted = db.delete("sessions",
-                            "id=? AND project_id=? AND ended_at IS NOT NULL",
-                            arrayOf(id.toString(), projectId.toString()))
-                    }
-                    db.setTransactionSuccessful()
-                } finally {
-                    db.endTransaction()
-                }
-                if (deleted > 0) {
+                val deleted = sessionRepository.deleteCompleted(requireNotNull(projectId), id)
+                if (deleted) {
                     renderContent()
                     Toast.makeText(this, tr(R.string.measurement_deleted), Toast.LENGTH_SHORT).show()
                 }
