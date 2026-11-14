@@ -31,7 +31,11 @@ internal class TimersScreenController(
             addButtonDescription = view.addButtonDescription,
             onAddParticipant = view.onAddParticipant,
             renderCard = cards::render,
-            renderRecentActivity = view.renderRecentActivity
+            renderRecentActivity = {
+                view.recentActivityRenderer.render(
+                    RecentActivityDataSource(environment.database()).load(environment.projectId())
+                )
+            }
         ),
         loadState = TimersStateDataSource(environment.database)::load
     )
