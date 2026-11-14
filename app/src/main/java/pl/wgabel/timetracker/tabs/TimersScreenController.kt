@@ -23,7 +23,7 @@ internal class TimersScreenController(
 
     val service: TimersService = TimersService(
         renderer = TimersRenderer(
-            context = context,
+            context = environment.context,
             content = view.content,
             title = view.title,
             emptyMessage = view.emptyMessage,
