@@ -49,6 +49,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import pl.wgabel.timetracker.data.TimerCardDataSource
 
 class MainActivity : Activity() {
     private lateinit var db: SQLiteDatabase
