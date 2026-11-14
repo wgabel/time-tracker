@@ -71,6 +71,7 @@ import pl.wgabel.timetracker.tabs.HistoryService
 import pl.wgabel.timetracker.tabs.StatisticsService
 import pl.wgabel.timetracker.tabs.SettingsService
 import pl.wgabel.timetracker.data.ProjectRepository
+import pl.wgabel.timetracker.data.ParticipantRepository
 
 class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
@@ -81,6 +82,7 @@ class MainActivity : Activity() {
         AnimatedSplashScreen(this, { darkTheme }, { blue }, { muted }, { ink })
     }
     private val projectRepository get() = ProjectRepository(db)
+    private val participantRepository get() = ParticipantRepository(db)
     private val sessionRepository get() = SessionRepository(db)
     private val eventRepository get() = EventRepository(db, sessionRepository)
     private val timerSessionController get() = TimerSessionController(db)
@@ -754,11 +756,8 @@ class MainActivity : Activity() {
         }
     }
     private fun personColor(person: Int): Int =
-        db.rawQuery("SELECT color FROM participants WHERE id=? AND project_id=?",
-            arrayOf(person.toString(), projectId.toString())).use { cursor ->
-            if (cursor.moveToFirst() && cursor.getInt(0) != 0) cursor.getInt(0)
-            else ParticipantColors.legacyColor(person)
-        }
+        participantRepository.color(requireNotNull(projectId), person)
+            ?.takeIf { it != 0 } ?: ParticipantColors.legacyColor(person)
 
     private fun nextParticipantColor(): Int =
         ParticipantDataSource(db).suggestedColor(requireNotNull(projectId))
@@ -780,8 +779,7 @@ class MainActivity : Activity() {
             .setView(colorPicker(selected[0]) { selected[0] = it })
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.save)) { _, _ ->
-                db.update("participants", ContentValues().apply { put("color", selected[0]) },
-                    "id=? AND project_id=?", arrayOf(person.toString(), projectId.toString()))
+                participantRepository.updateColor(requireNotNull(projectId), person, selected[0])
                 render()
             }.show()
     }
@@ -2362,7 +2360,7 @@ class MainActivity : Activity() {
             .setPositiveButton(tr(R.string.save)) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
-                    db.update("participants", ContentValues().apply { put("name", name) }, "id=? AND project_id=?", arrayOf(person.toString(), projectId.toString()))
+                    participantRepository.rename(requireNotNull(projectId), person, name)
                     renderContent()
                 }
             }.show()
@@ -2382,22 +2380,17 @@ class MainActivity : Activity() {
     }
 
     private fun removeParticipant(person: Int) {
-        db.rawQuery("SELECT COUNT(*) FROM sessions WHERE project_id=? AND person=?",
-            arrayOf(projectId.toString(), person.toString())).use { c ->
-            c.moveToFirst()
-            if (c.getLong(0) > 0L) {
-                AlertDialog.Builder(this).setTitle(tr(R.string.participant_has_measurements))
-                    .setMessage(tr(R.string.cannot_delete_participant))
-                    .setPositiveButton("OK", null).show()
-                return
-            }
+        if (participantRepository.hasSessions(requireNotNull(projectId), person)) {
+            AlertDialog.Builder(this).setTitle(tr(R.string.participant_has_measurements))
+                .setMessage(tr(R.string.cannot_delete_participant))
+                .setPositiveButton("OK", null).show()
+            return
         }
         AlertDialog.Builder(this).setTitle(tr(R.string.delete_participant))
             .setMessage(tr(R.string.delete_participant_prefix) + personName(person) + tr(R.string.delete_participant_suffix))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.delete)) { _, _ ->
-                db.delete("participants", "id=? AND project_id=?",
-                    arrayOf(person.toString(), projectId.toString()))
+                participantRepository.deleteIfNoSessions(requireNotNull(projectId), person)
                 renderContent()
             }.show()
     }
