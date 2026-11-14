@@ -55,6 +55,7 @@ class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
     private val db: SQLiteDatabase get() = databaseService.database
     private val languageService: LanguageService by lazy { PreferencesLanguageService(this) }
+    private val themeService: ThemeService by lazy { PreferencesThemeService(this) }
     private val splashScreen: SplashScreenService by lazy {
         AnimatedSplashScreen(this, { darkTheme }, { blue }, { muted }, { ink })
     }
@@ -81,7 +82,7 @@ class MainActivity : Activity() {
     private var showArchived = false
     private var showAppSettings = false
     private val timerUpdates = mutableListOf<(Long) -> Unit>()
-    private val darkTheme get() = prefs.getString("app_theme", "light") == "dark"
+    private val darkTheme get() = themeService.isDark
     private val blue get() = if (darkTheme) Color.rgb(113, 169, 255) else Color.rgb(34, 112, 237)
     private val green get() = if (darkTheme) Color.rgb(101, 211, 142) else Color.rgb(48, 158, 80)
     private val ink get() = if (darkTheme) Color.rgb(238, 241, 248) else Color.rgb(26, 34, 43)
@@ -99,9 +100,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         languageService.applyLanguage()
-        applyThemeToSystem()
+        themeService.applyThemeToSystem()
         databaseService.database
-        applyThemeToSystem()
+        themeService.applyThemeToSystem()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(if (darkTheme) Color.rgb(25, 31, 43) else darkHeader)
@@ -182,30 +183,6 @@ class MainActivity : Activity() {
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
     private fun tr(id: Int): String = getString(id)
-
-    private fun applyThemeToSystem() {
-        // System bars visually extend the dark header/footer, with light icons.
-        val chrome = if (darkTheme) Color.rgb(25, 31, 43) else darkHeader
-        window.statusBarColor = chrome
-        window.navigationBarColor = chrome
-        window.decorView.systemUiVisibility = 0
-        if (Build.VERSION.SDK_INT >= 29) {
-            window.isStatusBarContrastEnforced = false
-            window.isNavigationBarContrastEnforced = false
-        }
-        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-    }
-
-    private fun selectTheme() {
-        val choices = arrayOf(tr(R.string.theme_light), tr(R.string.theme_dark))
-        val selected = if (darkTheme) 1 else 0
-        AlertDialog.Builder(this).setTitle(tr(R.string.theme))
-            .setSingleChoiceItems(choices, selected) { dialog, which ->
-                prefs.edit().putString("app_theme", if (which == 1) "dark" else "light").apply()
-                dialog.dismiss()
-                recreate()
-            }.setNegativeButton(tr(R.string.cancel), null).show()
-    }
 
     private fun label(value: String, size: Float = 16f, bold: Boolean = false, color: Int = ink): TextView =
         TextView(this).apply {
@@ -663,7 +640,7 @@ class MainActivity : Activity() {
         gap(app, 12)
         app.addView(styledAction("🌐  " + tr(R.string.language), ButtonRole.SECONDARY) { languageService.selectLanguage() })
         gap(app, 10)
-        app.addView(styledAction("◐  " + tr(R.string.theme), ButtonRole.SECONDARY) { selectTheme() })
+        app.addView(styledAction("◐  " + tr(R.string.theme), ButtonRole.SECONDARY) { themeService.selectTheme() })
         gap(app, 12)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "—" } catch (_: Exception) { "—" }
         app.addView(label(tr(R.string.version) + "v" + version, 14f, false, muted))
