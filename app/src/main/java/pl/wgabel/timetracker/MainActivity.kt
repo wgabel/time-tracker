@@ -137,17 +137,8 @@ class MainActivity : Activity() {
                         RecentActivityDataSource(db).load(requireNotNull(projectId))
                     )
                 }
-            ),
-            loadState = { id ->
-                pl.wgabel.timetracker.tabs.TimersViewState(
-                    projectId = id,
-                    dayStart = dayStart(0),
-                    dayEnd = dayStart(1),
-                    now = System.currentTimeMillis(),
-                    participantIds = participants(),
-                    archived = isArchived()
-                )
-            }
+            )
+
         )
     }
     private val recentActivityRenderer: RecentActivityRenderer by lazy {
