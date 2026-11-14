@@ -107,26 +107,14 @@ class MainActivity : Activity() {
             projectId = { requireNotNull(projectId) },
             archived = { isArchived() },
             ui = object : TimerCardUi {
-                override val ink get() = this@MainActivity.ink
-                override val muted get() = this@MainActivity.muted
-                override val subtleNeutral get() = this@MainActivity.subtleNeutral
-                override val darkTheme get() = this@MainActivity.darkTheme
-                override fun card() = this@MainActivity.card()
                 override fun addCard(view: LinearLayout) = this@MainActivity.addCard(view)
                 override fun markActive(view: LinearLayout) = this@MainActivity.markActive(view)
-                override fun label(value: String, size: Float, bold: Boolean, color: Int) =
-                    this@MainActivity.label(value, size, bold, color)
-                override fun shape(color: Int, radius: Int) = this@MainActivity.shape(color, radius)
-                override fun gap(container: LinearLayout, size: Int) = this@MainActivity.gap(container, size)
-                override fun action(title: String, color: Int, click: () -> Unit) =
-                    this@MainActivity.action(title, color, click = click)
-                override fun stopButton(title: String, click: () -> Unit) =
-                    styledAction(title, ButtonRole.DANGER, click)
                 override fun iconButton(kind: String, color: Int, click: () -> Unit) =
                     this@MainActivity.iconButton(kind, color, click)
                 override fun string(id: Int) = tr(id)
                 override fun duration(millis: Long) = this@MainActivity.duration(millis)
             },
+            components = appUi,
             actions = object : TimerCardActions {
                 override fun toggle(person: Int) = this@MainActivity.toggle(person)
                 override fun addEvent(person: Int) = this@MainActivity.addEvent(person)
