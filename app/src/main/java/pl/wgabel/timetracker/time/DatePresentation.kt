@@ -50,4 +50,6 @@ internal object DatePresentation {
 
     fun chartDateTime(resources: Resources): DateFormat =
         SimpleDateFormat(if (locale(resources).language == "pl") "dd.MM HH:mm" else "MMM d, h:mm a", locale(resources))
+
+    fun chartHour(resources: Resources): DateFormat = SimpleDateFormat("HH", locale(resources))
 }

@@ -72,17 +72,18 @@ internal object StatisticsCalculator {
             intervals.sumOf { (_, sessionStart, sessionEnd) ->
                 (minOf(end, endLimit, sessionEnd) - maxOf(start, sessionStart)).coerceAtLeast(0L)
             })
-        if (period == 0) return (0..23).map { hour ->
-            val calendar = Calendar.getInstance().apply { timeInMillis = from; set(Calendar.HOUR_OF_DAY, hour) }
-            val start = calendar.timeInMillis
-            calendar.add(Calendar.HOUR_OF_DAY, 1)
-            bucket(start, calendar.timeInMillis)
-        }
         val calendar = Calendar.getInstance().apply { timeInMillis = from }
         return buildList {
-            while (calendar.timeInMillis < endLimit && size < 1_000) {
+            // A calendar day has 23 or 25 hours at DST transitions. Advance through
+            // actual instants so a repeated/skipped local hour is not lost/duplicated.
+            val rangeEnd = if (period == 0) to else endLimit
+            while (calendar.timeInMillis < rangeEnd && size < 1_000) {
                 val start = calendar.timeInMillis
-                calendar.add(if (period == 1 || period == 2) Calendar.DAY_OF_YEAR else Calendar.MONTH, 1)
+                calendar.add(when (period) {
+                    0 -> Calendar.HOUR_OF_DAY
+                    1, 2 -> Calendar.DAY_OF_YEAR
+                    else -> Calendar.MONTH
+                }, 1)
                 add(bucket(start, calendar.timeInMillis))
             }
         }

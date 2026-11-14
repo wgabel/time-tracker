@@ -41,9 +41,9 @@ internal class StatisticsScreen(
         data class Bucket(val label: String, val start: Long, val end: Long, val millis: Long)
         val now = System.currentTimeMillis()
         val points = StatisticsCalculator.trendBuckets(state.period, from, to,
-            intervals(from, minOf(to, now)), now).mapIndexed { index, bucket ->
+            intervals(from, minOf(to, now)), now).map { bucket ->
             val name = when (state.period) {
-                0 -> String.format(Locale.ROOT, "%02d", index)
+                0 -> DatePresentation.chartHour(resources).format(Date(bucket.start))
                 1 -> DatePresentation.weekdayShort(resources).format(Date(bucket.start))
                 2 -> SimpleDateFormat("d", resources.configuration.locales[0]).format(Date(bucket.start))
                 else -> DatePresentation.monthYear(resources).format(Date(bucket.start))
