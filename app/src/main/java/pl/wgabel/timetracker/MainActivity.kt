@@ -142,7 +142,7 @@ class MainActivity : Activity() {
                 content = { content },
                 title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
                 emptyMessage = { tr(R.string.first_person) },
-                text = { value, size, bold -> label(value, size, bold) },
+                ui = appUi,
                 addButton = {
                     styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
                         contentDescription = tr(R.string.add_person).removePrefix("+").trim()
@@ -159,8 +159,7 @@ class MainActivity : Activity() {
                     recentActivityRenderer.render(
                         RecentActivityDataSource(db).load(requireNotNull(projectId))
                     )
-                },
-                gap = { height -> gap(content, height) }
+                }
             ),
             loadState = { id ->
                 pl.wgabel.timetracker.tabs.TimersViewState(
