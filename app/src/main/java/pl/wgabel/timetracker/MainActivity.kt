@@ -49,7 +49,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import pl.wgabel.timetracker.tabs.TimerCardStateSource
+import pl.wgabel.timetracker.tabs.TimerCardRenderer
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -81,6 +81,33 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
     // Tab services are lifecycle scaffolding. Existing UI is still rendered below.
+    private val timerCardRenderer: TimerCardRenderer by lazy {
+        TimerCardRenderer(
+            context = this,
+            db = db,
+            projectId = { requireNotNull(projectId) },
+            archived = { isArchived() },
+            darkTheme = { darkTheme },
+            ink = ink,
+            muted = muted,
+            subtleNeutral = subtleNeutral,
+            card = { card() },
+            addCard = { addCard(it) },
+            markActive = { markActive(it) },
+            label = { value, size, bold, color -> label(value, size, bold, color) },
+            shape = { color, radius -> shape(color, radius) },
+            gap = { container, size -> gap(container, size) },
+            action = { title, color, click -> action(title, color, click = click) },
+            stopButton = { title, click -> styledAction(title, ButtonRole.DANGER, click) },
+            iconButton = { kind, color, click -> iconButton(kind, color, click) },
+            toggle = { toggle(it) },
+            addEvent = { addEvent(it) },
+            quickStartPicker = { quickStartPicker(it) },
+            registerUpdate = { timerUpdates.add(it) },
+            string = { tr(it) },
+            duration = { duration(it) }
+        )
+    }
     private val timersService: TimersService by lazy {
         TimersService(
             renderer = TimersRenderer(
@@ -100,7 +127,7 @@ class MainActivity : Activity() {
                         setPadding(0, 0, 0, 0)
                     }
                 },
-                renderCard = { person, start, end, now -> timerCard(person, start, end, now) },
+                renderCard = { person, start, end, now -> timerCardRenderer.render(person, start, end, now) },
                 renderRecentActivity = {
                     recentActivityRenderer.render(
                         RecentActivityDataSource(db).load(requireNotNull(projectId))
@@ -1322,102 +1349,6 @@ class MainActivity : Activity() {
             this, start, end, summary.stripSegments(intervals, start, end),
             personColor(person), subtleNeutral
         )
-    }
-
-    private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
-        val c = card()
-        val state = TimerCardStateSource(db).load(
-            requireNotNull(projectId), person, start, end, tr(R.string.person_fallback) + person
-        )
-        val cardData = state.data
-        val active = cardData.activeStartedAt
-        val summary = state.summary
-        val intervals = state.intervals
-        fun measuredDuration(tick: Long) = state.duration(start, end, tick)
-        if (active != null) markActive(c)
-        val header = TimerCardHeader(
-            this,
-            label(cardData.participantName, 19f, true, ink),
-            label(if (active == null) "● " + tr(R.string.timer_stopped)
-                else "● " + (if (resources.configuration.locales[0].language == "pl") "TRWA" else "RUNNING"),
-                12f, true, if (active == null) muted else cardData.participantColor),
-            shape(cardData.participantColor, 6)
-        )
-        val totalLabel = label(duration(measuredDuration(now)), 36f, true).apply {
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            letterSpacing = -0.035f
-            setFontFeatureSettings("tnum")
-        }
-        val statusLabel = if (!isArchived()) label(
-            if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active),
-            16f, false, muted
-        ) else null
-        val clock = TimerCardClock(
-            this,
-            totalLabel,
-            label(tr(R.string.selected_day_total), 13f, false, muted),
-            statusLabel,
-            formatTotal = { tick -> duration(measuredDuration(tick)) },
-            formatStatus = if (active != null) ({ tick: Long -> tr(R.string.running_prefix) + duration(tick - active) }) else null
-        )
-        val ring = DayOccupancyRing(
-            this, start, end,
-            measuredDuration = { measuredDuration(System.currentTimeMillis()) },
-            participantColor = cardData.participantColor,
-            trackColor = subtleNeutral,
-            textColor = ink,
-            captionColor = muted
-        )
-        val strip = DaySessionStrip(
-            this, start, end, summary.stripSegments(intervals, start, end),
-            cardData.participantColor, subtleNeutral
-        )
-        val controls = if (statusLabel == null) null else {
-            val button = if (active == null)
-                action("▶  START", cardData.participantColor) { toggle(person) }
-            else styledAction("■  STOP", ButtonRole.DANGER) { toggle(person) }
-            if (active != null) {
-                TimerCardControls(
-                    context = this,
-                    running = true,
-                    primaryButton = button,
-                    secondaryIcon = iconButton(
-                        "bookmark-add",
-                        if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
-                    ) { addEvent(person) },
-                    eventLabel = label("EVENT", 13f, true, ink),
-                    secondaryBackground = shape(subtleNeutral, 12),
-                    onEventClick = { addEvent(person) }
-                )
-            } else {
-                val backdate = iconButton("clock", ink) { quickStartPicker(person) }.apply {
-                    contentDescription = if (resources.configuration.locales[0].language == "pl")
-                        "Rozpocznij sesję wcześniej" else "Start session in the past"
-                }
-                TimerCardControls(
-                    context = this,
-                    running = false,
-                    primaryButton = button,
-                    secondaryIcon = backdate,
-                    eventLabel = null,
-                    secondaryBackground = shape(subtleNeutral, 12),
-                    onEventClick = null
-                )
-            }
-        }
-        val cardView = TimerCardView(
-            this, header, clock, ring, strip,
-            listOf("00:00", "06:00", "12:00", "18:00", "24:00").map {
-                label(it, 10f, false, muted)
-            },
-            statusLabel, controls,
-            spacing = { container, size -> gap(container, size) }
-        )
-        c.addView(cardView)
-        if (active != null) timerUpdates.add { tick ->
-            cardView.updateClock(clock, ring, strip, tick)
-        }
-        addCard(c)
     }
 
     private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
