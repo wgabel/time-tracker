@@ -127,6 +127,30 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - A push/merge into `main` triggers the separate release build workflow; verify that run separately when reporting release APK status. A green PR `verify` is not proof of an APK generated on `main`.
 - If `verify` fails, read the failing job logs, fix the actual error and recheck the new head commit before merging. Never merge solely because a previous run was green.
 
+## Commit and pull request documentation (mandatory)
+
+### Commit messages
+- Write meaningful, specific commit subjects using a scope when helpful, e.g. `refactor(timers): extract session actions into TimersInteractionService`; avoid generic subjects such as `update files` or `refactor services`.
+- For nontrivial changes, include a descriptive commit body explaining **what changed**, **where**, **why**, and any important behavioral implications. Name affected classes/methods and describe responsibility transfers, API/contract changes, data flow, and compatibility considerations.
+- Keep commit descriptions factual and proportional to the diff. Do not claim behavior preservation, test success, or risk elimination without verification. Separate implementation facts from assumptions and pending checks.
+- Prefer small, cohesive commits that reviewers can understand independently; avoid combining unrelated changes in one commit.
+
+### Pull request descriptions
+Every nontrivial PR must have a substantial, review-ready description. Include the following sections (write `None` or `Not applicable` with a reason rather than silently omitting relevant checks):
+1. **Purpose and context:** the concrete problem, motivation, and expected outcome.
+2. **Change inventory:** specific files, classes, functions, interfaces, and responsibilities added, moved, removed, or modified. Explain meaningful behavior and dependency changes, not merely a list of filenames.
+3. **Architecture before and after:** ownership boundaries, dependency direction, state/data flow, lifecycle implications, and why the chosen design is preferable. A compact textual before/after is sufficient.
+4. **User-visible behavior:** exactly what changes and what intentionally remains unchanged; note language/theme/accessibility effects where relevant.
+5. **Persistence and compatibility:** SQLite schema/migrations, existing data, active timers, archived projects, app upgrades, and backward compatibility; explicitly state when no schema changes are made.
+6. **Verification:** commands/checks actually executed, GitHub Actions run URL, commit SHA checked, job conclusions, and any skipped or unavailable tests. Distinguish compilation, JVM tests, emulator tests, and manual device verification.
+7. **Risks and regression checklist:** realistic failure modes, edge cases, and concrete manual checks relevant to the change.
+8. **Out of scope and follow-ups:** remaining work, intentional limitations, and known technical debt.
+
+- The PR description must enable a reviewer to understand the change without reading the entire diff, while remaining traceable to the actual code.
+- Create a detailed description when opening the PR; **update it as the branch evolves**, especially after significant commits, scope changes, CI failures/fixes, and before merge. Do not leave a stale scaffold description on a large refactor.
+- Prior to merging, confirm that the final PR description accurately covers the final diff and the latest successful PR-head verification. Never imply skipped jobs passed or a device test occurred when it did not.
+- After merge, report the PR URL, merge commit SHA, verified CI run, and any remaining manual checks.
+
 ## Known technical debt / risks
 - `MainActivity.kt` remains monolithic and still performs some SQLite work on the UI thread. Repository/model/UI extraction is underway; continue incrementally without breaking migrations or existing behavior.
 - Events may become orphaned after session deletion; inspect delete paths before making changes involving data integrity.
