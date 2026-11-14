@@ -1441,26 +1441,35 @@ class MainActivity : Activity() {
         val c = card()
         val active = activeStart(person)
         if (active != null) markActive(c)
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(View(this).apply { background = shape(personColor(person), 6) },
-            LinearLayout.LayoutParams(dp(8), dp(32)).apply { rightMargin = dp(10) })
-        header.addView(label(personName(person), 19f, true, ink).apply { letterSpacing = -0.01f },
-            LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(label(if (active == null) "● " + tr(R.string.timer_stopped)
-            else "● " + (if (resources.configuration.locales[0].language == "pl") "TRWA" else "RUNNING"),
-            12f, true, if (active == null) muted else personColor(person)))
+        val header = TimerCardHeader(
+            this,
+            label(personName(person), 19f, true, ink),
+            label(if (active == null) "● " + tr(R.string.timer_stopped)
+                else "● " + (if (resources.configuration.locales[0].language == "pl") "TRWA" else "RUNNING"),
+                12f, true, if (active == null) muted else personColor(person)),
+            shape(personColor(person), 6)
+        )
         c.addView(header)
         gap(c, 12)
         val timeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val timeColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val totalLabel = label(duration(total(person, start, end, now)), 36f, true).apply {
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             letterSpacing = -0.035f
             setFontFeatureSettings("tnum")
         }
-        timeColumn.addView(totalLabel)
-        timeColumn.addView(label(tr(R.string.selected_day_total), 13f, false, muted))
-        timeRow.addView(timeColumn, LinearLayout.LayoutParams(0, -2, 1f))
+        val statusLabel = if (!isArchived()) label(
+            if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active),
+            16f, false, muted
+        ) else null
+        val clock = TimerCardClock(
+            this,
+            totalLabel,
+            label(tr(R.string.selected_day_total), 13f, false, muted),
+            statusLabel,
+            formatTotal = { tick -> duration(total(person, start, end, tick)) },
+            formatStatus = if (active != null) ({ tick: Long -> tr(R.string.running_prefix) + duration(tick - active) }) else null
+        )
+        timeRow.addView(clock.totalColumn, LinearLayout.LayoutParams(0, -2, 1f))
         val ring = dayOccupancyRing(person, start, end, now)
         timeRow.addView(ring, LinearLayout.LayoutParams(dp(80), dp(80)))
         c.addView(timeRow)
@@ -1468,7 +1477,7 @@ class MainActivity : Activity() {
         val strip = daySessionStrip(person, start, end)
         c.addView(strip, LinearLayout.LayoutParams(-1, dp(9)))
         if (active != null) timerUpdates.add { tick ->
-            totalLabel.text = duration(total(person, start, end, tick))
+            clock.update(tick)
             ring.invalidate()
             strip.invalidate()
         }
@@ -1482,11 +1491,7 @@ class MainActivity : Activity() {
         c.addView(ticks)
         if (!isArchived()) {
             gap(c, 14)
-            val statusLabel = label(if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active), 16f, false, muted)
-            c.addView(statusLabel)
-            if (active != null) timerUpdates.add { tick ->
-                statusLabel.text = tr(R.string.running_prefix) + duration(tick - active)
-            }
+            if (statusLabel != null) c.addView(statusLabel)
             gap(c, 12)
             val button = if (active == null)
                 action("▶  START", personColor(person)) { toggle(person) }
