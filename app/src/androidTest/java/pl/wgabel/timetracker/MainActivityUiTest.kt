@@ -177,4 +177,68 @@ class MainActivityUiTest {
             }
         }
     }
+    @Test fun runningTimerSurvivesActivityRestart() {
+        tapText("▶  START")
+        val originalStart = database().use { db ->
+            db.rawQuery("SELECT started_at FROM sessions WHERE person=1 AND ended_at IS NULL", null).use {
+                assertTrue(it.moveToFirst())
+                it.getLong(0)
+            }
+        }
+        activity?.let { old ->
+            instrumentation.runOnMainSync { old.finish() }
+        }
+        instrumentation.waitForIdleSync()
+        activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(2200)
+        tapText("UI project")
+        assertNotNull(device.wait(Until.findObject(By.text("■  STOP")), 8000))
+        database().use { db ->
+            db.rawQuery("SELECT started_at, ended_at FROM sessions WHERE person=1", null).use {
+                assertTrue(it.moveToFirst())
+                assertEquals("Restart must not reset the timer", originalStart, it.getLong(0))
+                assertTrue("Timer must still be running", it.isNull(1))
+                assertFalse("Restart must not duplicate sessions", it.moveToNext())
+            }
+        }
+        tapText("■  STOP")
+        database().use { db ->
+            db.rawQuery("SELECT started_at, ended_at FROM sessions WHERE person=1", null).use {
+                assertTrue(it.moveToFirst())
+                assertEquals(originalStart, it.getLong(0))
+                assertTrue(it.getLong(1) >= originalStart)
+                assertFalse(it.moveToNext())
+            }
+        }
+    }
+
+    @Test fun runningTimerSurvivesSwitchingTabs() {
+        tapText("▶  START")
+        val originalStart = database().use { db ->
+            db.rawQuery("SELECT started_at FROM sessions WHERE person=1 AND ended_at IS NULL", null).use {
+                assertTrue(it.moveToFirst())
+                it.getLong(0)
+            }
+        }
+        tapDescription("Statistics")
+        assertNotNull(device.wait(Until.findObject(By.descContains("History")), 8000))
+        tapDescription("History")
+        assertNotNull(device.wait(Until.findObject(By.descContains("Timers")), 8000))
+        tapDescription("Timers")
+        assertNotNull(device.wait(Until.findObject(By.text("■  STOP")), 8000))
+        database().use { db ->
+            db.rawQuery("SELECT started_at, ended_at FROM sessions WHERE person=1", null).use {
+                assertTrue(it.moveToFirst())
+                assertEquals(originalStart, it.getLong(0))
+                assertTrue("Changing tabs must not stop the timer", it.isNull(1))
+                assertFalse("Changing tabs must not create sessions", it.moveToNext())
+            }
+        }
+        tapText("■  STOP")
+        assertEquals(1, count("sessions"))
+    }
+
 }
