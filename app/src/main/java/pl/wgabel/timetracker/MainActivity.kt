@@ -2213,7 +2213,7 @@ class MainActivity : Activity() {
         return result
     }
 
-    private fun barChart(from: Long, to: Long) {
+    private fun barChart(from: Long, to: Long, target: LinearLayout) {
         val points = mutableListOf<Pair<String, Long>>()
         val cal = Calendar.getInstance().apply { timeInMillis = from }
         val endLimit = if (statsPeriod == 3) System.currentTimeMillis() else to
@@ -2275,14 +2275,51 @@ class MainActivity : Activity() {
                 }
             }
         }
-        content.addView(chart, LinearLayout.LayoutParams(-1, dp(180)))
+        target.addView(chart, LinearLayout.LayoutParams(-1, dp(180)))
         val minutes = points.sumOf { it.second } / 60000L
-        content.addView(label(getString(R.string.total_person_hours, minutes / 60, minutes % 60), 15f, true))
+        target.addView(label(getString(R.string.total_person_hours, minutes / 60, minutes % 60), 15f, true))
+    }
+
+    private fun renderPeriodTotals(from: Long, to: Long) {
+        val entries = participants().map { it to total(it, from, to) }
+        val sum = entries.sumOf { it.second }
+        val maximum = (entries.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+        val c = card()
+        c.addView(label("01 — ŁĄCZNY CZAS", 12f, true, muted))
+        gap(c, 8)
+        c.addView(label(duration(sum), 29f, true, ink))
+        c.addView(label("Suma czasów uczestników w wybranym okresie", 12f, false, muted))
+        gap(c, 16)
+        c.addView(label("Czas według uczestników", 17f, true, ink))
+        gap(c, 12)
+        entries.forEach { (person, time) ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(View(this).apply { background = shape(personColor(person), 5) },
+                LinearLayout.LayoutParams(dp(10), dp(10)).apply { rightMargin = dp(8) })
+            row.addView(label(personName(person), 14f, false, ink),
+                LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(label(duration(time), 14f, true, ink))
+            c.addView(row)
+            gap(c, 5)
+            val fraction = (time.toFloat() / maximum).coerceIn(0f, 1f)
+            val bar = LinearLayout(this).apply { background = shape(subtle, 5) }
+            if (fraction > 0f) bar.addView(View(this).apply {
+                background = shape(personColor(person), 5)
+            }, LinearLayout.LayoutParams(0, dp(8), fraction))
+            if (fraction < 1f) bar.addView(View(this),
+                LinearLayout.LayoutParams(0, dp(8), 1f - fraction))
+            c.addView(bar, LinearLayout.LayoutParams(-1, dp(8)))
+            gap(c, 12)
+        }
+        addCard(c)
     }
 
     private fun renderParticipantPie(from: Long, to: Long) {
         val c = card()
-        c.addView(label(tr(R.string.participant_compare), 20f, true))
+        c.addView(label("02 — UDZIAŁ W ŁĄCZNYM CZASIE", 12f, true, muted))
         gap(c, 6)
         c.addView(label(tr(R.string.participant_share), 13f, false, muted))
         gap(c, 12)
@@ -2766,11 +2803,16 @@ class MainActivity : Activity() {
     }
 
     private fun renderStats() {
-        // Reuse the History day navigator; the statistics period selector is independent.
         dayNavigator(false)
         gap(content, 8)
+        renderTimeline()
+        gap(content, 18)
+        renderVerticalDailyTimeline()
+        gap(content, 22)
+        content.addView(label("Podsumowanie okresu", 22f, true, ink))
+        gap(content, 12)
         val c = card()
-        c.addView(label(tr(R.string.time_project), 20f, true))
+        c.addView(label("WYBIERZ OKRES", 12f, true, muted))
         gap(c, 12)
         val selector = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(tr(R.string.day), tr(R.string.week), tr(R.string.month), tr(R.string.all)).forEachIndexed { index, name ->
@@ -2800,14 +2842,16 @@ class MainActivity : Activity() {
         addCard(c)
         val (from, to) = periodRange()
         if (to > from) {
-            barChart(from, to)
-            gap(content, 18)
+            renderPeriodTotals(from, to)
+            gap(content, 16)
+            val trend = card()
+            trend.addView(label("PRZEBIEG CZASU W OKRESIE", 12f, true, muted))
+            gap(trend, 12)
+            barChart(from, to, trend)
+            addCard(trend)
+            gap(content, 16)
             renderParticipantPie(from, to)
         }
-        gap(content, 18)
-        renderTimeline()
-        gap(content, 18)
-        renderVerticalDailyTimeline()
     }
 
     // The selected control retains its participant color. A dashed outline moves
