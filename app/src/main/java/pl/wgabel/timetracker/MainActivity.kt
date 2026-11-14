@@ -851,13 +851,8 @@ class MainActivity : Activity() {
             else ParticipantColors.legacyColor(person)
         }
 
-    private fun nextParticipantColor(): Int {
-        val count = db.rawQuery("SELECT COUNT(*) FROM participants WHERE project_id=?",
-            arrayOf(projectId.toString())).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getInt(0) else 0
-        }
-        return ParticipantColors.suggested(count)
-    }
+    private fun nextParticipantColor(): Int =
+        ParticipantDataSource(db).suggestedColor(requireNotNull(projectId))
 
     private val participantColorPicker: ParticipantColorPicker by lazy {
         ParticipantColorPicker(this) { value, size, bold, color ->
