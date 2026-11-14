@@ -72,6 +72,7 @@ import pl.wgabel.timetracker.tabs.StatisticsService
 import pl.wgabel.timetracker.tabs.SettingsService
 import pl.wgabel.timetracker.data.ProjectRepository
 import pl.wgabel.timetracker.data.ParticipantRepository
+import pl.wgabel.timetracker.data.StatisticsRepository
 
 class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
@@ -83,6 +84,7 @@ class MainActivity : Activity() {
     }
     private val projectRepository get() = ProjectRepository(db)
     private val participantRepository get() = ParticipantRepository(db)
+    private val statisticsRepository get() = StatisticsRepository(db)
     private val sessionRepository get() = SessionRepository(db)
     private val eventRepository get() = EventRepository(db, sessionRepository)
     private val timerSessionController get() = TimerSessionController(db)
@@ -1469,10 +1471,7 @@ class MainActivity : Activity() {
             1 -> { cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek); cal.add(Calendar.WEEK_OF_YEAR, statsOffset) }
             2 -> { cal.set(Calendar.DAY_OF_MONTH, 1); cal.add(Calendar.MONTH, statsOffset) }
             else -> {
-                var earliest = System.currentTimeMillis()
-                db.rawQuery("SELECT MIN(started_at) FROM sessions WHERE project_id=?", arrayOf(projectId.toString())).use { c ->
-                    if (c.moveToFirst() && !c.isNull(0)) earliest = c.getLong(0)
-                }
+                val earliest = statisticsRepository.earliestSessionStart(requireNotNull(projectId)) ?: System.currentTimeMillis()
                 return earliest to System.currentTimeMillis()
             }
         }
@@ -1485,28 +1484,8 @@ class MainActivity : Activity() {
         return from to cal.timeInMillis
     }
 
-    private fun intervals(start: Long, end: Long): List<Triple<Int, Long, Long>> {
-        val result = mutableListOf<Triple<Int, Long, Long>>()
-        val now = System.currentTimeMillis()
-        db.rawQuery(
-            "SELECT person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
-            arrayOf(projectId.toString(), end.toString(), start.toString())
-        ).use { c ->
-            while (c.moveToNext()) {
-                val clipped = TimeMath.clippedInterval(
-                    c.getLong(1),
-                    if (c.isNull(2)) null else c.getLong(2),
-                    start,
-                    end,
-                    now
-                )
-                if (clipped != null) {
-                    result.add(Triple(c.getInt(0), clipped.first, clipped.second))
-                }
-            }
-        }
-        return result
-    }
+    private fun intervals(start: Long, end: Long): List<Triple<Int, Long, Long>> =
+        statisticsRepository.clippedIntervals(requireNotNull(projectId), start, end)
 
     private fun barChart(from: Long, to: Long, target: LinearLayout) {
         data class Bucket(val label: String, val start: Long, val end: Long, val millis: Long)
