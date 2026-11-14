@@ -1646,119 +1646,116 @@ class MainActivity : Activity() {
     }
 
     private fun sessionList(start: Long, end: Long, limit: Int = 100) {
-        var count = 0
-        val personClause = if (tab == 2 && historyPerson != 0) " AND person=$historyPerson" else ""
-        db.rawQuery(
-            "SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)$personClause ORDER BY started_at DESC LIMIT $limit",
-            arrayOf(projectId.toString(), end.toString(), start.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(0)
-                val person = cursor.getInt(1)
-                val originalStart = cursor.getLong(2)
-                val originalEnd = if (cursor.isNull(3)) null else cursor.getLong(3)
-                val from = maxOf(start, originalStart)
-                val until = minOf(end, originalEnd ?: System.currentTimeMillis())
-                val row = LinearLayout(this).apply {
+        val list = HistorySessionList(this, db)
+        val count = list.populate(
+            projectId!!, start, end, limit,
+            if (tab == 2 && historyPerson != 0) historyPerson else null
+        ) { session ->
+            val id = session.id
+            val person = session.participantId
+            val originalStart = session.startedAt
+            val originalEnd = session.endedAt
+            val from = maxOf(start, originalStart)
+            val until = minOf(end, originalEnd ?: System.currentTimeMillis())
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(10), dp(10))
+                background = shape(surface, 12)
+            }
+            if (originalEnd == null) markActive(row)
+            val isHistory = tab == 2
+            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val running = if (originalEnd == null) "  • trwa" else ""
+            val rangeLabel = label(clockFormat.format(Date(from)) + " – " +
+                clockFormat.format(Date(until)) + running, 13f, false, muted)
+            val elapsedLabel = label(duration(until - from), 16f, true)
+            if (isHistory) {
+                row.addView(avatar(person), LinearLayout.LayoutParams(dp(38), dp(38)).apply {
+                    rightMargin = dp(10)
+                })
+                left.addView(label(personName(person), 16f, true))
+                gap(left, 4)
+                left.addView(rangeLabel)
+            } else {
+                val heading = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(12), dp(10), dp(10), dp(10))
-                    background = shape(surface, 12)
                 }
-                if (originalEnd == null) markActive(row)
-                val isHistory = tab == 2
-                val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                val running = if (originalEnd == null) "  • trwa" else ""
-                val rangeLabel = label(clockFormat.format(Date(from)) + " – " +
-                    clockFormat.format(Date(until)) + running, 13f, false, muted)
-                val elapsedLabel = label(duration(until - from), 16f, true)
-                if (isHistory) {
-                    row.addView(avatar(person), LinearLayout.LayoutParams(dp(38), dp(38)).apply {
-                        rightMargin = dp(10)
-                    })
-                    left.addView(label(personName(person), 16f, true))
-                    gap(left, 4)
-                    left.addView(rangeLabel)
-                } else {
-                    val heading = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                    }
-                    heading.addView(avatar(person), LinearLayout.LayoutParams(dp(29), dp(29)))
-                    heading.addView(label("  " + personName(person) + "  •  " +
-                        dateFormat.format(Date(originalStart)), 13f, true))
-                    left.addView(heading)
-                    gap(left, 5)
-                    left.addView(rangeLabel)
-                    gap(left, 3)
-                    left.addView(elapsedLabel)
-                }
-                if (originalEnd == null && tab == 0) timerUpdates.add { tick ->
-                    val currentEnd = minOf(end, tick)
-                    rangeLabel.text = clockFormat.format(Date(from)) + " – " +
-                        clockFormat.format(Date(currentEnd)) + running
-                    elapsedLabel.text = duration(currentEnd - from)
-                }
-                row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
-                if (isHistory) {
-                    row.addView(elapsedLabel.apply { setSingleLine(true) },
-                        LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
-                }
-                val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                group.addView(row)
-                if (isHistory && !isArchived()) {
-                    // Actions start hidden; tapping the session reveals a sliding action tray.
-                    val tray = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
-                        setPadding(dp(12), 0, dp(12), 0)
-                        background = shape(surface, 12)
-                        clipChildren = true
-                    }
-                    val addEventAction = iconButton(
-                        "bookmark-add",
-                        if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
-                    ) {
-                        if (originalEnd == null) addEvent(person)
-                        else addHistoricalEvent(id, person, originalStart, originalEnd)
-                    }.apply {
-                        background = shape(
-                            if (darkTheme) Color.rgb(34, 70, 59) else Color.rgb(229, 244, 237), 10)
-                        contentDescription = "Dodaj wydarzenie"
-                    }
-                    val editAction = editIconButton {
-                        if (originalEnd == null) editActiveSessionStart(id, person, originalStart)
-                        else editSession(id, person, originalStart, originalEnd)
-                    }.apply { background = shape(subtle, 10) }
-                    val deleteAction = deleteIconButton {
-                        deleteSession(id)
-                    }.apply {
-                        background = shape(
-                            if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
-                    }
-                    tray.addView(addEventAction, LinearLayout.LayoutParams(dp(52), dp(48)))
-                    tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                    tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
-                    tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
-                    if (originalEnd != null) tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
-                    val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
-                    row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
-                    group.addView(tray, LinearLayout.LayoutParams(-1, 0))
-                    HistoryActionTray(
-                        row, tray, arrow,
-                        HistoryActionTray.Dimension.HEIGHT,
-                        expandedSizePx = dp(64),
-                        slideOffsetPx = dp(36)
-                    ).attach(personName(person) + ", " + duration(until - from) +
-                        ". Dotknij, aby pokazać lub ukryć akcje")
-                }
-                if (isHistory) eventList(id, person, group)
-                content.addView(group, LinearLayout.LayoutParams(-1, -2))
-                gap(content, 7)
-                count++
+                heading.addView(avatar(person), LinearLayout.LayoutParams(dp(29), dp(29)))
+                heading.addView(label("  " + personName(person) + "  •  " +
+                    dateFormat.format(Date(originalStart)), 13f, true))
+                left.addView(heading)
+                gap(left, 5)
+                left.addView(rangeLabel)
+                gap(left, 3)
+                left.addView(elapsedLabel)
             }
+            if (originalEnd == null && tab == 0) timerUpdates.add { tick ->
+                val currentEnd = minOf(end, tick)
+                rangeLabel.text = clockFormat.format(Date(from)) + " – " +
+                    clockFormat.format(Date(currentEnd)) + running
+                elapsedLabel.text = duration(currentEnd - from)
+            }
+            row.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
+            if (isHistory) {
+                row.addView(elapsedLabel.apply { setSingleLine(true) },
+                    LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
+            }
+            val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            group.addView(row)
+            if (isHistory && !isArchived()) {
+                // Actions start hidden; tapping the session reveals a sliding action tray.
+                val tray = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+                    setPadding(dp(12), 0, dp(12), 0)
+                    background = shape(surface, 12)
+                    clipChildren = true
+                }
+                val addEventAction = iconButton(
+                    "bookmark-add",
+                    if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
+                ) {
+                    if (originalEnd == null) addEvent(person)
+                    else addHistoricalEvent(id, person, originalStart, originalEnd)
+                }.apply {
+                    background = shape(
+                        if (darkTheme) Color.rgb(34, 70, 59) else Color.rgb(229, 244, 237), 10)
+                    contentDescription = "Dodaj wydarzenie"
+                }
+                val editAction = editIconButton {
+                    if (originalEnd == null) editActiveSessionStart(id, person, originalStart)
+                    else editSession(id, person, originalStart, originalEnd)
+                }.apply { background = shape(subtle, 10) }
+                val deleteAction = deleteIconButton {
+                    deleteSession(id)
+                }.apply {
+                    background = shape(
+                        if (darkTheme) Color.rgb(76, 45, 49) else Color.rgb(252, 233, 233), 10)
+                }
+                tray.addView(addEventAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
+                tray.addView(editAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                tray.addView(View(this), LinearLayout.LayoutParams(dp(12), dp(1)))
+                if (originalEnd != null) tray.addView(deleteAction, LinearLayout.LayoutParams(dp(52), dp(48)))
+                val arrow = label("›", 23f, false, muted).apply { gravity = Gravity.CENTER }
+                row.addView(arrow, LinearLayout.LayoutParams(dp(20), dp(48)))
+                group.addView(tray, LinearLayout.LayoutParams(-1, 0))
+                HistoryActionTray(
+                    row, tray, arrow,
+                    HistoryActionTray.Dimension.HEIGHT,
+                    expandedSizePx = dp(64),
+                    slideOffsetPx = dp(36)
+                ).attach(personName(person) + ", " + duration(until - from) +
+                    ". Dotknij, aby pokazać lub ukryć akcje")
+            }
+            if (isHistory) eventList(id, person, group)
+            list.addView(group, LinearLayout.LayoutParams(-1, -2))
+            gap(list, 7)
         }
-        if (count == 0) content.addView(label(tr(R.string.no_sessions), 15f, false, muted))
+        if (count == 0) list.addView(label(tr(R.string.no_sessions), 15f, false, muted))
+        content.addView(list, LinearLayout.LayoutParams(-1, -2))
     }
 
     // A quiet section heading, inspired by the approved mockup without changing timer controls.
