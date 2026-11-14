@@ -73,6 +73,7 @@ import pl.wgabel.timetracker.tabs.SettingsService
 import pl.wgabel.timetracker.data.ProjectRepository
 import pl.wgabel.timetracker.data.ParticipantRepository
 import pl.wgabel.timetracker.data.StatisticsRepository
+import pl.wgabel.timetracker.data.EventDataSource
 
 class MainActivity : Activity() {
     private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
@@ -1408,24 +1409,15 @@ class MainActivity : Activity() {
     }
 
     private fun selectedDayEvents(start: Long, end: Long) {
-        val events = mutableListOf<Triple<Int, String, String>>()
-        db.rawQuery(
-            "SELECT person,happened_at,type,note FROM events WHERE project_id=? AND happened_at>=? AND happened_at<? ORDER BY happened_at DESC",
-            arrayOf(projectId.toString(), start.toString(), end.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val person = cursor.getInt(0)
-                val time = clockFormat.format(Date(cursor.getLong(1)))
-                val type = cursor.getString(2)
-                val note = cursor.getString(3)
-                events.add(Triple(person, time, type + if (note.isBlank()) "" else " · " + note))
-            }
-        }
+        val events = EventDataSource(db).eventsForDay(requireNotNull(projectId), start, end)
         if (events.isEmpty()) {
             content.addView(label("Brak wydarzeń w wybranym dniu", 14f, false, muted))
             return
         }
-        events.forEach { (person, time, description) ->
+        events.forEach { event ->
+            val person = event.participantId
+            val time = clockFormat.format(Date(event.happenedAt))
+            val description = event.type + if (event.note.isBlank()) "" else " · " + event.note
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
