@@ -49,7 +49,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import pl.wgabel.timetracker.data.TimerCardDataSource
+import pl.wgabel.timetracker.tabs.TimerCardStateSource
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -1326,13 +1326,14 @@ class MainActivity : Activity() {
 
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
         val c = card()
-        val cardData = TimerCardDataSource(db).load(
-            projectId!!, person, tr(R.string.person_fallback) + person
+        val state = TimerCardStateSource(db).load(
+            requireNotNull(projectId), person, start, end, tr(R.string.person_fallback) + person
         )
+        val cardData = state.data
         val active = cardData.activeStartedAt
-        val summary = SessionDaySummary(db)
-        val intervals = summary.intervals(projectId!!, person, start, end)
-        fun measuredDuration(tick: Long) = summary.duration(intervals, start, end, tick)
+        val summary = state.summary
+        val intervals = state.intervals
+        fun measuredDuration(tick: Long) = state.duration(start, end, tick)
         if (active != null) markActive(c)
         val header = TimerCardHeader(
             this,
