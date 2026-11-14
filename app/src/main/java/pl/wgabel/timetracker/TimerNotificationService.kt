@@ -1,14 +1,15 @@
 package pl.wgabel.timetracker
 
-import android.Manifest
 import android.app.*
 import android.content.*
-import android.content.pm.PackageManager
-import android.graphics.Color
 import android.os.*
 import android.widget.RemoteViews
-import android.database.sqlite.SQLiteDatabase
 import java.util.Locale
+import pl.wgabel.timetracker.MainActivity
+import pl.wgabel.timetracker.R
+import pl.wgabel.timetracker.TimeTrackerApplication
+import pl.wgabel.timetracker.data.SessionRepository
+import pl.wgabel.timetracker.time.DatePresentation
 
 class TimerNotificationService : Service() {
     private val notificationId = 42
@@ -35,7 +36,7 @@ class TimerNotificationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val items = loadActive()
+        val items = loadActiveTimers()
         if (items.isEmpty()) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -45,31 +46,16 @@ class TimerNotificationService : Service() {
         return START_STICKY
     }
 
-    private data class Timer(val project: String, val person: String, val start: Long)
+    private fun loadActiveTimers(): List<SessionRepository.ActiveTimer> =
+        (application as TimeTrackerApplication).container.sessions.activeTimers()
 
-    private fun loadActive(): List<Timer> {
-        val database = SQLiteDatabase.openDatabase(getDatabasePath("sessions.db").path, null, SQLiteDatabase.OPEN_READONLY)
-        return try {
-            val items = mutableListOf<Timer>()
-            database.rawQuery("""
-                SELECT projects.name, participants.name, sessions.started_at
-                FROM sessions JOIN projects ON projects.id=sessions.project_id
-                JOIN participants ON participants.id=sessions.person
-                WHERE sessions.ended_at IS NULL ORDER BY projects.name, participants.name
-            """.trimIndent(), null).use { cursor ->
-                while (cursor.moveToNext()) items.add(Timer(cursor.getString(0), cursor.getString(1), cursor.getLong(2)))
-            }
-            items
-        } finally { database.close() }
-    }
-
-    private fun startTime(start: Long): String =
+    private fun formatStartTime(start: Long): String =
         DatePresentation.shortTime(resources).format(java.util.Date(start))
 
-    private fun buildNotification(items: List<Timer>): Notification {
+    private fun buildNotification(items: List<SessionRepository.ActiveTimer>): Notification {
         val projectCount = items.map { it.project }.distinct().size
         val title = if (projectCount == 1) items.first().project else getString(R.string.notification_active_projects, projectCount)
-        val lines = items.take(4).map { if (projectCount == 1) getString(R.string.notification_since, it.person, startTime(it.start)) else getString(R.string.notification_project_since, it.project, it.person, startTime(it.start)) }
+        val lines = items.take(4).map { if (projectCount == 1) getString(R.string.notification_since, it.person, formatStartTime(it.start)) else getString(R.string.notification_project_since, it.project, it.person, formatStartTime(it.start)) }
         val description = lines.joinToString("\n") + if (items.size > 4) "\n" + getString(R.string.notification_more, items.size - 4) else ""
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
