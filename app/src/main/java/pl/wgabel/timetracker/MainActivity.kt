@@ -52,6 +52,7 @@ import java.util.Locale
 import pl.wgabel.timetracker.data.TimerCardDataSource
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
+import pl.wgabel.timetracker.tabs.TimersRenderer
 import pl.wgabel.timetracker.tabs.HistoryService
 import pl.wgabel.timetracker.tabs.StatisticsService
 import pl.wgabel.timetracker.tabs.SettingsService
@@ -78,8 +79,11 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var tab = 0
     // Tab services are lifecycle scaffolding. Existing UI is still rendered below.
+    private val timersService: TimersService by lazy {
+        TimersService(TimersRenderer { renderTimers() })
+    }
     private val tabServices: List<ITabService> by lazy {
-        listOf(TimersService(), StatisticsService(), HistoryService(), SettingsService())
+        listOf(timersService, StatisticsService(), HistoryService(), SettingsService())
     }
     private var visibleTabService: ITabService? = null
 
@@ -2866,7 +2870,7 @@ class MainActivity : Activity() {
             gap(content, 7)
         }
         when (tab) {
-            0 -> renderTimers()
+            0 -> timersService.render(requireNotNull(projectId))
             1 -> renderStats()
             2 -> renderHistory()
             else -> renderSettings()
