@@ -54,6 +54,7 @@ import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
 import pl.wgabel.timetracker.tabs.RecentActivityDataSource
+import pl.wgabel.timetracker.tabs.RecentActivityRenderer
 import pl.wgabel.timetracker.tabs.HistoryService
 import pl.wgabel.timetracker.tabs.StatisticsService
 import pl.wgabel.timetracker.tabs.SettingsService
@@ -100,7 +101,11 @@ class MainActivity : Activity() {
                     }
                 },
                 renderCard = { person, start, end, now -> timerCard(person, start, end, now) },
-                renderRecentActivity = { recentActivity() },
+                renderRecentActivity = {
+                    recentActivityRenderer.render(
+                        RecentActivityDataSource(db).load(requireNotNull(projectId))
+                    )
+                },
                 gap = { height -> gap(content, height) }
             ),
             loadState = { id ->
@@ -113,6 +118,23 @@ class MainActivity : Activity() {
                     archived = isArchived()
                 )
             }
+        )
+    }
+    private val recentActivityRenderer: RecentActivityRenderer by lazy {
+        RecentActivityRenderer(
+            context = this,
+            target = { content },
+            sectionHeading = { sectionHeading(it) },
+            text = { value, size, bold, color ->
+                if (color == null) label(value, size, bold) else label(value, size, bold, color)
+            },
+            mutedColor = { muted },
+            surfaceBackground = { shape(surface, 12) },
+            participantColor = { personColor(it) },
+            participantName = { personName(it) },
+            dateFormat = { DatePresentation.shortDateTime(resources) },
+            action = { title, onClick -> styledAction(title, ButtonRole.SECONDARY, onClick) },
+            openHistory = { tab = 2; render() }
         )
     }
     private val tabServices: List<ITabService> by lazy {
@@ -1685,43 +1707,6 @@ class MainActivity : Activity() {
             content.addView(row, LinearLayout.LayoutParams(-1, -2))
             gap(content, 8)
         }
-    }
-
-    private fun recentActivity() {
-        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Ostatnia aktywność" else "Recent activity")
-        val rows = RecentActivityDataSource(db).load(requireNotNull(projectId))
-        if (rows.isEmpty()) content.addView(label(
-            if (resources.configuration.locales[0].language == "pl") "Brak aktywności" else "No activity yet",
-            14f, false, muted))
-        val format = DatePresentation.shortDateTime(resources)
-        rows.forEach { (whenAt, person, description) ->
-            val isEvent = description.startsWith("event:")
-            val title = if (isEvent) {
-                val parts = description.removePrefix("event:").split(":", limit = 2)
-                parts.getOrElse(1) { "" }.ifBlank { parts[0] }
-            } else if (resources.configuration.locales[0].language == "pl") "Sesja" else "Session"
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-                if (!isEvent) background = shape(surface, 12)
-            }
-            row.addView(View(this).apply { background = shape(personColor(person), 3) },
-                LinearLayout.LayoutParams(dp(5), dp(40)).apply { rightMargin = dp(12) })
-            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            details.addView(label((if (isEvent) "⚑  " else "◷  ") + title, 15f, true))
-            details.addView(label(personName(person) + " · " + format.format(Date(whenAt)), 12f, false, muted))
-            row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-            content.addView(row)
-            gap(content, 7)
-        }
-        content.addView(styledAction(
-            if (resources.configuration.locales[0].language == "pl") "Pokaż wszystkie  →" else "Show all  →",
-            ButtonRole.SECONDARY
-        ) {
-            tab = 2
-            render()
-        })
     }
 
     private fun periodRange(): Pair<Long, Long> {
