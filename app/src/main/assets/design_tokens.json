@@ -41,6 +41,11 @@
     "cardRadiusDp": 22,
     "cardPaddingDp": 18,
     "cardStrokeDp": 1,
-    "cardElevationDp": 1
+    "cardElevationDp": 1,
+    "buttonRadiusDp": 9,
+    "buttonMinHeightDp": 48,
+    "buttonTextSp": 15,
+    "defaultTextSp": 16,
+    "defaultGapDp": 12
   }
 }
