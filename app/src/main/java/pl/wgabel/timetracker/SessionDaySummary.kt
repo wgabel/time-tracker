@@ -9,7 +9,7 @@ import pl.wgabel.timetracker.model.TimeInterval
  */
 internal class SessionDaySummary(private val db: SQLiteDatabase) {
     fun intervals(projectId: Long, participantId: Int, start: Long, end: Long): List<TimeInterval> {
-        val result = mutableListOf<Interval>()
+        val result = mutableListOf<TimeInterval>()
         db.rawQuery(
             "SELECT started_at,ended_at FROM sessions WHERE project_id=? AND person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
             arrayOf(projectId.toString(), participantId.toString(), end.toString(), start.toString())
