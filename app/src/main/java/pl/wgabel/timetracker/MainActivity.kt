@@ -52,7 +52,12 @@ import java.util.Locale
 import pl.wgabel.timetracker.data.TimerCardDataSource
 
 class MainActivity : Activity() {
-    private lateinit var db: SQLiteDatabase
+    private val databaseService: DatabaseService by lazy { SQLiteDatabaseService(this) }
+    private val db: SQLiteDatabase get() = databaseService.database
+    private val languageService: LanguageService by lazy { PreferencesLanguageService(this) }
+    private val splashScreen: SplashScreenService by lazy {
+        AnimatedSplashScreen(this, { darkTheme }, { blue }, { muted }, { ink })
+    }
     private val sessionRepository get() = SessionRepository(db)
     private val eventRepository get() = EventRepository(db, sessionRepository)
     private val timerSessionController get() = TimerSessionController(db)
@@ -93,42 +98,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        applyLanguage()
+        languageService.applyLanguage()
         applyThemeToSystem()
-        db = object : SQLiteOpenHelper(this, "sessions.db", null, 6) {
-            override fun onCreate(database: SQLiteDatabase) {
-                database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
-                database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL, color INTEGER NOT NULL DEFAULT 0)")
-                database.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
-                database.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
-                database.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
-            }
-            override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-                if (oldVersion < 2) {
-                    database.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
-                    database.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL)")
-                    database.execSQL("INSERT INTO projects(name) VALUES ('Poprzednie pomiary')")
-                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (1,1,?)", arrayOf(prefs.getString("name_1", tr(R.string.legacy_person_1))))
-                    database.execSQL("INSERT INTO participants(id,project_id,name) VALUES (2,1,?)", arrayOf(prefs.getString("name_2", tr(R.string.legacy_person_2))))
-                    database.execSQL("ALTER TABLE sessions ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1")
-                }
-                if (oldVersion < 3) database.execSQL("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
-                if (oldVersion < 4) database.execSQL("ALTER TABLE projects ADD COLUMN icon_variant INTEGER NOT NULL DEFAULT 0")
-                if (oldVersion < 5) database.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
-                if (oldVersion < 6) {
-                    database.execSQL("ALTER TABLE participants ADD COLUMN color INTEGER NOT NULL DEFAULT 0")
-                    database.rawQuery("SELECT id FROM participants", null).use { cursor ->
-                        while (cursor.moveToNext()) {
-                            val id = cursor.getInt(0)
-                            database.execSQL(
-                                "UPDATE participants SET color=? WHERE id=?",
-                                arrayOf(ParticipantColors.legacyColor(id), id)
-                            )
-                        }
-                    }
-                }
-            }
-        }.writableDatabase
+        databaseService.database
         applyThemeToSystem()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -185,7 +157,7 @@ class MainActivity : Activity() {
         outer.addView(navigation)
         setContentView(outer)
         render()
-        showStartupSplash(outer)
+        splashScreen.show(outer)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
         }
@@ -205,76 +177,6 @@ class MainActivity : Activity() {
 
     // Animated startup overlay, shown once on Activity creation. The project screen
     // is already rendered underneath so the transition never flashes a blank frame.
-    private fun showStartupSplash(root: ViewGroup) {
-        val overlay = object : View(this) {
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            var progress = 0f
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                canvas.drawColor(if (darkTheme) Color.rgb(21, 26, 35) else Color.rgb(246, 247, 251))
-                val cx = width / 2f
-                val cy = height / 2f - dp(22)
-                val radius = dp(68).toFloat()
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = dp(5).toFloat()
-                paint.strokeCap = Paint.Cap.ROUND
-                paint.color = blue
-                canvas.drawCircle(cx, cy, radius, paint)
-                paint.strokeWidth = dp(2).toFloat()
-                paint.color = muted
-                for (tick in 0 until 12) {
-                    val angle = tick * Math.PI / 6 - Math.PI / 2
-                    val inner = radius - dp(if (tick % 3 == 0) 16 else 11)
-                    val outer = radius - dp(6)
-                    canvas.drawLine(
-                        cx + (kotlin.math.cos(angle) * inner).toFloat(),
-                        cy + (kotlin.math.sin(angle) * inner).toFloat(),
-                        cx + (kotlin.math.cos(angle) * outer).toFloat(),
-                        cy + (kotlin.math.sin(angle) * outer).toFloat(), paint
-                    )
-                }
-                // Minute hand makes one complete revolution during the splash.
-                val minuteAngle = progress * Math.PI * 2 - Math.PI / 2
-                paint.color = blue
-                paint.strokeWidth = dp(4).toFloat()
-                canvas.drawLine(cx, cy,
-                    cx + (kotlin.math.cos(minuteAngle) * radius * .72).toFloat(),
-                    cy + (kotlin.math.sin(minuteAngle) * radius * .72).toFloat(), paint)
-                val hourAngle = progress * Math.PI / 3 - Math.PI / 2
-                paint.color = ink
-                paint.strokeWidth = dp(6).toFloat()
-                canvas.drawLine(cx, cy,
-                    cx + (kotlin.math.cos(hourAngle) * radius * .45).toFloat(),
-                    cy + (kotlin.math.sin(hourAngle) * radius * .45).toFloat(), paint)
-                paint.style = Paint.Style.FILL
-                paint.color = blue
-                canvas.drawCircle(cx, cy, dp(6).toFloat(), paint)
-                paint.typeface = Typeface.DEFAULT_BOLD
-                paint.textAlign = Paint.Align.CENTER
-                paint.textSize = dp(28).toFloat()
-                paint.color = ink
-                canvas.drawText("timetrkr", cx, cy + radius + dp(58), paint)
-            }
-        }
-        root.addView(overlay, ViewGroup.LayoutParams(-1, -1))
-        val clock = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 1650L
-            interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener {
-                overlay.progress = it.animatedValue as Float
-                overlay.invalidate()
-            }
-        }
-        clock.start()
-        overlay.postDelayed({
-            if (overlay.parent != null) {
-                overlay.animate().alpha(0f).setDuration(350L).withEndAction {
-                    (overlay.parent as? ViewGroup)?.removeView(overlay)
-                }.start()
-            }
-        }, 1650L)
-    }
-
     private fun dp(n: Int): Int = (n * resources.displayMetrics.density + .5f).toInt()
     private fun shape(color: Int, radius: Int = 18): GradientDrawable =
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
@@ -303,27 +205,6 @@ class MainActivity : Activity() {
                 dialog.dismiss()
                 recreate()
             }.setNegativeButton(tr(R.string.cancel), null).show()
-    }
-
-    private fun selectLanguage() {
-        val choices = arrayOf(tr(R.string.system_language), tr(R.string.polish), tr(R.string.english))
-        val codes = arrayOf("", "pl", "en")
-        val selected = codes.indexOf(prefs.getString("app_language", "") ?: "").coerceAtLeast(0)
-        AlertDialog.Builder(this).setTitle(tr(R.string.language))
-            .setSingleChoiceItems(choices, selected) { dialog, which ->
-                prefs.edit().putString("app_language", codes[which]).apply()
-                dialog.dismiss()
-                recreate()
-            }.setNegativeButton(tr(R.string.cancel), null).show()
-    }
-
-    private fun applyLanguage() {
-        val code = prefs.getString("app_language", "") ?: ""
-        val locale = if (code.isEmpty()) android.content.res.Resources.getSystem().configuration.locales[0] else Locale(code)
-        Locale.setDefault(locale)
-        val config = android.content.res.Configuration(resources.configuration)
-        config.setLocale(locale)
-        resources.updateConfiguration(config, resources.displayMetrics)
     }
 
     private fun label(value: String, size: Float = 16f, bold: Boolean = false, color: Int = ink): TextView =
@@ -780,7 +661,7 @@ class MainActivity : Activity() {
         val app = card()
         app.addView(label(tr(R.string.application), 19f, true))
         gap(app, 12)
-        app.addView(styledAction("🌐  " + tr(R.string.language), ButtonRole.SECONDARY) { selectLanguage() })
+        app.addView(styledAction("🌐  " + tr(R.string.language), ButtonRole.SECONDARY) { languageService.selectLanguage() })
         gap(app, 10)
         app.addView(styledAction("◐  " + tr(R.string.theme), ButtonRole.SECONDARY) { selectTheme() })
         gap(app, 12)
@@ -3110,7 +2991,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
-        db.close()
+        databaseService.close()
         super.onDestroy()
     }
 }
