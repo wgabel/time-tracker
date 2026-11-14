@@ -10,11 +10,14 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import pl.wgabel.timetracker.data.SQLiteDatabaseService
 
 /**
  * Real UI smoke tests: tap the same controls as a user, then verify persisted data.
@@ -36,13 +39,8 @@ class MainActivityUiTest {
         context.deleteDatabase(databaseName)
         context.getSharedPreferences("preferences", 0).edit()
             .putString("app_language", "en").putString("app_theme", "light").commit()
-        database().use { db ->
-            db.execSQL("CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, icon_variant INTEGER NOT NULL DEFAULT 0)")
-            db.execSQL("CREATE TABLE participants (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, name TEXT NOT NULL, color INTEGER NOT NULL DEFAULT 0)")
-            db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, person INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER)")
-            db.execSQL("CREATE UNIQUE INDEX one_active_per_person ON sessions(person) WHERE ended_at IS NULL")
-            db.execSQL("CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, session_id INTEGER NOT NULL, person INTEGER NOT NULL, happened_at INTEGER NOT NULL, type TEXT NOT NULL, note TEXT NOT NULL)")
-            db.version = 6 // Match the app SQLiteOpenHelper schema version.
+        SQLiteDatabaseService(context).use { service ->
+            val db = service.database
             db.insertOrThrow("projects", null, ContentValues().apply {
                 put("id", 1); put("name", "UI project")
             })
@@ -243,6 +241,23 @@ class MainActivityUiTest {
                 assertFalse("Changing tabs must not create sessions", it.moveToNext())
             }
         }
+        tapText("■  STOP")
+        assertEquals(1, count("sessions"))
+    }
+
+    @Test fun activityRecreationRestoresSelectedProjectAndDoesNotDuplicateTimer() {
+        tapText("▶  START")
+        val startedAt = activeStart()
+        instrumentation.runOnMainSync { requireNotNull(activity).recreate() }
+        assertNotNull(device.wait(Until.findObject(By.text("■  STOP")), 8_000))
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+                .filterIsInstance<MainActivity>().single()
+        }
+        SystemClock.sleep(2_200) // Existing startup overlay also runs after recreation.
+        assertEquals(startedAt, activeStart())
+        assertEquals(1, count("sessions"))
         tapText("■  STOP")
         assertEquals(1, count("sessions"))
     }
