@@ -52,8 +52,7 @@ import java.util.Locale
 import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
-import pl.wgabel.timetracker.tabs.TimerCardHost
-import pl.wgabel.timetracker.tabs.TimerCardRenderer
+import pl.wgabel.timetracker.tabs.TimerCardFactory
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
 import pl.wgabel.timetracker.tabs.TimersInteractionService
@@ -101,28 +100,21 @@ class MainActivity : Activity() {
             openEventEditor = { session, person, time -> editEvent(null, session, person, time, "Inne", "") }
         )
     }
-    private val timerCardHost: TimerCardHost by lazy {
-        TimerCardHost(
+    private val timerCards: TimerCardFactory by lazy {
+        TimerCardFactory(
+            context = this,
+            database = { db },
+            projectId = { requireNotNull(projectId) },
+            archived = { isArchived() },
+            components = appUi,
             placeCard = ::addCard,
             animateActiveCard = ::markActive,
             createIcon = ::iconButton,
             resolveString = ::tr,
             formatDuration = ::duration,
-            toggleTimer = { person -> timersInteractionService.toggle(person) },
-            createEvent = { person -> timersInteractionService.addEvent(person) },
+            interactions = timersInteractionService,
             selectStartTime = ::quickStartPicker,
             subscribeTick = { update -> timerUpdates.add(update) }
-        )
-    }
-    private val timerCardRenderer: TimerCardRenderer by lazy {
-        TimerCardRenderer(
-            context = this,
-            db = db,
-            projectId = { requireNotNull(projectId) },
-            archived = { isArchived() },
-            ui = timerCardHost,
-            components = appUi,
-            actions = timerCardHost
         )
     }
     private val timersService: TimersService by lazy {
@@ -144,7 +136,7 @@ class MainActivity : Activity() {
                         setPadding(0, 0, 0, 0)
                     }
                 },
-                renderCard = { person, start, end, now -> timerCardRenderer.render(person, start, end, now) },
+                renderCard = { person, start, end, now -> timerCards.render(person, start, end, now) },
                 renderRecentActivity = {
                     recentActivityRenderer.render(
                         RecentActivityDataSource(db).load(requireNotNull(projectId))
