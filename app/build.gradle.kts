@@ -11,6 +11,7 @@ android {
         applicationId = "pl.wgabel.timetracker"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // GitHub Actions run numbers increment for each new workflow run.
         // Keep local builds usable without GitHub environment variables.
         val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.takeIf { it > 0 }
@@ -56,4 +57,6 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
