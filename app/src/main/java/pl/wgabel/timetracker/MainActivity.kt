@@ -50,6 +50,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import pl.wgabel.timetracker.tabs.TimerCardRenderer
+import pl.wgabel.timetracker.tabs.TimerCardUi
+import pl.wgabel.timetracker.tabs.TimerCardActions
 import pl.wgabel.timetracker.tabs.ITabService
 import pl.wgabel.timetracker.tabs.TimersService
 import pl.wgabel.timetracker.tabs.TimersRenderer
@@ -87,25 +89,33 @@ class MainActivity : Activity() {
             db = db,
             projectId = { requireNotNull(projectId) },
             archived = { isArchived() },
-            darkTheme = { darkTheme },
-            ink = ink,
-            muted = muted,
-            subtleNeutral = subtleNeutral,
-            card = { card() },
-            addCard = { addCard(it) },
-            markActive = { markActive(it) },
-            label = { value, size, bold, color -> label(value, size, bold, color) },
-            shape = { color, radius -> shape(color, radius) },
-            gap = { container, size -> gap(container, size) },
-            action = { title, color, click -> action(title, color, click = click) },
-            stopButton = { title, click -> styledAction(title, ButtonRole.DANGER, click) },
-            iconButton = { kind, color, click -> iconButton(kind, color, click) },
-            toggle = { toggle(it) },
-            addEvent = { addEvent(it) },
-            quickStartPicker = { quickStartPicker(it) },
-            registerUpdate = { timerUpdates.add(it) },
-            string = { tr(it) },
-            duration = { duration(it) }
+            ui = object : TimerCardUi {
+                override val ink get() = this@MainActivity.ink
+                override val muted get() = this@MainActivity.muted
+                override val subtleNeutral get() = this@MainActivity.subtleNeutral
+                override val darkTheme get() = this@MainActivity.darkTheme
+                override fun card() = this@MainActivity.card()
+                override fun addCard(view: LinearLayout) = this@MainActivity.addCard(view)
+                override fun markActive(view: LinearLayout) = this@MainActivity.markActive(view)
+                override fun label(value: String, size: Float, bold: Boolean, color: Int) =
+                    this@MainActivity.label(value, size, bold, color)
+                override fun shape(color: Int, radius: Int) = this@MainActivity.shape(color, radius)
+                override fun gap(container: LinearLayout, size: Int) = this@MainActivity.gap(container, size)
+                override fun action(title: String, color: Int, click: () -> Unit) =
+                    this@MainActivity.action(title, color, click = click)
+                override fun stopButton(title: String, click: () -> Unit) =
+                    styledAction(title, ButtonRole.DANGER, click)
+                override fun iconButton(kind: String, color: Int, click: () -> Unit) =
+                    this@MainActivity.iconButton(kind, color, click)
+                override fun string(id: Int) = tr(id)
+                override fun duration(millis: Long) = this@MainActivity.duration(millis)
+            },
+            actions = object : TimerCardActions {
+                override fun toggle(person: Int) = this@MainActivity.toggle(person)
+                override fun addEvent(person: Int) = this@MainActivity.addEvent(person)
+                override fun quickStartPicker(person: Int) = this@MainActivity.quickStartPicker(person)
+                override fun registerUpdate(update: (Long) -> Unit) { timerUpdates.add(update) }
+            }
         )
     }
     private val timersService: TimersService by lazy {
