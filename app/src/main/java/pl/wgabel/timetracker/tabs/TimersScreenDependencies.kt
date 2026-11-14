@@ -21,5 +21,5 @@ internal class TimersScreenView(
     val emptyMessage: () -> String,
     val addButtonDescription: () -> String,
     val onAddParticipant: () -> Unit,
-    val renderRecentActivity: () -> Unit
+    val recentActivityRenderer: RecentActivityRenderer
 )
