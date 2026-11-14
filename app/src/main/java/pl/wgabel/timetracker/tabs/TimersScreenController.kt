@@ -1,36 +1,23 @@
 package pl.wgabel.timetracker.tabs
 
-import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.widget.LinearLayout
-import pl.wgabel.timetracker.design.AppUi
 
 /**
  * Owns the Timers tab composition: cards, tab renderer, and state loading.
  * The Activity supplies only screen boundaries and actions.
  */
 internal class TimersScreenController(
-    context: Context,
-    database: () -> SQLiteDatabase,
-    projectId: () -> Long,
-    archived: () -> Boolean,
-    components: AppUi,
+    environment: TimersScreenEnvironment,
     presentation: TimerCardPresentation,
     commands: TimerCardCommands,
-    content: () -> LinearLayout,
-    title: () -> String,
-    emptyMessage: () -> String,
-    addButtonDescription: () -> String,
-    onAddParticipant: () -> Unit,
-    renderRecentActivity: () -> Unit,
+    view: TimersScreenView,
     loadState: (Long) -> TimersViewState
 ) {
     private val cards = TimerCardFactory(
-        context = context,
-        database = database,
-        projectId = projectId,
-        archived = archived,
-        components = components,
+        context = environment.context,
+        database = environment.database,
+        projectId = environment.projectId,
+        archived = environment.archived,
+        components = environment.components,
         presentation = presentation,
         commands = commands
     )
@@ -38,14 +25,14 @@ internal class TimersScreenController(
     val service: TimersService = TimersService(
         renderer = TimersRenderer(
             context = context,
-            content = content,
-            title = title,
-            emptyMessage = emptyMessage,
-            ui = components,
-            addButtonDescription = addButtonDescription,
-            onAddParticipant = onAddParticipant,
+            content = view.content,
+            title = view.title,
+            emptyMessage = view.emptyMessage,
+            ui = environment.components,
+            addButtonDescription = view.addButtonDescription,
+            onAddParticipant = view.onAddParticipant,
             renderCard = cards::render,
-            renderRecentActivity = renderRecentActivity
+            renderRecentActivity = view.renderRecentActivity
         ),
         loadState = loadState
     )
