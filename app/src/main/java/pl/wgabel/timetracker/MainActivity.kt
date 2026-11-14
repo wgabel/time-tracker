@@ -53,6 +53,8 @@ import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
 import pl.wgabel.timetracker.tabs.TimerCardFactory
+import pl.wgabel.timetracker.tabs.TimerCardPresentation
+import pl.wgabel.timetracker.tabs.TimerCardCommands
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
 import pl.wgabel.timetracker.tabs.TimersInteractionService
@@ -107,14 +109,19 @@ class MainActivity : Activity() {
             projectId = { requireNotNull(projectId) },
             archived = { isArchived() },
             components = appUi,
-            placeCard = ::addCard,
-            animateActiveCard = ::markActive,
-            createIcon = ::iconButton,
-            resolveString = ::tr,
-            formatDuration = ::duration,
-            interactions = timersInteractionService,
-            selectStartTime = ::quickStartPicker,
-            subscribeTick = { update -> timerUpdates.add(update) }
+            presentation = TimerCardPresentation(
+                placeCard = ::addCard,
+                animateActiveCard = ::markActive,
+                createIcon = ::iconButton,
+                resolveString = ::tr,
+                formatDuration = ::duration
+            ),
+            commands = TimerCardCommands(
+                toggle = timersInteractionService::toggle,
+                addEvent = timersInteractionService::addEvent,
+                selectStartTime = ::quickStartPicker,
+                subscribeTick = { update -> timerUpdates.add(update) }
+            )
         )
     }
     private val timersService: TimersService by lazy {
