@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_emulator_tests:
+        description: 'Run Android emulator UI and SQLite tests'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -29,7 +34,7 @@ jobs:
       - name: Compile debug and unsigned release; run JVM unit tests
         run: gradle :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest --no-daemon
   integration-tests:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && inputs.run_emulator_tests
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:

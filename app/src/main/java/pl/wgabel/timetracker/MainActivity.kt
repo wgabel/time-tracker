@@ -2846,67 +2846,8 @@ class MainActivity : Activity() {
         }
     }
 
-    // The selected control retains its participant color. A dashed outline moves
-    // around a stationary rounded rectangle, 4dp outside the button.
-    // Marching-dashes selection: draw after the button so the border stays visible.
-    // The 5dp wrapper padding creates a real gap between button and outline.
-    private fun outlinedSelection(button: Button, color: Int, selected: Boolean): FrameLayout {
-        val wrapper = object : FrameLayout(this) {
-            private val dashLength = dp(7).toFloat()
-            private val gapLength = dp(5).toFloat()
-            private val cycle = dashLength + gapLength
-            private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = dp(2).toFloat()
-                this.color = color
-            }
-            private var dashPhase = 0f
-            private var dashAnimator: ValueAnimator? = null
-
-            override fun dispatchDraw(canvas: Canvas) {
-                super.dispatchDraw(canvas)
-                if (!selected) return
-                val inset = dp(1).toFloat() + outlinePaint.strokeWidth / 2f
-                if (width <= 2 * inset || height <= 2 * inset) return
-                outlinePaint.pathEffect = DashPathEffect(
-                    floatArrayOf(dashLength, gapLength), dashPhase)
-                canvas.drawRoundRect(
-                    RectF(inset, inset, width - inset, height - inset),
-                    dp(14).toFloat(), dp(14).toFloat(), outlinePaint)
-            }
-
-            override fun onAttachedToWindow() {
-                super.onAttachedToWindow()
-                if (!selected) return
-                val scale = ValueAnimator.getDurationScale()
-                if (scale <= 0f) {
-                    dashPhase = 0f
-                    invalidate()
-                    return
-                }
-                dashAnimator?.cancel()
-                dashAnimator = ValueAnimator.ofFloat(0f, -cycle).apply {
-                    duration = (1800L * scale).toLong().coerceAtLeast(100L)
-                    repeatCount = ValueAnimator.INFINITE
-                    interpolator = android.view.animation.LinearInterpolator()
-                    addUpdateListener {
-                        dashPhase = it.animatedValue as Float
-                        invalidate()
-                    }
-                    start()
-                }
-            }
-
-            override fun onDetachedFromWindow() {
-                dashAnimator?.cancel()
-                dashAnimator = null
-                super.onDetachedFromWindow()
-            }
-        }
-        wrapper.setPadding(dp(5), dp(5), dp(5), dp(5))
-        wrapper.addView(button, FrameLayout.LayoutParams(-1, -1))
-        return wrapper
-    }
+    private fun outlinedSelection(button: Button, color: Int, selected: Boolean): FrameLayout =
+        AnimatedSelectionFrame(this, button, color, selected)
 
     private fun renderHistory() {
         // Day selection is the first control, followed by actions and participant filters.
