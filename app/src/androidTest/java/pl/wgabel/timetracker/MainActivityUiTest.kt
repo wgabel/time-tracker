@@ -80,6 +80,12 @@ class MainActivityUiTest {
         instrumentation.waitForIdleSync()
     }
 
+    private fun tapSave() {
+        val button = device.wait(Until.findObject(By.text(java.util.regex.Pattern.compile("(?i)save|zapisz"))), 8000)
+        requireNotNull(button) { "Could not find Save button in dialog" }.click()
+        instrumentation.waitForIdleSync()
+    }
+
     private fun tapDescription(value: String) {
         val target = device.wait(Until.findObject(By.descContains(value)), 8000)
         requireNotNull(target) { "Could not find accessible control: $value" }
@@ -123,7 +129,7 @@ class MainActivityUiTest {
             ?: device.wait(Until.findObject(By.text("Dodaj wydarzenie")), 1000))
         val note = device.wait(Until.findObject(By.clazz("android.widget.EditText")), 8000)
         requireNotNull(note).text = "UI event note"
-        tapText("Save")
+        tapSave()
         assertEquals(1, count("events"))
         database().use { db ->
             db.rawQuery("SELECT note,session_id FROM events", null).use {
@@ -157,9 +163,9 @@ class MainActivityUiTest {
         val edit = device.wait(Until.findObject(By.desc("Edit entry")), 8000)
         requireNotNull(edit) { "Edit action was not exposed after expanding session" }.click()
         tapText("30 min")
-        tapText("Save")
+        tapSave()
         tapText("15 min")
-        tapText("Save")
+        tapSave()
         database().use { db ->
             db.rawQuery("SELECT started_at,ended_at FROM sessions", null).use {
                 assertTrue(it.moveToFirst())
