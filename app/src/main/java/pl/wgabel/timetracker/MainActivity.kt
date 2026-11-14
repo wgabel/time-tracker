@@ -1463,24 +1463,120 @@ class MainActivity : Activity() {
         }
     }
 
+    // Percentage of the full calendar day covered by this participant's sessions.
+    // The ring is an occupancy indicator, not a goal or a progress target.
+    private fun dayOccupancyRing(person: Int, start: Long, end: Long, now: Long): View {
+        val dayLength = (end - start).coerceAtLeast(1L)
+        return object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = dp(7).toFloat()
+                strokeCap = Paint.Cap.ROUND
+            }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val totalMs = total(person, start, end, System.currentTimeMillis())
+                val percent = (totalMs.toDouble() / dayLength * 100.0).coerceIn(0.0, 100.0)
+                val inset = dp(7).toFloat()
+                val rect = RectF(inset, inset, width - inset, height - inset)
+                paint.color = subtleNeutral
+                canvas.drawArc(rect, 0f, 360f, false, paint)
+                paint.color = personColor(person)
+                canvas.drawArc(rect, -90f, (percent * 3.6).toFloat(), false, paint)
+                paint.style = Paint.Style.FILL
+                paint.color = ink
+                paint.textAlign = Paint.Align.CENTER
+                paint.typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+                paint.textSize = dp(16).toFloat()
+                canvas.drawText("${percent.toInt()}%", width / 2f,
+                    height / 2f - (paint.ascent() + paint.descent()) / 2f - dp(5), paint)
+                paint.typeface = Typeface.DEFAULT
+                paint.textSize = dp(10).toFloat()
+                paint.color = muted
+                canvas.drawText(if (resources.configuration.locales[0].language == "pl") "dnia" else "day",
+                    width / 2f, height / 2f + dp(14), paint)
+                paint.style = Paint.Style.STROKE
+            }
+        }.apply {
+            contentDescription = if (resources.configuration.locales[0].language == "pl")
+                "Procent doby objęty pomiarami" else "Percentage of day measured"
+        }
+    }
+
+    private fun daySessionStrip(person: Int, start: Long, end: Long): View {
+        val segments = mutableListOf<Pair<Long, Long>>()
+        db.rawQuery(
+            "SELECT started_at,ended_at FROM sessions WHERE project_id=? AND person=? AND started_at<? AND (ended_at IS NULL OR ended_at>?) ORDER BY started_at",
+            arrayOf(projectId.toString(), person.toString(), end.toString(), start.toString())
+        ).use { cursor ->
+            val now = System.currentTimeMillis()
+            while (cursor.moveToNext()) {
+                val from = maxOf(start, cursor.getLong(0))
+                val to = minOf(end, if (cursor.isNull(1)) now else cursor.getLong(1))
+                if (to > from) segments.add(from to to)
+            }
+        }
+        return object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val widthF = width.toFloat()
+                val dayLength = (end - start).coerceAtLeast(1L).toFloat()
+                paint.color = subtleNeutral
+                canvas.drawRoundRect(0f, 0f, widthF, height.toFloat(), dp(4).toFloat(), dp(4).toFloat(), paint)
+                paint.color = personColor(person)
+                segments.forEach { (from, to) ->
+                    val x1 = (from - start) / dayLength * widthF
+                    val x2 = (to - start) / dayLength * widthF
+                    canvas.drawRoundRect(x1, 0f, x2, height.toFloat(), dp(3).toFloat(), dp(3).toFloat(), paint)
+                }
+            }
+        }
+    }
+
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
         val c = card()
         val active = activeStart(person)
         if (active != null) markActive(c)
-        val name = label("●  " + personName(person), 19f, true, personColor(person)).apply { letterSpacing = -0.01f }
-        c.addView(name)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(View(this).apply { background = shape(personColor(person), 6) },
+            LinearLayout.LayoutParams(dp(8), dp(32)).apply { rightMargin = dp(10) })
+        header.addView(label(personName(person), 19f, true, ink).apply { letterSpacing = -0.01f },
+            LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(label(if (active == null) "● " + tr(R.string.timer_stopped)
+            else "● " + (if (resources.configuration.locales[0].language == "pl") "TRWA" else "RUNNING"),
+            12f, true, if (active == null) muted else personColor(person)))
+        c.addView(header)
         gap(c, 12)
-        val totalLabel = label(duration(total(person, start, end, now)), 38f, true).apply {
+        val timeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val timeColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val totalLabel = label(duration(total(person, start, end, now)), 36f, true).apply {
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             letterSpacing = -0.035f
             setFontFeatureSettings("tnum")
         }
-        c.addView(totalLabel)
+        timeColumn.addView(totalLabel)
+        timeColumn.addView(label(tr(R.string.selected_day_total), 13f, false, muted))
+        timeRow.addView(timeColumn, LinearLayout.LayoutParams(0, -2, 1f))
+        val ring = dayOccupancyRing(person, start, end, now)
+        timeRow.addView(ring, LinearLayout.LayoutParams(dp(80), dp(80)))
+        c.addView(timeRow)
         if (active != null) timerUpdates.add { tick ->
             totalLabel.text = duration(total(person, start, end, tick))
+            ring.invalidate()
+            strip.invalidate()
         }
+        gap(c, 10)
+        val strip = daySessionStrip(person, start, end)
+        c.addView(strip, LinearLayout.LayoutParams(-1, dp(9)))
         gap(c, 5)
-        c.addView(label(tr(R.string.selected_day_total), 14f, false, muted))
+        val ticks = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf("00:00", "06:00", "12:00", "18:00", "24:00").forEachIndexed { index, text ->
+            ticks.addView(label(text, 10f, false, muted).apply {
+                gravity = when (index) { 0 -> Gravity.START; 4 -> Gravity.END; else -> Gravity.CENTER }
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        c.addView(ticks)
         if (!isArchived()) {
             gap(c, 14)
             val statusLabel = label(if (active == null) tr(R.string.timer_stopped) else tr(R.string.running_prefix) + duration(now - active), 16f, false, muted)
@@ -1910,6 +2006,55 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun recentActivity() {
+        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Ostatnia aktywność" else "Recent activity")
+        val rows = mutableListOf<Triple<Long, Int, String>>()
+        db.rawQuery(
+            """SELECT occurred_at,person,description FROM (
+                SELECT COALESCE(ended_at,started_at) AS occurred_at,person,'session' AS description
+                FROM sessions WHERE project_id=?
+                UNION ALL
+                SELECT happened_at AS occurred_at,person,'event:' || type || ':' || note AS description
+                FROM events WHERE project_id=?
+            ) ORDER BY occurred_at DESC LIMIT 6""",
+            arrayOf(projectId.toString(), projectId.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) rows.add(Triple(cursor.getLong(0), cursor.getInt(1), cursor.getString(2)))
+        }
+        if (rows.isEmpty()) content.addView(label(
+            if (resources.configuration.locales[0].language == "pl") "Brak aktywności" else "No activity yet",
+            14f, false, muted))
+        val format = DatePresentation.shortDateTime(resources)
+        rows.forEach { (whenAt, person, description) ->
+            val isEvent = description.startsWith("event:")
+            val title = if (isEvent) {
+                val parts = description.removePrefix("event:").split(":", limit = 2)
+                parts.getOrElse(1) { "" }.ifBlank { parts[0] }
+            } else if (resources.configuration.locales[0].language == "pl") "Sesja" else "Session"
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = shape(surface, 12)
+            }
+            row.addView(View(this).apply { background = shape(personColor(person), 3) },
+                LinearLayout.LayoutParams(dp(5), dp(40)).apply { rightMargin = dp(12) })
+            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            details.addView(label((if (isEvent) "⚑  " else "◷  ") + title, 15f, true))
+            details.addView(label(personName(person) + " · " + format.format(Date(whenAt)), 12f, false, muted))
+            row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+            content.addView(row)
+            gap(content, 7)
+        }
+        content.addView(styledAction(
+            if (resources.configuration.locales[0].language == "pl") "Pokaż wszystkie  →" else "Show all  →",
+            ButtonRole.SECONDARY
+        ) {
+            tab = 2
+            render()
+        })
+    }
+
     private fun renderTimers() {
         val start = dayStart(0)
         val end = dayStart(1)
@@ -1945,15 +2090,7 @@ class MainActivity : Activity() {
             gap(content, 12)
         }
         currentParticipants.forEach { timerCard(it, start, end, now) }
-        sectionHeading(tr(R.string.selected_day_sessions))
-        sessionList(start, end, 8)
-        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Wydarzenia" else "Events")
-        selectedDayEvents(start, end)
-        gap(content, 8)
-        content.addView(styledAction(tr(R.string.full_history), ButtonRole.SECONDARY) {
-            tab = 2
-            render()
-        })
+        recentActivity()
     }
 
     private fun periodRange(): Pair<Long, Long> {
