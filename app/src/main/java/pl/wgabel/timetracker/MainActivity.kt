@@ -940,114 +940,41 @@ class MainActivity : Activity() {
             arrayOf(sessionId.toString(), projectId.toString(), person.toString())
         ).use { if (it.moveToFirst()) it.getLong(0) else null }
         if (sessionId != null && original == null) return
-        val openedAt = System.currentTimeMillis()
-        var selected = original ?: openedAt - 15 * 60_000L
         val pl = resources.configuration.locales[0].language == "pl"
-        val holder = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(12), dp(20), dp(8))
-        }
-        holder.addView(label(if (pl) "Ile minut temu?" else "How many minutes ago?", 15f, true))
-        gap(holder, 12)
-        val preview = label("", 18f, true, ink)
-        fun updatePreview() {
-            preview.text = DatePresentation.shortDateTime(resources).format(Date(selected))
-        }
-        val shortcuts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf(5, 10, 15, 30).forEach { minutes ->
-            val chip = styledAction("$minutes min", ButtonRole.SECONDARY) {
-                selected = System.currentTimeMillis() - minutes * 60_000L
-                updatePreview()
-            }.apply {
-                textSize = 12f
-                minimumHeight = dp(44)
-                minHeight = dp(44)
-                setPadding(dp(2), 0, dp(2), 0)
-            }
-            shortcuts.addView(chip, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
-                marginEnd = dp(4)
-            })
-        }
-        holder.addView(shortcuts)
-        gap(holder, 14)
-        val sliderValue = label("", 13f, false, muted)
-        val slider = android.widget.SeekBar(this).apply {
-            max = 120
-            progress = ((System.currentTimeMillis() - selected) / 60_000L).toInt().coerceIn(0, 120)
-        }
-        sliderValue.text = if (pl) "Cofnij o ${slider.progress} min" else "Go back ${slider.progress} min"
-        slider.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar: android.widget.SeekBar?, value: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                selected = System.currentTimeMillis() - value * 60_000L
-                sliderValue.text = if (pl) "Cofnij o $value min" else "Go back $value min"
-                updatePreview()
-            }
-            override fun onStartTrackingTouch(bar: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(bar: android.widget.SeekBar?) {}
-        })
-        holder.addView(sliderValue)
-        holder.addView(slider)
-        gap(holder, 8)
-        holder.addView(preview)
-        updatePreview()
-        gap(holder, 12)
-        holder.addView(styledAction(if (pl) "Wybierz dokładną datę i godzinę" else "Choose exact date and time", ButtonRole.SECONDARY) {
-            pickDateTime(selected, if (pl) "Początek sesji" else "Session start") { chosen ->
-                selected = chosen
-                slider.progress = ((System.currentTimeMillis() - selected) / 60_000L).toInt().coerceIn(0, 120)
-                updatePreview()
-            }
-        })
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(if (sessionId == null) {
-                if (pl) "Rozpocznij wcześniej" else "Start in the past"
+        DateTimeEditor(this).show(DateTimeEditor.Config(
+            title = if (pl) "Początek sesji" else "Session start",
+            initial = original ?: System.currentTimeMillis() - 15 * 60_000L,
+            max = System.currentTimeMillis()
+        )) { selected ->
+            val now = System.currentTimeMillis()
+            val firstEvent = if (sessionId == null) null else db.rawQuery(
+                "SELECT MIN(happened_at) FROM events WHERE project_id=? AND session_id=?",
+                arrayOf(projectId.toString(), sessionId.toString())
+            ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
+            val previousEnd = db.rawQuery(
+                "SELECT MAX(ended_at) FROM sessions WHERE project_id=? AND person=? AND ended_at IS NOT NULL AND started_at<?",
+                arrayOf(projectId.toString(), person.toString(), now.toString())
+            ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
+            if (selected > now || (firstEvent != null && selected > firstEvent) ||
+                (previousEnd != null && selected < previousEnd)) {
+                Toast.makeText(this, if (pl) "Początek koliduje z wydarzeniami lub poprzednią sesją."
+                    else "Start conflicts with events or a previous session.", Toast.LENGTH_LONG).show()
+                false
             } else {
-                if (pl) "Zmień początek" else "Change start time"
-            })
-            .setView(holder)
-            .setNegativeButton(tr(R.string.cancel), null)
-            .setPositiveButton(if (pl) "Zapisz" else "Save", null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val now = System.currentTimeMillis()
-                val firstEvent = if (sessionId == null) null else db.rawQuery(
-                    "SELECT MIN(happened_at) FROM events WHERE project_id=? AND session_id=?",
-                    arrayOf(projectId.toString(), sessionId.toString())
-                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
-                val previousEnd = db.rawQuery(
-                    "SELECT MAX(ended_at) FROM sessions WHERE project_id=? AND person=? AND ended_at IS NOT NULL AND started_at<?",
-                    arrayOf(projectId.toString(), person.toString(), now.toString())
-                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
-                if (selected > now || (firstEvent != null && selected > firstEvent) ||
-                    (previousEnd != null && selected < previousEnd)) {
-                    Toast.makeText(this,
-                        if (pl) "Początek musi być przed teraz i wydarzeniami oraz po poprzedniej sesji."
-                        else "Start must be before now and events, and after the previous session.",
-                        Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
                 val changed = if (sessionId == null) {
-                    if (activeStart(person) != null) false else db.insert("sessions", null,
-                        ContentValues().apply {
-                            put("project_id", projectId)
-                            put("person", person)
-                            put("started_at", selected)
-                        }) != -1L
-                } else {
-                    db.update("sessions", ContentValues().apply { put("started_at", selected) },
-                        "id=? AND project_id=? AND person=? AND ended_at IS NULL AND started_at=?",
-                        arrayOf(sessionId.toString(), projectId.toString(), person.toString(), original.toString())) == 1
-                }
-                if (changed) {
-                    dialog.dismiss()
-                    syncTimerNotification()
-                    renderContent()
-                } else Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
+                    activeStart(person) == null && db.insert("sessions", null, ContentValues().apply {
+                        put("project_id", projectId)
+                        put("person", person)
+                        put("started_at", selected)
+                    }) != -1L
+                } else db.update("sessions", ContentValues().apply { put("started_at", selected) },
+                    "id=? AND project_id=? AND person=? AND ended_at IS NULL AND started_at=?",
+                    arrayOf(sessionId.toString(), projectId.toString(), person.toString(), original.toString())) == 1
+                if (changed) { syncTimerNotification(); renderContent() }
+                else Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
+                changed
             }
         }
-        dialog.show()
     }
 
     private fun toggle(person: Int) {
@@ -1330,38 +1257,17 @@ class MainActivity : Activity() {
             13f, false, muted
         ))
         timeButton.setOnClickListener {
-            val calendar = Calendar.getInstance().apply { timeInMillis = chosenTimestamp }
-            DatePickerDialog(this, { _, year, month, day ->
-                val selected = Calendar.getInstance().apply {
-                    timeInMillis = chosenTimestamp
-                    set(Calendar.YEAR, year)
-                    set(Calendar.MONTH, month)
-                    set(Calendar.DAY_OF_MONTH, day)
-                }
-                TimePickerDialog(this, { _, hour, minute ->
-                    selected.set(Calendar.HOUR_OF_DAY, hour)
-                    selected.set(Calendar.MINUTE, minute)
-                    val seconds = NumberPicker(this).apply {
-                        minValue = 0
-                        maxValue = 59
-                        value = calendar.get(Calendar.SECOND)
-                    }
-                    AlertDialog.Builder(this)
-                        .setTitle(if (resources.configuration.locales[0].language == "pl") "Sekundy" else "Seconds")
-                        .setView(seconds)
-                        .setNegativeButton(tr(R.string.cancel), null)
-                        .setPositiveButton(tr(R.string.save)) { _, _ ->
-                            selected.set(Calendar.SECOND, seconds.value)
-                            selected.set(Calendar.MILLISECOND, 0)
-                            chosenTimestamp = selected.timeInMillis
-                            refreshTime()
-                        }.show()
-                }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE),
-                    DatePresentation.uses24HourClock(resources)).show()
-            }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).apply {
-                datePicker.minDate = sessionBounds.first
-                datePicker.maxDate = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis())
-            }.show()
+            DateTimeEditor(this).show(DateTimeEditor.Config(
+                title = if (resources.configuration.locales[0].language == "pl") "Czas wydarzenia" else "Event time",
+                initial = chosenTimestamp,
+                min = sessionBounds.first,
+                max = minOf(sessionBounds.second ?: Long.MAX_VALUE, System.currentTimeMillis()),
+                seconds = true
+            )) { chosen ->
+                chosenTimestamp = chosen
+                refreshTime()
+                true
+            }
         }
         panel.addView(timeButton)
         val picker = Spinner(this)
@@ -1747,23 +1653,9 @@ class MainActivity : Activity() {
     }
 
     private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
-        val cal = Calendar.getInstance().apply { timeInMillis = initial }
-        DatePickerDialog(this, { _, year, month, day ->
-            val selected = Calendar.getInstance().apply {
-                timeInMillis = initial
-                set(Calendar.YEAR, year)
-                set(Calendar.MONTH, month)
-                set(Calendar.DAY_OF_MONTH, day)
-            }
-            TimePickerDialog(this, { _, hour, minute ->
-                selected.set(Calendar.HOUR_OF_DAY, hour)
-                selected.set(Calendar.MINUTE, minute)
-                selected.set(Calendar.SECOND, 0)
-                selected.set(Calendar.MILLISECOND, 0)
-                onChosen(selected.timeInMillis)
-            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), DatePresentation.uses24HourClock(resources)).apply { setTitle(title) }.show()
-        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
-            .apply { setTitle(title) }.show()
+        DateTimeEditor(this).show(DateTimeEditor.Config(
+            title = title, initial = initial, max = System.currentTimeMillis()
+        )) { chosen -> onChosen(chosen); true }
     }
 
     private fun addSession() {
@@ -1835,59 +1727,40 @@ class MainActivity : Activity() {
 
     private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
         if (isArchived()) return
-        if (ended == null) {
-            Toast.makeText(this, tr(R.string.stop_before_edit), Toast.LENGTH_LONG).show()
-            return
-        }
-        fun chooseDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
-            val cal = Calendar.getInstance().apply { timeInMillis = initial }
-            DatePickerDialog(this, { _, year, month, day ->
-                val selected = Calendar.getInstance().apply {
-                    timeInMillis = initial
-                    set(Calendar.YEAR, year)
-                    set(Calendar.MONTH, month)
-                    set(Calendar.DAY_OF_MONTH, day)
+        if (ended == null) { editActiveSessionStart(id, person, started); return }
+        val pl = resources.configuration.locales[0].language == "pl"
+        DateTimeEditor(this).show(DateTimeEditor.Config(
+            title = if (pl) "Początek sesji" else "Session start",
+            initial = started, max = System.currentTimeMillis()
+        )) { newStart ->
+            DateTimeEditor(this).show(DateTimeEditor.Config(
+                title = if (pl) "Koniec sesji" else "Session end",
+                initial = ended, min = newStart + 1L, max = System.currentTimeMillis()
+            )) { newEnd ->
+                val conflicting = db.rawQuery(
+                    "SELECT 1 FROM sessions WHERE project_id=? AND person=? AND id<>? AND started_at<? AND (ended_at IS NULL OR ended_at>?) LIMIT 1",
+                    arrayOf(projectId.toString(), person.toString(), id.toString(), newEnd.toString(), newStart.toString())
+                ).use { it.moveToFirst() }
+                val invalidEvents = db.rawQuery(
+                    "SELECT 1 FROM events WHERE project_id=? AND session_id=? AND (happened_at<? OR happened_at>?) LIMIT 1",
+                    arrayOf(projectId.toString(), id.toString(), newStart.toString(), newEnd.toString())
+                ).use { it.moveToFirst() }
+                if (conflicting || invalidEvents || newEnd <= newStart || newEnd > System.currentTimeMillis()) {
+                    Toast.makeText(this, if (pl) "Czas koliduje z sesją lub wydarzeniami."
+                        else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()
+                    false
+                } else {
+                    val updated = db.update("sessions", ContentValues().apply {
+                        put("started_at", newStart); put("ended_at", newEnd)
+                    }, "id=? AND project_id=? AND person=? AND ended_at IS NOT NULL",
+                        arrayOf(id.toString(), projectId.toString(), person.toString())) == 1
+                    if (updated) { renderContent(); Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show() }
+                    else Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
+                    updated
                 }
-                TimePickerDialog(this, { _, hour, minute ->
-                    selected.set(Calendar.HOUR_OF_DAY, hour)
-                    selected.set(Calendar.MINUTE, minute)
-                    selected.set(Calendar.SECOND, 0)
-                    selected.set(Calendar.MILLISECOND, 0)
-                    onChosen(selected.timeInMillis)
-                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), DatePresentation.uses24HourClock(resources))
-                    .apply { setTitle(title) }.show()
-            }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
-                .apply { setTitle(title) }.show()
+            }
+            true
         }
-        val format = DatePresentation.shortDateTime(resources)
-        AlertDialog.Builder(this)
-            .setTitle(tr(R.string.edit_session_prefix) + personName(person))
-            .setMessage(tr(R.string.from_prefix) + format.format(Date(started)) + "\n" + tr(R.string.to_prefix) + format.format(Date(ended)) +
-                "\n\n" + tr(R.string.edit_dates_instruction))
-            .setNegativeButton(tr(R.string.cancel), null)
-            .setPositiveButton(tr(R.string.edit)) { _, _ ->
-                chooseDateTime(started, tr(R.string.new_start)) { newStart ->
-                    chooseDateTime(ended, tr(R.string.new_end)) { newEnd ->
-                        if (newEnd <= newStart) {
-                            Toast.makeText(this, tr(R.string.end_after_start), Toast.LENGTH_LONG).show()
-                        } else if (newEnd > System.currentTimeMillis()) {
-                            Toast.makeText(this, tr(R.string.end_not_future), Toast.LENGTH_LONG).show()
-                        } else {
-                            val values = android.content.ContentValues().apply {
-                                put("started_at", newStart)
-                                put("ended_at", newEnd)
-                            }
-                            val updated = db.update("sessions", values, "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
-                            if (updated == 1) {
-                                Toast.makeText(this, tr(R.string.session_updated), Toast.LENGTH_SHORT).show()
-                                renderContent()
-                            } else {
-                                Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
-                }
-            }.show()
     }
 
     private fun avatar(person: Int): View {
