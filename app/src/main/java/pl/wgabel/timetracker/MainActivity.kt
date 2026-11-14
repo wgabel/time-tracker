@@ -2006,83 +2006,47 @@ class MainActivity : Activity() {
     }
 
     private fun recentActivity() {
-        val polish = resources.configuration.locales[0].language == "pl"
-        sectionHeading(if (polish) "Ostatnia aktywność" else "Recent activity")
-        data class ActivityEntry(
-            val timestamp: Long, val person: Int, val event: Boolean,
-            val title: String, val detail: String
-        )
-        val rows = mutableListOf<ActivityEntry>()
+        sectionHeading(if (resources.configuration.locales[0].language == "pl") "Ostatnia aktywność" else "Recent activity")
+        val rows = mutableListOf<Triple<Long, Int, String>>()
         db.rawQuery(
-            """SELECT occurred_at,person,kind,title,detail FROM (
-                SELECT COALESCE(ended_at,started_at) AS occurred_at,person,
-                    0 AS kind,'' AS title,
-                    CAST((COALESCE(ended_at,?) - started_at) AS TEXT) AS detail
+            """SELECT occurred_at,person,description FROM (
+                SELECT COALESCE(ended_at,started_at) AS occurred_at,person,'session' AS description
                 FROM sessions WHERE project_id=?
                 UNION ALL
-                SELECT happened_at AS occurred_at,person,1 AS kind,type AS title,
-                    COALESCE(note,'') AS detail
+                SELECT happened_at AS occurred_at,person,'event:' || type || ':' || note AS description
                 FROM events WHERE project_id=?
             ) ORDER BY occurred_at DESC LIMIT 6""",
-            arrayOf(System.currentTimeMillis().toString(), projectId.toString(), projectId.toString())
+            arrayOf(projectId.toString(), projectId.toString())
         ).use { cursor ->
-            while (cursor.moveToNext()) {
-                rows.add(ActivityEntry(
-                    cursor.getLong(0), cursor.getInt(1), cursor.getInt(2) == 1,
-                    cursor.getString(3), cursor.getString(4)
-                ))
-            }
+            while (cursor.moveToNext()) rows.add(Triple(cursor.getLong(0), cursor.getInt(1), cursor.getString(2)))
         }
         if (rows.isEmpty()) content.addView(label(
-            if (polish) "Brak aktywności" else "No activity yet", 14f, false, muted))
+            if (resources.configuration.locales[0].language == "pl") "Brak aktywności" else "No activity yet",
+            14f, false, muted))
         val format = DatePresentation.shortDateTime(resources)
-        rows.forEach { entry ->
-            val accent = if (entry.event) {
-                if (darkTheme) Color.rgb(235, 182, 100) else Color.rgb(148, 89, 25)
-            } else {
-                if (darkTheme) Color.rgb(108, 194, 225) else Color.rgb(30, 111, 157)
-            }
-            val accentBackground = if (entry.event) {
-                if (darkTheme) Color.rgb(66, 52, 37) else Color.rgb(250, 237, 216)
-            } else {
-                if (darkTheme) Color.rgb(33, 59, 73) else Color.rgb(222, 240, 249)
-            }
+        rows.forEach { (whenAt, person, description) ->
+            val isEvent = description.startsWith("event:")
+            val title = if (isEvent) {
+                val parts = description.removePrefix("event:").split(":", limit = 2)
+                parts.getOrElse(1) { "" }.ifBlank { parts[0] }
+            } else if (resources.configuration.locales[0].language == "pl") "Sesja" else "Session"
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(12), dp(12), dp(12))
-                background = shape(surface, 12)
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                if (!isEvent) background = shape(surface, 12)
             }
-            row.addView(View(this).apply { background = shape(personColor(entry.person), 3) },
-                LinearLayout.LayoutParams(dp(5), dp(54)).apply { rightMargin = dp(12) })
-            val marker = label(if (entry.event) "⚑" else "◷", 23f, true, accent).apply {
-                gravity = Gravity.CENTER
-                background = shape(accentBackground, 12)
-            }
-            row.addView(marker, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
-                rightMargin = dp(12)
-            })
+            row.addView(View(this).apply { background = shape(personColor(person), 3) },
+                LinearLayout.LayoutParams(dp(5), dp(40)).apply { rightMargin = dp(12) })
             val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            details.addView(label(
-                if (entry.event) "EVENT" else if (polish) "POMIAR" else "SESSION",
-                11f, true, accent
-            ))
-            gap(details, 3)
-            val title = if (entry.event) entry.detail.ifBlank { entry.title }
-                else (if (polish) "Sesja · " else "Session · ") +
-                    duration(entry.detail.toLongOrNull()?.coerceAtLeast(0L) ?: 0L)
-            details.addView(label(title, 15f, true, ink))
-            gap(details, 3)
-            details.addView(label(
-                personName(entry.person) + " · " + format.format(Date(entry.timestamp)),
-                12f, false, muted
-            ))
+            details.addView(label((if (isEvent) "⚑  " else "◷  ") + title, 15f, true))
+            details.addView(label(personName(person) + " · " + format.format(Date(whenAt)), 12f, false, muted))
             row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
             content.addView(row)
             gap(content, 7)
         }
         content.addView(styledAction(
-            if (polish) "Pokaż wszystkie  →" else "Show all  →",
+            if (resources.configuration.locales[0].language == "pl") "Pokaż wszystkie  →" else "Show all  →",
             ButtonRole.SECONDARY
         ) {
             tab = 2
