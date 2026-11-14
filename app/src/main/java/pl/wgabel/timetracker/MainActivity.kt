@@ -932,6 +932,124 @@ class MainActivity : Activity() {
         }
     }
 
+    // Quick backdated start, without changing the existing one-tap START behavior.
+    private fun quickStartPicker(person: Int, sessionId: Long? = null) {
+        if (isArchived()) return
+        val original = if (sessionId == null) null else db.rawQuery(
+            "SELECT started_at FROM sessions WHERE id=? AND project_id=? AND person=? AND ended_at IS NULL",
+            arrayOf(sessionId.toString(), projectId.toString(), person.toString())
+        ).use { if (it.moveToFirst()) it.getLong(0) else null }
+        if (sessionId != null && original == null) return
+        val openedAt = System.currentTimeMillis()
+        var selected = original ?: openedAt - 15 * 60_000L
+        val pl = resources.configuration.locales[0].language == "pl"
+        val holder = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(12), dp(20), dp(8))
+        }
+        holder.addView(label(if (pl) "Ile minut temu?" else "How many minutes ago?", 15f, true))
+        gap(holder, 12)
+        val preview = label("", 18f, true, ink)
+        fun updatePreview() {
+            preview.text = DatePresentation.shortDateTime(resources).format(Date(selected))
+        }
+        val shortcuts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf(5, 10, 15, 30).forEach { minutes ->
+            val chip = styledAction("$minutes min", ButtonRole.SECONDARY) {
+                selected = System.currentTimeMillis() - minutes * 60_000L
+                updatePreview()
+            }.apply {
+                textSize = 12f
+                minimumHeight = dp(44)
+                minHeight = dp(44)
+                setPadding(dp(2), 0, dp(2), 0)
+            }
+            shortcuts.addView(chip, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                marginEnd = dp(4)
+            })
+        }
+        holder.addView(shortcuts)
+        gap(holder, 14)
+        val sliderValue = label("", 13f, false, muted)
+        val slider = android.widget.SeekBar(this).apply {
+            max = 120
+            progress = ((System.currentTimeMillis() - selected) / 60_000L).toInt().coerceIn(0, 120)
+        }
+        sliderValue.text = if (pl) "Cofnij o ${slider.progress} min" else "Go back ${slider.progress} min"
+        slider.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: android.widget.SeekBar?, value: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                selected = System.currentTimeMillis() - value * 60_000L
+                sliderValue.text = if (pl) "Cofnij o $value min" else "Go back $value min"
+                updatePreview()
+            }
+            override fun onStartTrackingTouch(bar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(bar: android.widget.SeekBar?) {}
+        })
+        holder.addView(sliderValue)
+        holder.addView(slider)
+        gap(holder, 8)
+        holder.addView(preview)
+        updatePreview()
+        gap(holder, 12)
+        holder.addView(styledAction(if (pl) "Wybierz dokładną datę i godzinę" else "Choose exact date and time", ButtonRole.SECONDARY) {
+            pickDateTime(selected, if (pl) "Początek sesji" else "Session start") { chosen ->
+                selected = chosen
+                slider.progress = ((System.currentTimeMillis() - selected) / 60_000L).toInt().coerceIn(0, 120)
+                updatePreview()
+            }
+        })
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (sessionId == null) {
+                if (pl) "Rozpocznij wcześniej" else "Start in the past"
+            } else {
+                if (pl) "Zmień początek" else "Change start time"
+            })
+            .setView(holder)
+            .setNegativeButton(tr(R.string.cancel), null)
+            .setPositiveButton(if (pl) "Zapisz" else "Save", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val now = System.currentTimeMillis()
+                val firstEvent = if (sessionId == null) null else db.rawQuery(
+                    "SELECT MIN(happened_at) FROM events WHERE project_id=? AND session_id=?",
+                    arrayOf(projectId.toString(), sessionId.toString())
+                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
+                val previousEnd = db.rawQuery(
+                    "SELECT MAX(ended_at) FROM sessions WHERE project_id=? AND person=? AND ended_at IS NOT NULL AND started_at<?",
+                    arrayOf(projectId.toString(), person.toString(), now.toString())
+                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
+                if (selected > now || (firstEvent != null && selected > firstEvent) ||
+                    (previousEnd != null && selected < previousEnd)) {
+                    Toast.makeText(this,
+                        if (pl) "Początek musi być przed teraz i wydarzeniami oraz po poprzedniej sesji."
+                        else "Start must be before now and events, and after the previous session.",
+                        Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val changed = if (sessionId == null) {
+                    if (activeStart(person) != null) false else db.insert("sessions", null,
+                        ContentValues().apply {
+                            put("project_id", projectId)
+                            put("person", person)
+                            put("started_at", selected)
+                        }) != -1L
+                } else {
+                    db.update("sessions", ContentValues().apply { put("started_at", selected) },
+                        "id=? AND project_id=? AND person=? AND ended_at IS NULL AND started_at=?",
+                        arrayOf(sessionId.toString(), projectId.toString(), person.toString(), original.toString())) == 1
+                }
+                if (changed) {
+                    dialog.dismiss()
+                    syncTimerNotification()
+                    renderContent()
+                } else Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
+            }
+        }
+        dialog.show()
+    }
+
     private fun toggle(person: Int) {
         val now = System.currentTimeMillis()
         db.beginTransaction()
@@ -1611,7 +1729,19 @@ class MainActivity : Activity() {
                 controls.addView(eventButton,
                     LinearLayout.LayoutParams(0, dp(54), 1f).apply { leftMargin = dp(8) })
                 c.addView(controls)
-            } else c.addView(button, LinearLayout.LayoutParams(-1, dp(54)))
+            } else {
+                val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                controls.addView(button, LinearLayout.LayoutParams(0, dp(54), 1f))
+                val backdate = iconButton("clock", ink) { quickStartPicker(person) }.apply {
+                    contentDescription = if (resources.configuration.locales[0].language == "pl")
+                        "Rozpocznij sesję wcześniej" else "Start session in the past"
+                    background = shape(subtleNeutral, 12)
+                }
+                controls.addView(backdate, LinearLayout.LayoutParams(dp(54), dp(54)).apply {
+                    leftMargin = dp(8)
+                })
+                c.addView(controls)
+            }
         }
         addCard(c)
     }
@@ -1700,56 +1830,7 @@ class MainActivity : Activity() {
     }
 
     private fun editActiveSessionStart(id: Long, person: Int, started: Long) {
-        if (isArchived()) return
-        val current = db.rawQuery(
-            "SELECT started_at FROM sessions WHERE id=? AND project_id=? AND person=? AND ended_at IS NULL",
-            arrayOf(id.toString(), projectId.toString(), person.toString())
-        ).use { if (it.moveToFirst()) it.getLong(0) else null } ?: return
-        val cal = Calendar.getInstance().apply { timeInMillis = current }
-        DatePickerDialog(this, { _, year, month, day ->
-            val chosen = Calendar.getInstance().apply {
-                timeInMillis = current
-                set(Calendar.YEAR, year)
-                set(Calendar.MONTH, month)
-                set(Calendar.DAY_OF_MONTH, day)
-            }
-            TimePickerDialog(this, { _, hour, minute ->
-                chosen.set(Calendar.HOUR_OF_DAY, hour)
-                chosen.set(Calendar.MINUTE, minute)
-                chosen.set(Calendar.SECOND, 0)
-                chosen.set(Calendar.MILLISECOND, 0)
-                val newStart = chosen.timeInMillis
-                val now = System.currentTimeMillis()
-                val firstEvent = db.rawQuery(
-                    "SELECT MIN(happened_at) FROM events WHERE project_id=? AND session_id=?",
-                    arrayOf(projectId.toString(), id.toString())
-                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
-                val previousEnd = db.rawQuery(
-                    "SELECT MAX(ended_at) FROM sessions WHERE project_id=? AND person=? AND id<>? AND ended_at IS NOT NULL AND started_at<?",
-                    arrayOf(projectId.toString(), person.toString(), id.toString(), now.toString())
-                ).use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
-                if (newStart > now || (firstEvent != null && newStart > firstEvent) ||
-                    (previousEnd != null && newStart < previousEnd)) {
-                    Toast.makeText(this,
-                        if (resources.configuration.locales[0].language == "pl")
-                            "Początek musi być przed teraz i wydarzeniami oraz po poprzedniej sesji."
-                        else "Start must be before now and events, and after the previous session.",
-                        Toast.LENGTH_LONG).show()
-                    return@TimePickerDialog
-                }
-                val values = android.content.ContentValues().apply { put("started_at", newStart) }
-                val updated = db.update("sessions", values,
-                    "id=? AND project_id=? AND person=? AND ended_at IS NULL AND started_at=?",
-                    arrayOf(id.toString(), projectId.toString(), person.toString(), current.toString()))
-                if (updated == 1) {
-                    syncTimerNotification()
-                    renderContent()
-                } else {
-                    Toast.makeText(this, tr(R.string.session_update_failed), Toast.LENGTH_LONG).show()
-                }
-            }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE),
-                DatePresentation.uses24HourClock(resources)).show()
-        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
+        quickStartPicker(person, id)
     }
 
     private fun editSession(id: Long, person: Int, started: Long, ended: Long?) {
