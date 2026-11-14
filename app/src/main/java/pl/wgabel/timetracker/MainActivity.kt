@@ -1439,15 +1439,18 @@ class MainActivity : Activity() {
 
     private fun timerCard(person: Int, start: Long, end: Long, now: Long) {
         val c = card()
-        val active = activeStart(person)
+        val cardData = TimerCardDataSource(db).load(
+            projectId!!, person, tr(R.string.person_fallback) + person
+        )
+        val active = cardData.activeStartedAt
         if (active != null) markActive(c)
         val header = TimerCardHeader(
             this,
-            label(personName(person), 19f, true, ink),
+            label(cardData.participantName, 19f, true, ink),
             label(if (active == null) "● " + tr(R.string.timer_stopped)
                 else "● " + (if (resources.configuration.locales[0].language == "pl") "TRWA" else "RUNNING"),
-                12f, true, if (active == null) muted else personColor(person)),
-            shape(personColor(person), 6)
+                12f, true, if (active == null) muted else cardData.participantColor),
+            shape(cardData.participantColor, 6)
         )
         val totalLabel = label(duration(total(person, start, end, now)), 36f, true).apply {
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
@@ -1470,7 +1473,7 @@ class MainActivity : Activity() {
         val strip = daySessionStrip(person, start, end)
         val controls = if (statusLabel == null) null else {
             val button = if (active == null)
-                action("▶  START", personColor(person)) { toggle(person) }
+                action("▶  START", cardData.participantColor) { toggle(person) }
             else styledAction("■  STOP", ButtonRole.DANGER) { toggle(person) }
             if (active != null) {
                 TimerCardControls(
