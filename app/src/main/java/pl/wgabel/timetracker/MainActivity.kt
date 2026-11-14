@@ -50,6 +50,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import pl.wgabel.timetracker.design.DesignTokens
+import pl.wgabel.timetracker.design.AppUi
+import pl.wgabel.timetracker.design.AppUi.ButtonRole
 import pl.wgabel.timetracker.tabs.TimerCardRenderer
 import pl.wgabel.timetracker.tabs.TimerCardUi
 import pl.wgabel.timetracker.tabs.TimerCardActions
@@ -216,7 +218,8 @@ class MainActivity : Activity() {
     private val darkTheme get() = themeService.isDark
     // Theme values are loaded once from assets/design_tokens.json, not hardcoded in Activity.
     private val designTokens: DesignTokens by lazy { DesignTokens(this) }
-    private fun themeColor(name: String) = designTokens.color(name, darkTheme)
+    private val appUi: AppUi by lazy { AppUi(this, designTokens) { darkTheme } }
+    private fun themeColor(name: String) = appUi.color(name)
     private val blue get() = themeColor("blue")
     private val green get() = themeColor("green")
     private val ink get() = themeColor("ink")
@@ -312,34 +315,15 @@ class MainActivity : Activity() {
 
     // Animated startup overlay, shown once on Activity creation. The project screen
     // is already rendered underneath so the transition never flashes a blank frame.
-    private fun dp(n: Int): Int = (n * resources.displayMetrics.density + .5f).toInt()
-    private fun shape(color: Int, radius: Int = designTokens.dimension("shapeRadiusDp")): GradientDrawable =
-        GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
-
+    // Compatibility delegates while individual renderers migrate to AppUi directly.
+    private fun dp(n: Int): Int = appUi.dp(n)
+    private fun shape(color: Int, radius: Int = designTokens.dimension("shapeRadiusDp")) =
+        appUi.shape(color, radius)
     private fun tr(id: Int): String = getString(id)
-
     private fun label(value: String, size: Float = 16f, bold: Boolean = false, color: Int = ink): TextView =
-        TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) setTypeface(null, Typeface.BOLD)
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-    private fun gap(parent: LinearLayout, height: Int = 12) {
-        parent.addView(View(this), LinearLayout.LayoutParams(1, dp(height)))
-    }
-
-    private fun card(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(designTokens.dimension("cardPaddingDp")), dp(designTokens.dimension("cardPaddingDp")),
-            dp(designTokens.dimension("cardPaddingDp")), dp(designTokens.dimension("cardPaddingDp")))
-        background = shape(surface, designTokens.dimension("cardRadiusDp")).apply {
-            setStroke(dp(designTokens.dimension("cardStrokeDp")), themeColor("cardStroke"))
-        }
-        elevation = dp(designTokens.dimension("cardElevationDp")).toFloat()
-    }
+        appUi.label(value, size, bold, color)
+    private fun gap(parent: LinearLayout, height: Int = 12) = appUi.gap(parent, height)
+    private fun card(): LinearLayout = appUi.card()
 
     private data class AnimatedBlock(val offset: Float, val y: Float, val speed: Float, val size: Int, val opacity: Int)
 
@@ -432,31 +416,10 @@ class MainActivity : Activity() {
     }
 
     private fun action(text: String, bg: Int, fg: Int = Color.WHITE, click: () -> Unit): Button =
-        Button(this).apply {
-            this.text = text
-            textSize = 15f
-            setTypeface(null, Typeface.BOLD)
-            minHeight = dp(48)
-            isAllCaps = false
-            setTextColor(fg)
-            background = shape(bg, 9)
-            stateListAnimator = null
-            elevation = 0f
-            setOnClickListener { click() }
-        }
+        appUi.action(text, bg, fg, click)
 
-    // Shared semantic button styles: callers choose intent, not ad-hoc colors.
-    private enum class ButtonRole { PRIMARY, SECONDARY, DANGER, WARNING }
-
-    private fun styledAction(text: String, role: ButtonRole, click: () -> Unit): Button {
-        val (fill, foreground) = when (role) {
-            ButtonRole.PRIMARY -> (if (darkTheme) blue else darkHeader) to Color.WHITE
-            ButtonRole.SECONDARY -> subtleNeutral to ink
-            ButtonRole.DANGER -> themeColor("dangerBackground") to themeColor("dangerText")
-            ButtonRole.WARNING -> subtleWarm to themeColor("warningText")
-        }
-        return action(text, fill, foreground, click)
-    }
+    private fun styledAction(text: String, role: ButtonRole, click: () -> Unit): Button =
+        appUi.styledAction(text, role, click)
 
     private fun blendColors(base: Int, overlay: Int, fraction: Float): Int {
         val backgroundWeight = 1f - fraction
