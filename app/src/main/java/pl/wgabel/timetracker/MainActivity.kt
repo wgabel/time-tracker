@@ -1491,43 +1491,35 @@ class MainActivity : Activity() {
             val button = if (active == null)
                 action("▶  START", personColor(person)) { toggle(person) }
             else styledAction("■  STOP", ButtonRole.DANGER) { toggle(person) }
-            if (active != null) {
-                val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                controls.addView(button, LinearLayout.LayoutParams(0, dp(54), 2f))
-                val eventButton = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER
-                    background = shape(subtleNeutral, 12)
-                    isClickable = true
-                    isFocusable = true
-                    contentDescription = "Dodaj wydarzenie"
-                    setOnClickListener { addEvent(person) }
-                }
-                val eventIcon = iconButton(
-                    "bookmark-add",
-                    if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
-                ) { addEvent(person) }.apply {
-                    background = null
-                    isFocusable = false
-                }
-                eventButton.addView(eventIcon, LinearLayout.LayoutParams(dp(30), dp(40)))
-                eventButton.addView(label("EVENT", 13f, true, ink))
-                controls.addView(eventButton,
-                    LinearLayout.LayoutParams(0, dp(54), 1f).apply { leftMargin = dp(8) })
-                c.addView(controls)
+            val controls = if (active != null) {
+                TimerCardControls(
+                    context = this,
+                    running = true,
+                    primaryButton = button,
+                    secondaryIcon = iconButton(
+                        "bookmark-add",
+                        if (darkTheme) Color.rgb(133, 224, 180) else Color.rgb(35, 124, 98)
+                    ) { addEvent(person) },
+                    eventLabel = label("EVENT", 13f, true, ink),
+                    secondaryBackground = shape(subtleNeutral, 12),
+                    onEventClick = { addEvent(person) }
+                )
             } else {
-                val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                controls.addView(button, LinearLayout.LayoutParams(0, dp(54), 1f))
                 val backdate = iconButton("clock", ink) { quickStartPicker(person) }.apply {
                     contentDescription = if (resources.configuration.locales[0].language == "pl")
                         "Rozpocznij sesję wcześniej" else "Start session in the past"
-                    background = shape(subtleNeutral, 12)
                 }
-                controls.addView(backdate, LinearLayout.LayoutParams(dp(54), dp(54)).apply {
-                    leftMargin = dp(8)
-                })
-                c.addView(controls)
+                TimerCardControls(
+                    context = this,
+                    running = false,
+                    primaryButton = button,
+                    secondaryIcon = backdate,
+                    eventLabel = null,
+                    secondaryBackground = shape(subtleNeutral, 12),
+                    onEventClick = null
+                )
             }
+            c.addView(controls)
         }
         addCard(c)
     }
