@@ -145,15 +145,10 @@ class MainActivity : Activity() {
         RecentActivityRenderer(
             context = this,
             target = { content },
-            text = { value, size, bold, color ->
-                if (color == null) label(value, size, bold) else label(value, size, bold, color)
-            },
-            mutedColor = { muted },
-            surfaceBackground = { shape(surface, 12) },
+            components = appUi,
             participantColor = { personColor(it) },
             participantName = { personName(it) },
             dateFormat = { DatePresentation.shortDateTime(resources) },
-            action = { title, onClick -> styledAction(title, ButtonRole.SECONDARY, onClick) },
             openHistory = { tab = 2; render() }
         )
     }
