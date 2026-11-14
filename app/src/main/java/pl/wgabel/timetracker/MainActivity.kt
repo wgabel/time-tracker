@@ -80,7 +80,40 @@ class MainActivity : Activity() {
     private var tab = 0
     // Tab services are lifecycle scaffolding. Existing UI is still rendered below.
     private val timersService: TimersService by lazy {
-        TimersService(TimersRenderer { renderTimers() })
+        TimersService(
+            renderer = TimersRenderer(
+                context = this,
+                content = { content },
+                title = { if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants" },
+                emptyMessage = { tr(R.string.first_person) },
+                addParticipantDescription = { tr(R.string.add_person).removePrefix("+").trim() },
+                text = { value, size, bold -> label(value, size, bold) },
+                addButton = {
+                    styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
+                        contentDescription = tr(R.string.add_person).removePrefix("+").trim()
+                        textSize = 24f
+                        minHeight = dp(40)
+                        minimumHeight = dp(40)
+                        minWidth = dp(44)
+                        minimumWidth = dp(44)
+                        setPadding(0, 0, 0, 0)
+                    }
+                },
+                renderCard = { person, start, end, now -> timerCard(person, start, end, now) },
+                renderRecentActivity = { recentActivity() },
+                gap = { height -> gap(content, height) }
+            ),
+            loadState = { id ->
+                pl.wgabel.timetracker.tabs.TimersViewState(
+                    projectId = id,
+                    dayStart = dayStart(0),
+                    dayEnd = dayStart(1),
+                    now = System.currentTimeMillis(),
+                    participantIds = participants(),
+                    archived = isArchived()
+                )
+            }
+        )
     }
     private val tabServices: List<ITabService> by lazy {
         listOf(timersService, StatisticsService(), HistoryService(), SettingsService())
@@ -1701,44 +1734,6 @@ class MainActivity : Activity() {
             tab = 2
             render()
         })
-    }
-
-    private fun renderTimers() {
-        val start = dayStart(0)
-        val end = dayStart(1)
-        val now = System.currentTimeMillis()
-        val participantsHeading = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        participantsHeading.addView(
-            label(if (resources.configuration.locales[0].language == "pl") "Uczestnicy" else "Participants", 21f, true, ink).apply {
-                letterSpacing = -0.02f
-            },
-            LinearLayout.LayoutParams(0, -2, 1f)
-        )
-        if (!isArchived()) {
-            val addParticipantButton = styledAction("＋", ButtonRole.PRIMARY) { addParticipant() }.apply {
-                contentDescription = tr(R.string.add_person).removePrefix("+").trim()
-                textSize = 24f
-                minHeight = dp(40)
-                minimumHeight = dp(40)
-                minWidth = dp(44)
-                minimumWidth = dp(44)
-                setPadding(0, 0, 0, 0)
-            }
-            participantsHeading.addView(addParticipantButton, LinearLayout.LayoutParams(dp(44), dp(40)))
-        }
-        gap(content, 12)
-        content.addView(participantsHeading)
-        gap(content, 12)
-        val currentParticipants = participants()
-        if (currentParticipants.isEmpty()) {
-            content.addView(label(tr(R.string.first_person), 16f, false, muted))
-            gap(content, 12)
-        }
-        currentParticipants.forEach { timerCard(it, start, end, now) }
-        recentActivity()
     }
 
     private fun periodRange(): Pair<Long, Long> {
