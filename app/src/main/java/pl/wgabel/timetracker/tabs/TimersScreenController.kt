@@ -9,8 +9,7 @@ internal class TimersScreenController(
     environment: TimersScreenEnvironment,
     presentation: TimerCardPresentation,
     commands: TimerCardCommands,
-    view: TimersScreenView,
-    loadState: (Long) -> TimersViewState
+    view: TimersScreenView
 ) {
     private val cards = TimerCardFactory(
         context = environment.context,
@@ -34,7 +33,7 @@ internal class TimersScreenController(
             renderCard = cards::render,
             renderRecentActivity = view.renderRecentActivity
         ),
-        loadState = loadState
+        loadState = TimersStateDataSource(environment.database)::load
     )
 
     fun render(project: Long) = service.render(project)
