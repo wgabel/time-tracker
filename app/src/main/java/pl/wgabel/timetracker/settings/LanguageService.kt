@@ -1,10 +1,11 @@
-package pl.wgabel.timetracker
+package pl.wgabel.timetracker.settings
 
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.res.Configuration
 import java.util.Locale
+import pl.wgabel.timetracker.R
 
 internal interface LanguageService {
     fun applyLanguage()

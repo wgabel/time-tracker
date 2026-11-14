@@ -1,6 +1,6 @@
 package pl.wgabel.timetracker.domain
 
-import pl.wgabel.timetracker.EventRepository
+import pl.wgabel.timetracker.data.EventRepository
 import pl.wgabel.timetracker.data.ProjectRepository
 
 internal class EventService(private val events: EventRepository, private val projects: ProjectRepository) {

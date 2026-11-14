@@ -8,6 +8,7 @@ import pl.wgabel.timetracker.domain.StatisticsCalculator
 import pl.wgabel.timetracker.model.Session
 import pl.wgabel.timetracker.model.SessionEvent
 import pl.wgabel.timetracker.model.TimeInterval
+import pl.wgabel.timetracker.time.TimeMath
 
 class StatisticsCalculatorTest {
     @Test fun runningDurationComesFromPersistedStartAndCurrentTime() {

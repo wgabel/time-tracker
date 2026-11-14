@@ -1,4 +1,4 @@
-package pl.wgabel.timetracker
+package pl.wgabel.timetracker.settings
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.view.WindowManager
+import pl.wgabel.timetracker.R
 
 /** Controls the persisted theme selection and system bar appearance. */
 internal interface ThemeService {

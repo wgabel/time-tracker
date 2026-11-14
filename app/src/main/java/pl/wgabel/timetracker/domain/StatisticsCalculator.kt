@@ -4,7 +4,7 @@ import java.util.Calendar
 import pl.wgabel.timetracker.model.Session
 import pl.wgabel.timetracker.model.SessionEvent
 import pl.wgabel.timetracker.model.TimeInterval
-import pl.wgabel.timetracker.TimeMath
+import pl.wgabel.timetracker.time.TimeMath
 
 internal object StatisticsCalculator {
     fun totalDuration(intervals: List<TimeInterval>, start: Long, end: Long, now: Long): Long =

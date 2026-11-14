@@ -7,6 +7,8 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import pl.wgabel.timetracker.data.EventRepository
+import pl.wgabel.timetracker.data.SessionRepository
 
 /** Real SQLite integration tests. Run on an Android device or emulator. */
 @RunWith(AndroidJUnit4::class)

@@ -2,7 +2,7 @@ package pl.wgabel.timetracker.domain
 
 import pl.wgabel.timetracker.data.ParticipantRepository
 import pl.wgabel.timetracker.data.ProjectRepository
-import pl.wgabel.timetracker.SessionRepository
+import pl.wgabel.timetracker.data.SessionRepository
 
 internal class SessionService(
     private val sessions: SessionRepository,

@@ -30,6 +30,9 @@ class MainActivityUiTest {
 
     @Before fun setUp() {
         context.stopService(Intent(context, TimerNotificationService::class.java))
+        instrumentation.runOnMainSync {
+            (context.applicationContext as TimeTrackerApplication).releaseContainer()
+        }
         context.deleteDatabase(databaseName)
         context.getSharedPreferences("preferences", 0).edit()
             .putString("app_language", "en").putString("app_theme", "light").commit()
@@ -64,6 +67,9 @@ class MainActivityUiTest {
         }
         instrumentation.waitForIdleSync()
         context.stopService(Intent(context, TimerNotificationService::class.java))
+        instrumentation.runOnMainSync {
+            (context.applicationContext as TimeTrackerApplication).releaseContainer()
+        }
         context.deleteDatabase(databaseName)
     }
 

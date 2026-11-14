@@ -2,7 +2,7 @@ package pl.wgabel.timetracker.data
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
-import pl.wgabel.timetracker.ParticipantColors
+import pl.wgabel.timetracker.design.ParticipantColors
 import pl.wgabel.timetracker.model.TimerCardData
 
 /** Owns participant edits and deletion safeguards. */

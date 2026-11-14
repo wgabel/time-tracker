@@ -9,6 +9,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import pl.wgabel.timetracker.design.AppUi.ButtonRole
 
 /** Shared native View factories. Owns presentation only; no database or navigation logic. */
 internal class AppUi(
@@ -18,12 +19,12 @@ internal class AppUi(
 ) {
     internal enum class ButtonRole { PRIMARY, SECONDARY, DANGER, WARNING }
 
-    fun dp(value: Int): Int = (value * context.resources.displayMetrics.density + .5f).toInt()
+    fun densityPixels(value: Int): Int = (value * context.resources.displayMetrics.density + .5f).toInt()
     fun color(name: String): Int = tokens.color(name, isDark())
     fun dimension(name: String): Int = tokens.dimension(name)
 
     fun shape(fill: Int, radiusDp: Int = dimension("shapeRadiusDp")): GradientDrawable =
-        GradientDrawable().apply { setColor(fill); cornerRadius = dp(radiusDp).toFloat() }
+        GradientDrawable().apply { setColor(fill); cornerRadius = densityPixels(radiusDp).toFloat() }
 
     fun label(value: String, sizeSp: Float = dimension("defaultTextSp").toFloat(),
               bold: Boolean = false, foreground: Int = color("ink")): TextView =
@@ -36,17 +37,17 @@ internal class AppUi(
         }
 
     fun gap(parent: LinearLayout, heightDp: Int = dimension("defaultGapDp")) {
-        parent.addView(View(context), LinearLayout.LayoutParams(1, dp(heightDp)))
+        parent.addView(View(context), LinearLayout.LayoutParams(1, densityPixels(heightDp)))
     }
 
     fun card(): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        val padding = dp(dimension("cardPaddingDp"))
+        val padding = densityPixels(dimension("cardPaddingDp"))
         setPadding(padding, padding, padding, padding)
         background = shape(color("surface"), dimension("cardRadiusDp")).apply {
-            setStroke(dp(dimension("cardStrokeDp")), color("cardStroke"))
+            setStroke(densityPixels(dimension("cardStrokeDp")), color("cardStroke"))
         }
-        elevation = dp(dimension("cardElevationDp")).toFloat()
+        elevation = densityPixels(dimension("cardElevationDp")).toFloat()
     }
 
     fun action(text: String, backgroundColor: Int, foreground: Int = Color.WHITE,
@@ -54,7 +55,7 @@ internal class AppUi(
         this.text = text
         textSize = dimension("buttonTextSp").toFloat()
         setTypeface(null, Typeface.BOLD)
-        minHeight = dp(dimension("buttonMinHeightDp"))
+        minHeight = densityPixels(dimension("buttonMinHeightDp"))
         isAllCaps = false
         setTextColor(foreground)
         background = shape(backgroundColor, dimension("buttonRadiusDp"))
