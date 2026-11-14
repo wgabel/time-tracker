@@ -104,6 +104,12 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - Preserve existing `HistorySessionRow` layout, callbacks, action tray animations, active-card lifecycle and timer ticks during further extractions. `HistorySessionList` is used by both history and recent activity; changes must support both.
 - Favor small PRs with one clear responsibility and compile verification before squash merge. Avoid creating redundant wrappers or converting all existing files to packages in one large risky commit.
 
+## Naming conventions (mandatory)
+- **Never abbreviate method or function names.** A method name must clearly describe its purpose to a reviewer without opening its implementation. Use descriptive verbs and domain terms, e.g. `formatDuration()`, `synchronizeTimerNotifications()`, `getLocalizedString()` rather than `fmt()`, `sync()`, `tr()`.
+- Apply this to new methods and to existing methods when refactoring their callers. Avoid creating one-line aliases for existing framework methods unless the wrapper adds meaningful behavior; prefer Android `getString()` over a redundant `tr()` helper.
+- Use clear, consistent names for callbacks and interface methods too. Do not introduce terse abbreviations merely to reduce typing.
+- When renaming existing methods, update all references and verify compilation. Keep unrelated renames out of focused behavior changes.
+
 ## Engineering quality and code composition (mandatory)
 - Apply established Kotlin/Android software engineering practices to every change: readable names, clear responsibilities, cohesive functions, appropriate visibility, null safety, and consistent error handling.
 - Prefer small, composable, reusable helpers over duplicated logic or new responsibilities inside the monolithic Activity. Separate presentation/formatting, persistence, and UI behavior when doing so reduces coupling without risky refactors.
