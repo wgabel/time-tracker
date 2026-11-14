@@ -1674,7 +1674,24 @@ class MainActivity : Activity() {
             .setMessage(tr(R.string.delete_measurement_warning))
             .setNegativeButton(tr(R.string.cancel), null)
             .setPositiveButton(tr(R.string.delete)) { _, _ ->
-                val deleted = db.delete("sessions", "id=? AND ended_at IS NOT NULL", arrayOf(id.toString()))
+                var deleted = 0
+                db.beginTransaction()
+                try {
+                    val eligible = db.rawQuery(
+                        "SELECT 1 FROM sessions WHERE id=? AND project_id=? AND ended_at IS NOT NULL",
+                        arrayOf(id.toString(), projectId.toString())
+                    ).use { it.moveToFirst() }
+                    if (eligible) {
+                        db.delete("events", "session_id=? AND project_id=?",
+                            arrayOf(id.toString(), projectId.toString()))
+                        deleted = db.delete("sessions",
+                            "id=? AND project_id=? AND ended_at IS NOT NULL",
+                            arrayOf(id.toString(), projectId.toString()))
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
                 if (deleted > 0) {
                     renderContent()
                     Toast.makeText(this, tr(R.string.measurement_deleted), Toast.LENGTH_SHORT).show()
@@ -2503,7 +2520,13 @@ class MainActivity : Activity() {
         data class EventMark(val person: Int, val at: Long, val type: String, val note: String)
         val events = mutableListOf<EventMark>()
         db.rawQuery(
-            "SELECT person,happened_at,type,note FROM events WHERE project_id=? AND happened_at>=? AND happened_at<? ORDER BY happened_at",
+            """SELECT e.person,e.happened_at,e.type,e.note FROM events e
+                INNER JOIN sessions s ON s.id=e.session_id AND s.project_id=e.project_id
+                    AND s.person=e.person
+                WHERE e.project_id=? AND e.happened_at>=? AND e.happened_at<?
+                    AND e.happened_at>=s.started_at
+                    AND (s.ended_at IS NULL OR e.happened_at<=s.ended_at)
+                ORDER BY e.happened_at""",
             arrayOf(projectId.toString(), day.toString(), end.toString())
         ).use { cur ->
             while (cur.moveToNext()) events.add(EventMark(cur.getInt(0), cur.getLong(1), cur.getString(2), cur.getString(3)))
