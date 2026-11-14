@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteDatabase
 import pl.wgabel.timetracker.SessionDaySummary
 import pl.wgabel.timetracker.data.TimerCardDataSource
 import pl.wgabel.timetracker.model.TimerCardData
+import pl.wgabel.timetracker.model.TimeInterval
 
 /** Data needed by a timer card, loaded separately from Android View composition. */
 internal class TimerCardStateSource(private val db: SQLiteDatabase) {
@@ -17,7 +18,7 @@ internal class TimerCardStateSource(private val db: SQLiteDatabase) {
 internal class TimerCardState(
     val data: TimerCardData,
     val summary: SessionDaySummary,
-    val intervals: List<Pair<Long, Long>>
+    val intervals: List<TimeInterval>
 ) {
     fun duration(start: Long, end: Long, now: Long): Long =
         summary.duration(intervals, start, end, now)
