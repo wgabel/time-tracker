@@ -2314,6 +2314,74 @@ class MainActivity : Activity() {
             c.addView(bar, LinearLayout.LayoutParams(-1, dp(8)))
             gap(c, 12)
         }
+        if (sum > 0L) {
+            gap(c, 8)
+            c.addView(View(this).apply { background = shape(subtle, 1) },
+                LinearLayout.LayoutParams(-1, dp(1)))
+            gap(c, 16)
+            c.addView(label("Udział w łącznym czasie", 17f, true, ink))
+            gap(c, 12)
+            val shareRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val ring = object : View(this) {
+                private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = dp(19).toFloat()
+                    strokeCap = Paint.Cap.BUTT
+                }
+                private val centerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = ink
+                    textAlign = Paint.Align.CENTER
+                }
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
+                    val cx = width / 2f
+                    val cy = height / 2f
+                    val radius = minOf(width, height) / 2f - dp(13)
+                    val bounds = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+                    paint.color = subtle
+                    canvas.drawArc(bounds, 0f, 360f, false, paint)
+                    var angle = -90f
+                    entries.filter { it.second > 0L }.forEach { (person, time) ->
+                        val sweep = (time.toDouble() / sum * 360.0).toFloat()
+                        paint.color = personColor(person)
+                        canvas.drawArc(bounds, angle, sweep, false, paint)
+                        angle += sweep
+                    }
+                    centerPaint.color = ink
+                    centerPaint.typeface = Typeface.DEFAULT_BOLD
+                    centerPaint.textSize = dp(19).toFloat()
+                    canvas.drawText("100%", cx, cy - dp(2), centerPaint)
+                    centerPaint.typeface = Typeface.DEFAULT
+                    centerPaint.textSize = dp(9).toFloat()
+                    canvas.drawText("łącznego czasu", cx, cy + dp(13), centerPaint)
+                }
+            }
+            shareRow.addView(ring, LinearLayout.LayoutParams(0, dp(160), 1f))
+            val legend = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(10), 0, 0, 0)
+            }
+            entries.forEach { (person, time) ->
+                val item = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                item.addView(View(this).apply { background = shape(personColor(person), 5) },
+                    LinearLayout.LayoutParams(dp(9), dp(9)).apply { rightMargin = dp(7) })
+                item.addView(label(personName(person), 12f, false, ink),
+                    LinearLayout.LayoutParams(0, -2, 1f))
+                val percent = time.toDouble() * 100.0 / sum
+                item.addView(label(String.format(resources.configuration.locales[0], "%.1f%%", percent),
+                    12f, true, ink))
+                legend.addView(item)
+                gap(legend, 12)
+            }
+            shareRow.addView(legend, LinearLayout.LayoutParams(0, -2, 1f))
+            c.addView(shareRow)
+        }
         addCard(c)
     }
 
@@ -2849,8 +2917,6 @@ class MainActivity : Activity() {
             gap(trend, 12)
             barChart(from, to, trend)
             addCard(trend)
-            gap(content, 16)
-            renderParticipantPie(from, to)
         }
     }
 
