@@ -24,6 +24,7 @@ internal class AppUi(
     fun dimensionPixels(name: String): Int = densityPixels(tokens.dimension(name))
     fun proportion(name: String): Float = tokens.proportion(name)
     fun dayTimeScaleStyle(): DesignTokens.DayTimeScaleStyle = tokens.dayTimeScale(isDark())
+    fun nightStarStyle(): DesignTokens.NightStarStyle = tokens.nightStarStyle(isDark())
 
     fun shape(fill: Int, radiusDp: Int = dimension("shapeRadiusDp")): GradientDrawable =
         GradientDrawable().apply { setColor(fill); cornerRadius = densityPixels(radiusDp).toFloat() }
