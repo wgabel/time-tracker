@@ -52,39 +52,21 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.widget_project_selector, PendingIntent.getActivity(
                     context, widgetId, chooserIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 ))
-                project?.let { (projectId, _) ->
-                    container.participants.participantIds(projectId).forEach { participantId ->
-                        val snapshot = container.participants.timerCardSnapshot(projectId, participantId, "")
-                        val running = snapshot.activeStartedAt != null
-                        val row = RemoteViews(context.packageName, R.layout.widget_timer_participant)
-                        row.setTextViewText(R.id.widget_participant_name, snapshot.participantName)
-                        row.setInt(R.id.widget_participant_color, "setBackgroundColor", snapshot.participantColor)
-                        row.setInt(R.id.widget_participant_row, "setBackgroundResource",
-                            if (running) R.drawable.widget_row_active else R.drawable.widget_row_background)
-                        row.setInt(R.id.widget_stop_action, "setBackgroundResource",
-                            if (running) R.drawable.widget_button_active else R.drawable.widget_button_secondary)
-                        row.setViewVisibility(R.id.widget_timer_elapsed, if (running) View.VISIBLE else View.GONE)
-                        row.setViewVisibility(R.id.widget_timer_idle, if (running) View.GONE else View.VISIBLE)
-                        snapshot.activeStartedAt?.let { startedAt ->
-                            row.setChronometer(R.id.widget_timer_elapsed,
-                                SystemClock.elapsedRealtime() - (System.currentTimeMillis() - startedAt),
-                                "%s", true)
-                        }
-                        row.setInt(R.id.widget_start_action, "setImageAlpha", if (running) 80 else 255)
-                        row.setInt(R.id.widget_stop_action, "setImageAlpha", if (running) 255 else 80)
-                        row.setInt(R.id.widget_event_action, "setImageAlpha", if (running) 255 else 80)
-                        if (!running) row.setOnClickPendingIntent(R.id.widget_start_action,
-                            launchIntent(context, widgetId, projectId, participantId, ACTION_START))
-                        if (running) {
-                            row.setOnClickPendingIntent(R.id.widget_stop_action,
-                                launchIntent(context, widgetId, projectId, participantId, ACTION_STOP))
-                            row.setOnClickPendingIntent(R.id.widget_event_action,
-                                launchIntent(context, widgetId, projectId, participantId, ACTION_EVENT))
-                        }
-                        views.addView(R.id.widget_participants, row)
-                    }
+                val serviceIntent = Intent(context, WidgetParticipantListService::class.java).apply {
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    data = android.net.Uri.parse("timetrkr://widget-list/$widgetId")
                 }
+                views.setRemoteAdapter(R.id.widget_participants, serviceIntent)
+                val actionTemplate = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    data = android.net.Uri.parse("timetrkr://widget-action/$widgetId")
+                }
+                views.setPendingIntentTemplate(R.id.widget_participants, PendingIntent.getActivity(
+                    context, widgetId, actionTemplate,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                ))
                 manager.updateAppWidget(widgetId, views)
+                manager.notifyAppWidgetViewDataChanged(widgetId, R.id.widget_participants)
             }
         }
 
