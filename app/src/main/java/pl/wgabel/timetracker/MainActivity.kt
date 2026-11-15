@@ -61,7 +61,7 @@ class MainActivity : Activity() {
     }
 
     private fun handleWidgetLaunch(intent: Intent?) {
-        if (intent?.action != TimerWidgetProvider.ACTION_TIMER && intent?.action != TimerWidgetProvider.ACTION_EVENT) return
+        if (intent?.action != TimerWidgetProvider.ACTION_START && intent?.action != TimerWidgetProvider.ACTION_STOP && intent?.action != TimerWidgetProvider.ACTION_EVENT) return
         val projectId = intent.getLongExtra(TimerWidgetProvider.EXTRA_PROJECT_ID, -1)
         val participantId = intent.getIntExtra(TimerWidgetProvider.EXTRA_PARTICIPANT_ID, -1)
         if (projectId > 0 && participantId > 0) {

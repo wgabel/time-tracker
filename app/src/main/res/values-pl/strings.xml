@@ -196,5 +196,9 @@
     <string name="statistics_chart_hint">Dotknij grupy, aby zobaczyć czasy. Kreska oznacza brak wpisów.</string>
     <string name="statistics_days_with_entries">Dni z pomiarami: %1$d / %2$d</string>
     <string name="widget_no_projects">Brak aktywnych projektów</string>
+    <string name="widget_select_project">Wybierz projekt</string>
+    <string name="widget_start">Start</string>
+    <string name="widget_stop">Stop</string>
+    <string name="widget_event">Wydarzenie</string>
 </resources>
 

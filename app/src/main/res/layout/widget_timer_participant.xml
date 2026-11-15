@@ -2,18 +2,21 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
     android:orientation="horizontal" android:gravity="center_vertical"
-    android:minHeight="40dp" android:paddingTop="2dp" android:paddingBottom="2dp">
+    android:minHeight="42dp" android:paddingTop="2dp" android:paddingBottom="2dp">
     <TextView android:id="@+id/widget_participant_name" android:layout_width="0dp"
         android:layout_height="wrap_content" android:layout_weight="1"
         android:textColor="#FFFFFF" android:textSize="13sp"
-        android:ellipsize="end" android:singleLine="true"
-        android:paddingEnd="6dp"/>
-    <TextView android:id="@+id/widget_timer_action" android:layout_width="78dp"
-        android:layout_height="36dp" android:gravity="center"
-        android:background="#208C75" android:textColor="#FFFFFF"
-        android:textStyle="bold" android:textSize="12sp"/>
-    <TextView android:id="@+id/widget_event_action" android:layout_width="60dp"
-        android:layout_height="36dp" android:gravity="center"
-        android:text="EVENT" android:textColor="#FFFFFF"
-        android:textStyle="bold" android:textSize="11sp"/>
+        android:ellipsize="end" android:singleLine="true" android:paddingEnd="4dp"/>
+    <ImageView android:id="@+id/widget_start_action" android:layout_width="40dp"
+        android:layout_height="38dp" android:padding="10dp"
+        android:src="@drawable/widget_play" android:background="#208C75"
+        android:contentDescription="@string/widget_start"/>
+    <ImageView android:id="@+id/widget_stop_action" android:layout_width="40dp"
+        android:layout_height="38dp" android:padding="10dp"
+        android:src="@drawable/widget_stop" android:background="#304D54"
+        android:layout_marginStart="4dp" android:contentDescription="@string/widget_stop"/>
+    <ImageView android:id="@+id/widget_event_action" android:layout_width="40dp"
+        android:layout_height="38dp" android:padding="10dp"
+        android:src="@drawable/widget_event" android:background="#304D54"
+        android:layout_marginStart="4dp" android:contentDescription="@string/widget_event"/>
 </LinearLayout>
