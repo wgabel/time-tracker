@@ -9,6 +9,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity android:name=".widgets.WidgetProjectSelectionActivity" android:exported="false" android:theme="@android:style/Theme.Material.Light.Dialog.Alert"/>
         <receiver android:name=".widgets.TimerWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
