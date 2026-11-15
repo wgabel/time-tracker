@@ -3,6 +3,7 @@ package pl.wgabel.timetracker
 import android.content.Context
 import pl.wgabel.timetracker.data.EventRepository
 import pl.wgabel.timetracker.data.ParticipantRepository
+import pl.wgabel.timetracker.data.ProjectBackupRepository
 import pl.wgabel.timetracker.data.ProjectRepository
 import pl.wgabel.timetracker.data.SQLiteDatabaseService
 import pl.wgabel.timetracker.data.SessionRepository
@@ -16,6 +17,7 @@ internal class AppContainer(context: Context) : AutoCloseable {
     val designTokens = DesignTokens(context.applicationContext)
     private val database = SQLiteDatabaseService(context.applicationContext)
     val projects = ProjectRepository(database.database)
+    val projectBackups = ProjectBackupRepository(database.database)
     val participants = ParticipantRepository(database.database)
     val sessions = SessionRepository(database.database)
     val events = EventRepository(database.database, sessions)
