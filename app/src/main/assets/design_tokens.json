@@ -30,7 +30,8 @@
       "timeScaleTrackStroke": "#9196A0",
       "timeScaleThumbFill": "#FFFFFF",
       "timeScaleThumbStroke": "#606977",
-      "actionText": "#FFFFFF"
+      "actionText": "#FFFFFF",
+      "timeNightStars": "#D9E4F5"
     },
     "dark": {
       "blue": "#71A9FF",
@@ -61,7 +62,8 @@
       "timeScaleTrackStroke": "#59616F",
       "timeScaleThumbFill": "#FFFFFF",
       "timeScaleThumbStroke": "#667080",
-      "actionText": "#FFFFFF"
+      "actionText": "#FFFFFF",
+      "timeNightStars": "#D9E4F5"
     }
   },
   "dimensions": {
@@ -111,14 +113,19 @@
     "timeScaleTickStrokeDp": 1,
     "timeScaleLabelTopDp": 14,
     "timeScaleLabelHeightPaddingDp": 18,
-    "timeScaleLabelHeightTextSp": 14
+    "timeScaleLabelHeightTextSp": 14,
+    "timeNightStarMinimumSizeDp": 5,
+    "timeNightStarMaximumSizeDp": 9,
+    "timeNightStarSpacingDp": 29
   },
   "proportions": {
     "timePickerDisabledOpacity": 0.45,
     "timeFieldArrowHalfWidth": 0.3,
     "timeFieldArrowHalfHeight": 0.15,
-    "timeScaleMajorTickOpacity": 1.0,
-    "timeScaleMinorTickOpacity": 0.6274509803921569
+    "timeScaleMajorTickOpacity": 1,
+    "timeScaleMinorTickOpacity": 0.6274509803921569,
+    "timeNightStarMinimumOpacity": 0.28,
+    "timeNightStarMaximumOpacity": 0.44
   },
   "dayTimeScale": {
     "labelIntervalHours": 6,
@@ -162,6 +169,16 @@
       {
         "minute": 1440,
         "color": "timeNight"
+      }
+    ],
+    "nightStarRanges": [
+      {
+        "startMinute": 0,
+        "endMinute": 360
+      },
+      {
+        "startMinute": 1200,
+        "endMinute": 1440
       }
     ]
   }
