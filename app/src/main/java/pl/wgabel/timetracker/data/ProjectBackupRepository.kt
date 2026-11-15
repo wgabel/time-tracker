@@ -28,12 +28,14 @@ internal class ProjectBackupRepository(private val database: SQLiteDatabase) {
             }
             return result
         }
-        return JSONObject().put("format", "timetrkr-project").put("schemaVersion", 1)
+        val backup = JSONObject().put("format", "timetrkr-project").put("schemaVersion", 1)
             .put("project", project)
             .put("participants", rows("SELECT id,name,color FROM participants WHERE project_id=?", listOf("id","name","color")))
             .put("sessions", rows("SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=?", listOf("id","person","startedAt","endedAt")))
             .put("events", rows("SELECT id,session_id,person,happened_at,type,note FROM events WHERE project_id=?", listOf("id","sessionId","person","happenedAt","type","note")))
-            .toString(2)
+        val serializedBackup = backup.toString(2)
+        validate(serializedBackup)
+        return serializedBackup
     }
 
     data class Preview(val projectName: String, val participants: Int, val sessions: Int, val events: Int)
@@ -52,7 +54,7 @@ internal class ProjectBackupRepository(private val database: SQLiteDatabase) {
         val sessionOwners = mutableMapOf<Long, Long>()
         val sessionBounds = mutableMapOf<Long, Pair<Long, Long?>>()
         val activeParticipants = mutableSetOf<Long>()
-        val intervals = mutableMapOf<Long, MutableList<Pair<Long, Long?>>>()
+
         for (index in 0 until participants.length()) {
             val item = participants.getJSONObject(index)
             val id = item.getLong("id")
@@ -69,13 +71,7 @@ internal class ProjectBackupRepository(private val database: SQLiteDatabase) {
             require(end != null || activeParticipants.add(person)) { "Duplicate active timer" }
             sessionOwners[id] = person
             sessionBounds[id] = start to end
-            intervals.getOrPut(person) { mutableListOf() }.add(start to end)
-        }
-        intervals.values.forEach { personIntervals ->
-            val sorted = personIntervals.sortedBy { it.first }
-            for (index in 1 until sorted.size) {
-                require((sorted[index - 1].second ?: Long.MAX_VALUE) <= sorted[index].first) { "Overlapping sessions" }
-            }
+
         }
         val eventIds = mutableSetOf<Long>()
         for (index in 0 until events.length()) {
@@ -84,8 +80,13 @@ internal class ProjectBackupRepository(private val database: SQLiteDatabase) {
             val sessionId = item.getLong("sessionId")
             val person = item.getLong("person")
             val happenedAt = item.getLong("happenedAt")
-            val bounds = sessionBounds[sessionId] ?: error("Missing event session")
-            require(id > 0 && eventIds.add(id) && sessionOwners[sessionId] == person && happenedAt >= bounds.first && happenedAt <= (bounds.second ?: System.currentTimeMillis())) { "Invalid event" }
+            val bounds = sessionBounds[sessionId]
+                ?: error("Event $id references missing session $sessionId. The source data must be repaired before importing.")
+            require(id > 0 && eventIds.add(id)) { "Duplicate or invalid event ID: $id" }
+            require(sessionOwners[sessionId] == person) { "Event $id belongs to a different participant than session $sessionId" }
+            require(happenedAt >= bounds.first && happenedAt <= (bounds.second ?: System.currentTimeMillis())) {
+                "Event $id falls outside session $sessionId. The source data must be repaired before importing."
+            }
             item.getString("type")
             item.getString("note")
         }
