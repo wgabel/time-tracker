@@ -7,6 +7,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import android.os.SystemClock
+import android.view.View
 import pl.wgabel.timetracker.MainActivity
 import pl.wgabel.timetracker.R
 import pl.wgabel.timetracker.TimeTrackerApplication
@@ -41,6 +43,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 views.removeAllViews(R.id.widget_participants)
                 val project = projects.firstOrNull { it.first == preferences.projectId(widgetId) }
                 views.setTextViewText(R.id.widget_title, project?.second ?: context.getString(R.string.widget_select_project))
+                val runningCount = project?.let { container.projects.activeTimerCount(it.first) } ?: 0
+                views.setTextViewText(R.id.widget_active_count, if (runningCount == 1) "● 1 aktywny" else "● $runningCount aktywnych")
                 val chooserIntent = Intent(context, WidgetProjectSelectionActivity::class.java).apply {
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -54,6 +58,18 @@ class TimerWidgetProvider : AppWidgetProvider() {
                         val running = snapshot.activeStartedAt != null
                         val row = RemoteViews(context.packageName, R.layout.widget_timer_participant)
                         row.setTextViewText(R.id.widget_participant_name, snapshot.participantName)
+                        row.setInt(R.id.widget_participant_color, "setBackgroundColor", snapshot.participantColor)
+                        row.setInt(R.id.widget_participant_row, "setBackgroundResource",
+                            if (running) R.drawable.widget_row_active else R.drawable.widget_row_background)
+                        row.setInt(R.id.widget_stop_action, "setBackgroundResource",
+                            if (running) R.drawable.widget_button_active else R.drawable.widget_button_secondary)
+                        row.setViewVisibility(R.id.widget_timer_elapsed, if (running) View.VISIBLE else View.GONE)
+                        row.setViewVisibility(R.id.widget_timer_idle, if (running) View.GONE else View.VISIBLE)
+                        snapshot.activeStartedAt?.let { startedAt ->
+                            row.setChronometer(R.id.widget_timer_elapsed,
+                                SystemClock.elapsedRealtime() - (System.currentTimeMillis() - startedAt),
+                                "%s", true)
+                        }
                         row.setFloat(R.id.widget_start_action, "setAlpha", if (running) 0.3f else 1f)
                         row.setFloat(R.id.widget_stop_action, "setAlpha", if (running) 1f else 0.3f)
                         row.setFloat(R.id.widget_event_action, "setAlpha", if (running) 1f else 0.3f)
