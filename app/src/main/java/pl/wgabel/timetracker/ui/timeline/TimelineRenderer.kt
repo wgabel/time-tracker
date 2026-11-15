@@ -19,6 +19,7 @@ import java.util.Locale
 import pl.wgabel.timetracker.AppContainer
 import pl.wgabel.timetracker.AppNavigation
 import pl.wgabel.timetracker.R
+import pl.wgabel.timetracker.design.DayTimelineAxis
 import pl.wgabel.timetracker.model.SessionEvent
 import pl.wgabel.timetracker.ui.ScreenUi
 import pl.wgabel.timetracker.ui.sessions.SessionDialogs
@@ -231,6 +232,7 @@ internal class TimelineRenderer(
                 event is SessionEvent && event.id in selectedEventIds
             } == true; it.invalidate() }
         }
+        val axis = DayTimelineAxis(appUi)
         val trackInset = densityPixels(24)
         people.forEach { person ->
             val personSessions = sessions.filter { it.participantId == person }
@@ -250,6 +252,10 @@ internal class TimelineRenderer(
 
             val track = object : View(this) {
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                private val daylight = axis.createTrack()
+                override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+                    daylight.setBounds(trackInset, 0, maxOf(trackInset + 1, w - trackInset), h)
+                }
                 private var touchedX = 0f
                 init {
                     contentDescription = getString(R.string.timeline_participant_sessions, personName(person), formatDuration(total))
@@ -274,9 +280,7 @@ internal class TimelineRenderer(
                     val left = trackInset.toFloat()
                     val right = (width - trackInset).toFloat().coerceAtLeast(left + 1f)
                     val middle = height / 2f
-                    paint.color = if (darkTheme) Color.rgb(65, 75, 90) else Color.rgb(234, 237, 242)
-                    canvas.drawRoundRect(RectF(left, middle - densityPixels(3), right, middle + densityPixels(3)),
-                        densityPixels(3).toFloat(), densityPixels(3).toFloat(), paint)
+                    daylight.draw(canvas)
                     personSessions.forEach { session ->
                         val start = maxOf(day, session.startedAt)
                         val finish = minOf(end, session.endedAt ?: System.currentTimeMillis())
@@ -371,33 +375,13 @@ internal class TimelineRenderer(
                 }
             }
             panel.addView(row, LinearLayout.LayoutParams(-1, densityPixels(48)))
+            val ruler = axis.createRuler(this, trackInset, day..end)
+            (ruler.layoutParams as LinearLayout.LayoutParams).topMargin =
+                -(densityPixels(48) - appUi.dimensionPixels("timeScaleTrackHeightDp")) / 2 + densityPixels(2)
+            panel.addView(ruler)
             animateRunningChart(track, personSessions.any { it.endedAt == null } && day <= System.currentTimeMillis() && end > System.currentTimeMillis())
             gap(panel, 6)
         }
-        panel.addView(object : View(this) {
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            override fun onDraw(canvas: Canvas) {
-                paint.color = muted
-                paint.textSize = 11f * resources.displayMetrics.scaledDensity
-                val trackWidth = width - 2f * trackInset
-                val labelSeparation = paint.measureText("00:00") * 1.5f + densityPixels(8)
-                val hours = when {
-                    trackWidth / 4 >= labelSeparation -> listOf(0, 6, 12, 18, 24)
-                    trackWidth / 2 >= labelSeparation -> listOf(0, 12, 24)
-                    else -> listOf(0, 24)
-                }
-                for (hour in hours) {
-                    val moment = if (hour == 24) end else Calendar.getInstance().apply {
-                        timeInMillis = day
-                        set(Calendar.HOUR_OF_DAY, hour)
-                    }.timeInMillis
-                    val position = trackInset + (moment - day).toDouble().div(end - day).toFloat() * (width - 2f * trackInset)
-                    paint.textAlign = when (hour) { 0 -> Paint.Align.LEFT; 24 -> Paint.Align.RIGHT; else -> Paint.Align.CENTER }
-                    canvas.drawText(String.format(Locale.ROOT, "%02d:00", hour), position, -paint.ascent(), paint)
-                }
-            }
-        }.apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-            LinearLayout.LayoutParams(-1, (18 * resources.displayMetrics.scaledDensity).toInt()))
         panel.addView(label(getString(R.string.timeline_legend), 12f, false, muted))
         gap(panel, 8)
         panel.addView(details, LinearLayout.LayoutParams(-1, -2))
@@ -651,4 +635,3 @@ internal class TimelineRenderer(
     }
 
 }
-

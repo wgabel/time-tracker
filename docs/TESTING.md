@@ -8,7 +8,7 @@ Use Gradle 8.9, Java 17 and Android SDK 35.
 gradle :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest --no-daemon
 ```
 
-The JVM suite covers session/event interval rules, duration clipping, period boundaries, trend aggregation, DST and architecture dependencies. Daily trend tests verify 23/25 chronological hourly buckets at Warsaw clock changes, including repeated/skipped local-hour labels; future hours have zero duration.
+The JVM suite covers session/event interval rules, duration clipping, period boundaries, trend aggregation, DST and architecture dependencies. Daily trend tests verify 23/25 chronological hourly buckets at Warsaw clock changes, including repeated/skipped local-hour labels; future hours have zero duration. `DateTimeSelectionTest` checks the shared picker state: coarse five-minute selection, precise minute/hour adjustments, carry, fixed calendar date, inclusive timestamp bounds, untouched milliseconds, seconds, and missing/repeated DST times. `SessionTimeSelectionTest` checks independent start/end drafts, end-only editing, retention across boundary switches, strict ordering, future/invalid inactive boundaries, midnight and independent DST occurrences.
 
 ## Android SQLite and UI checks
 
@@ -23,6 +23,10 @@ The second command requires a running Android device/emulator. Building the test
 - `DatabaseMigrationTest` opens real fresh and legacy v1–v6 database files through the production helper. It verifies sessions, active state, event text/associations, participant IDs/colors, archive/icon state, uniqueness and integrity after upgrading and reopening.
 - `IsolatedDatabaseContext` redirects helper files and migration preferences into disposable per-test storage. Repository/migration tests do not open or delete the app's actual `sessions.db`.
 - `MainActivityUiTest` seeds its emulator app with the production helper. It covers timers, event forms, history editing, tab changes, background/return, notification navigation, Activity restart and saved-state recreation. Its fixture closes the shared application container before replacing its test database.
+- Its focused time-picker checks use real swipes on hour/minute fields and the day rail, verify bidirectional values and hour carry, preserve seconds/milliseconds on save, reject an out-of-session second, and verify dismissing does not save. Light/dark screenshots are collected into the opt-in workflow's Android test reports.
+- Completed-session UI checks verify that End is available before saving, one Save persists both drafts, switching does not write, an end-only edit preserves the exact start timestamp, and Cancel discards a further edit. The selected End screenshot is included in the reports.
+
+For day-rail styling changes, reuse the existing screenshots to inspect both themes: the rail must be dark at 00:00/24:00, warm around 06:00 and 18:00, and bright around noon. Verify the thumb and ticks stay visible across those colors. Its palette, gradient positions and graphical dimensions come from the main design-token JSON; rendering changes do not require a new emulator test case.
 
 The existing GitHub Actions workflow can be dispatched on the PR branch with `run_emulator_tests=true`. It runs SQLite/UI tests on Android 13. This remains opt-in, rather than enabling emulator runs for every PR. Inspect the run's exact head SHA, job conclusions and `android-integration-test-reports` artifact. After fixes, rerun against the new commit.
 

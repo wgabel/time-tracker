@@ -42,7 +42,7 @@ internal class EventsScreen(
             Toast.makeText(this, getString(R.string.session_update_failed), Toast.LENGTH_LONG).show()
             return
         }
-        EventEditor(this).show(
+        EventEditor(this, appUi).show(
             id = id,
             timestamp = timestamp,
             currentType = currentType,
