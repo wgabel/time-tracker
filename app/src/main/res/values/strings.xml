@@ -18,7 +18,6 @@
     <string name="add_participant">+ Add participant</string>
     <string name="add_person">+ Add person</string>
     <string name="project_data">Project data</string>
-    <string name="export_csv">↓  Export measurements (CSV)</string>
     <string name="archive_project">Archive project</string>
     <string name="application">Application</string>
     <string name="archive_readonly">Archive · read-only</string>
@@ -169,4 +168,12 @@
         <item quantity="one">%d event</item>
         <item quantity="other">%d events</item>
     </plurals>
+    <string name="export_json">↓  Export data (JSON)</string>
+    <string name="import_json">↑  Import data (JSON)</string>
+    <string name="backup_export_done">JSON backup saved</string>
+    <string name="backup_import_done">Project data restored</string>
+    <string name="backup_failed">Backup error: %1$s</string>
+    <string name="backup_import_title">Restore project?</string>
+    <string name="backup_import_confirm">Backup project: %1$s\nParticipants: %2$d\nSessions: %3$d\nEvents: %4$d\n\nThe current project's data will be replaced. This cannot be undone.</string>
+    <string name="backup_replace">Replace data</string>
 </resources>
