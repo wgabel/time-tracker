@@ -199,5 +199,16 @@
     <string name="widget_start">Start</string>
     <string name="widget_stop">Stop</string>
     <string name="widget_event">Event</string>
+    <string name="summary_day">Day summary</string>
+    <string name="summary_week">Week summary</string>
+    <string name="summary_month">Month summary</string>
+    <string name="participants_total_time">Total participant time</string>
+    <string name="most_time">Most time</string>
+    <string name="participant_share_line">%1$s · %2$s</string>
+    <string name="shared_time">Shared time</string>
+    <string name="shared_pair">%1$s and %2$s</string>
+    <string name="show_pairs">Show all pairs (%1$d)</string>
+    <string name="no_shared_time">No sessions overlapped in this period.</string>
+    <string name="shared_time_total">Sessions overlapped for %1$s in total.</string>
 </resources>
 

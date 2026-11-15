@@ -1,6 +1,9 @@
 package pl.wgabel.timetracker.features.statistics
 
 import android.app.AlertDialog
+import android.icu.text.MeasureFormat
+import MeasureUnit
+import android.icu.util.Measure
 import android.os.Bundle
 import java.time.Instant
 import java.time.ZoneId
@@ -31,26 +34,26 @@ internal class StatisticsScreen(
     data class State(var dayOffset: Int = 0, var period: Int = 1)
     val state = State()
     lateinit var calendar: DayNavigator
-    private var summarySelection: Set<Int>? = null
     private var chartSelection: Set<Int>? = null
+    private var pairsExpanded = false
     private var expanded = false
 
     fun resetSelection() {
-        summarySelection = null
         chartSelection = null
+        pairsExpanded = false
         expanded = false
         state.dayOffset = 0
     }
 
     fun saveSelection(bundle: Bundle) {
-        bundle.putIntArray("statisticsSummarySelection", summarySelection?.toIntArray())
         bundle.putIntArray("statisticsChartSelection", chartSelection?.toIntArray())
+        bundle.putBoolean("statisticsPairsExpanded", pairsExpanded)
         bundle.putBoolean("statisticsExpanded", expanded)
     }
 
     fun restoreSelection(bundle: Bundle) {
-        summarySelection = bundle.getIntArray("statisticsSummarySelection")?.toSet()
         chartSelection = bundle.getIntArray("statisticsChartSelection")?.toSet()
+        pairsExpanded = bundle.getBoolean("statisticsPairsExpanded")
         expanded = bundle.getBoolean("statisticsExpanded")
     }
 
@@ -124,64 +127,119 @@ internal class StatisticsScreen(
             return
         }
         val recorded = RecordedTime(sessionRepository.clippedIntervals(requireNotNull(projectId), from, minOf(now, to), now))
-        val selected = counters.filter { summarySelection?.contains(it.id) != false }
-        val coverage = recorded.coverage(selected.map { it.id }.toSet())
-        val summary = card()
-        summary.addView(label(getString(R.string.statistics_recorded), 17f, true))
-        summary.addView(label(formatDuration(coverage.elapsed), 29f, true))
-        summary.addView(statisticsParticipantButtons(counters, summarySelection) { summarySelection = it })
-        if (coverage.elapsed == 0L) {
-            gap(summary, 8)
-            summary.addView(label(getString(R.string.no_measurements), 14f, false, muted))
-        } else {
-            addCoverageRow(summary, R.string.statistics_single, coverage.single, coverage.elapsed, themeColor("coverageSingle"))
-            addCoverageRow(summary, R.string.statistics_multiple, coverage.simultaneous, coverage.elapsed, themeColor("coverageMultiple"))
-        }
-        addCard(summary)
-
-        val list = card()
-        list.addView(label(getString(R.string.statistics_by_counter), 18f, true))
-        val sum = recorded.totals.values.sum()
-        for (counter in if (expanded) counters else counters.take(3)) {
-            val duration = recorded.totals.getOrDefault(counter.id, 0L)
-            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            row.addView(label("● ", 16f, true, counter.color))
-            row.addView(label(counter.name, 16f, true), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(label(formatDuration(duration) + "   ›", 15f))
-            row.minimumHeight = densityPixels(48)
-            row.isFocusable = true
-            row.setOnClickListener { showDetails(counter, recorded, from, to, counters) }
-            list.addView(row)
-            if (sum > 0) {
-                val track = LinearLayout(this)
-                addSegment(track, counter.color, duration.toFloat())
-                addSegment(track, subtleNeutral, (sum - duration).toFloat())
-                list.addView(track)
-            }
-        }
-        if (counters.size > 3) {
-            val title = if (expanded) getString(R.string.statistics_collapse) else getString(R.string.statistics_expand, counters.size)
-            list.addView(styledAction(title, ButtonRole.SECONDARY) { expanded = !expanded; navigator.refreshContent() })
-        }
-        addCard(list)
+        val ranked = counters.sortedByDescending { recorded.totals.getOrDefault(it.id, 0L) }
+        val total = ranked.sumOf { recorded.totals.getOrDefault(it.id, 0L) }
+        val coverage = recorded.coverage(ranked.map { it.id }.toSet())
+        addPeriodSummary(ranked, recorded, coverage, total)
+        addParticipantShares(ranked, recorded, total) { showDetails(it, recorded, from, to, coverage) }
         renderChart(recorded, counters, from, to)
     }
 
-    private fun addCoverageRow(parent: LinearLayout, title: Int, duration: Long, total: Long, color: Int) {
-        gap(parent, 12)
-        parent.addView(label(getString(title), 14f, true))
-        val share = NumberFormat.getPercentInstance(DatePresentation.locale(resources)).format(duration.toDouble() / total)
-        parent.addView(label(getString(R.string.statistics_duration_share, formatDuration(duration), share), 14f))
-        gap(parent, 4)
-        val track = LinearLayout(this)
-        addSegment(track, color, duration.toFloat())
-        addSegment(track, subtleNeutral, (total - duration).toFloat())
-        parent.addView(track)
+    private fun periodDuration(milliseconds: Long): String {
+        val seconds = milliseconds / 1000
+        val units = mutableListOf<Measure>()
+        val hours = seconds / 3600
+        val minutes = seconds / 60 % 60
+        if (hours > 0) units.add(Measure(hours, MeasureUnit.HOUR))
+        if (minutes > 0) units.add(Measure(minutes, MeasureUnit.MINUTE))
+        if (seconds % 60 > 0 || units.isEmpty()) units.add(Measure(seconds % 60, MeasureUnit.SECOND))
+        return MeasureFormat.getInstance(DatePresentation.locale(resources),
+            MeasureFormat.FormatWidth.SHORT).formatMeasures(*units.toTypedArray())
     }
 
-    private fun addSegment(row: LinearLayout, color: Int, weight: Float) {
-        if (weight > 0f) row.addView(View(this).apply { setBackgroundColor(color) },
-            LinearLayout.LayoutParams(0, densityPixels(6), weight))
+    private fun durationAndShare(duration: Long, total: Long): String {
+        val share = NumberFormat.getPercentInstance(DatePresentation.locale(resources)).format(duration.toDouble() / total)
+        return getString(R.string.statistics_duration_share, periodDuration(duration), share)
+    }
+
+    private fun addPeriodSummary(ranked: List<Counter>, recorded: RecordedTime, coverage: RecordedTime.Coverage, total: Long) {
+        val summary = card()
+        val title = when (state.period) {
+            0 -> R.string.summary_day
+            1 -> R.string.summary_week
+            2 -> R.string.summary_month
+            else -> R.string.statistics_summary
+        }
+        summary.addView(label(getString(title), 19f, true))
+        gap(summary, 8)
+        summary.addView(label(periodDuration(total), 29f, true))
+        summary.addView(label(getString(R.string.participants_total_time), 15f))
+        if (total > 0L) {
+            val maximum = recorded.totals.getValue(ranked.first().id)
+            val leaders = ranked.takeWhile { recorded.totals[it.id] == maximum }
+            gap(summary, 12)
+            val highlight = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = shape(blendColors(surface, if (leaders.size == 1) leaders.first().color else muted, 0.15f))
+                val inset = densityPixels(10)
+                setPadding(inset, inset, inset, inset)
+            }
+            highlight.addView(label(getString(R.string.most_time), 14f))
+            for (leader in leaders) {
+                val row = LinearLayout(this)
+                row.addView(label("●  ", 16f, true, leader.color))
+                row.addView(label(getString(R.string.participant_share_line, leader.name, durationAndShare(maximum, total)), 16f, true))
+                highlight.addView(row)
+            }
+            summary.addView(highlight)
+            gap(summary, 12)
+            summary.addView(label(getString(R.string.shared_time), 17f, true))
+            val byId = ranked.associateBy { it.id }
+            val pairs = coverage.sharedByPair.entries.sortedByDescending { it.value }
+            for ((pair, duration) in if (pairsExpanded) pairs else pairs.take(4)) {
+                val first = byId.getValue(pair.first)
+                val second = byId.getValue(pair.second)
+                val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+                row.addView(label("●", 13f, true, first.color))
+                row.addView(label("●  ", 13f, true, second.color))
+                row.addView(label(getString(R.string.shared_pair, first.name, second.name), 15f),
+                    LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(label(periodDuration(duration), 14f, true))
+                gap(summary, 6)
+                summary.addView(row)
+            }
+            if (pairs.size > 4) {
+                val text = if (pairsExpanded) getString(R.string.statistics_collapse) else getString(R.string.show_pairs, pairs.size)
+                summary.addView(styledAction(text, ButtonRole.SECONDARY) { pairsExpanded = !pairsExpanded; navigator.refreshContent() })
+            }
+            gap(summary, 8)
+            summary.addView(label(if (pairs.isEmpty()) getString(R.string.no_shared_time)
+                else getString(R.string.shared_time_total, periodDuration(coverage.simultaneous)), 14f, false, muted))
+        }
+        addCard(summary)
+    }
+
+    private fun addParticipantShares(ranked: List<Counter>, recorded: RecordedTime, total: Long, openDetails: (Counter) -> Unit) {
+        val card = card()
+        card.addView(label(getString(R.string.statistics_by_counter), 18f, true))
+        if (total == 0L) {
+            card.addView(label(getString(R.string.no_measurements), 14f, false, muted))
+            addCard(card)
+            return
+        }
+        gap(card, 8)
+        val chartRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val slices = ranked.map { it.color to recorded.totals.getOrDefault(it.id, 0L) }
+        chartRow.addView(ParticipantPieView(this, slices, total),
+            LinearLayout.LayoutParams(0, densityPixels(designTokens.dimension("statisticsPieHeightDp")), 0.42f))
+        val legend = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(densityPixels(8), 0, 0, 0) }
+        for (counter in if (expanded) ranked else ranked.take(4)) {
+            val row = LinearLayout(this).apply { minimumHeight = densityPixels(48); gravity = Gravity.CENTER_VERTICAL }
+            row.addView(label("●  ", 14f, true, counter.color))
+            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            details.addView(label(counter.name, 15f, true))
+            details.addView(label(durationAndShare(recorded.totals.getOrDefault(counter.id, 0L), total), 13f))
+            row.addView(details)
+            row.setOnClickListener { openDetails(counter) }
+            legend.addView(row)
+        }
+        chartRow.addView(legend, LinearLayout.LayoutParams(0, -2, 0.58f))
+        card.addView(chartRow)
+        if (ranked.size > 4) {
+            val title = if (expanded) getString(R.string.statistics_collapse) else getString(R.string.statistics_expand, ranked.size)
+            card.addView(styledAction(title, ButtonRole.SECONDARY) { expanded = !expanded; navigator.refreshContent() })
+        }
+        addCard(card)
     }
 
     private fun statisticsParticipantButtons(counters: List<Counter>, selection: Set<Int>?,
@@ -198,7 +256,7 @@ internal class StatisticsScreen(
         }
     }
 
-    private fun showDetails(counter: Counter, recorded: RecordedTime, from: Long, to: Long, counters: List<Counter>) {
+    private fun showDetails(counter: Counter, recorded: RecordedTime, from: Long, to: Long, coverage: RecordedTime.Coverage) {
         val finished = sessionRepository.sessionsInRange(requireNotNull(projectId), from, to, participantFilter = counter.id)
             .filter { it.startedAt >= from && it.endedAt != null }
         val lengths = finished.map { requireNotNull(it.endedAt) - it.startedAt }.sorted()
@@ -207,8 +265,7 @@ internal class StatisticsScreen(
             formatDuration(lower + (lengths[lengths.size / 2] - lower) / 2)
         }
         val total = recorded.totals.getOrDefault(counter.id, 0L)
-        val comparison = counters.filter { summarySelection?.contains(it.id) != false }.map { it.id }.toSet() + counter.id
-        val solo = recorded.coverage(comparison).soloByPerson.getOrDefault(counter.id, 0L)
+        val solo = coverage.soloByPerson.getOrDefault(counter.id, 0L)
         val dialogText = buildString {
             appendLine(rangeLabel(from, to))
             appendLine(getString(R.string.statistics_details, formatDuration(total), formatDuration(solo),

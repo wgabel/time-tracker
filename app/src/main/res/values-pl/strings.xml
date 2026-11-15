@@ -201,5 +201,16 @@
     <string name="widget_start">Start</string>
     <string name="widget_stop">Stop</string>
     <string name="widget_event">Wydarzenie</string>
+    <string name="summary_day">Podsumowanie dnia</string>
+    <string name="summary_week">Podsumowanie tygodnia</string>
+    <string name="summary_month">Podsumowanie miesiąca</string>
+    <string name="participants_total_time">Łączny czas uczestników</string>
+    <string name="most_time">Najwięcej czasu</string>
+    <string name="participant_share_line">%1$s · %2$s</string>
+    <string name="shared_time">Wspólny czas</string>
+    <string name="shared_pair">%1$s i %2$s</string>
+    <string name="show_pairs">Pokaż wszystkie pary (%1$d)</string>
+    <string name="no_shared_time">W tym okresie pomiary uczestników się nie pokrywały.</string>
+    <string name="shared_time_total">Łącznie przez %1$s pomiary uczestników się pokrywały.</string>
 </resources>
 

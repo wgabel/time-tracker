@@ -5,7 +5,8 @@ import java.util.Calendar
 /** Non-overlapping, half-open spans per counter, clipped by the repository to one snapshot. */
 internal class RecordedTime(rawIntervals: List<Triple<Int, Long, Long>>) {
     data class Span(val start: Long, val end: Long)
-    data class Coverage(val single: Long, val simultaneous: Long, val soloByPerson: Map<Int, Long>) {
+    data class Coverage(val single: Long, val simultaneous: Long, val soloByPerson: Map<Int, Long>,
+                        val sharedByPair: Map<Pair<Int, Int>, Long>) {
         val elapsed get() = single + simultaneous
     }
     data class Bucket(val start: Long, val end: Long, val durations: MutableMap<Int, Long> = mutableMapOf())
@@ -30,20 +31,31 @@ internal class RecordedTime(rawIntervals: List<Triple<Int, Long, Long>>) {
                 listOf(Boundary(span.start, person, true), Boundary(span.end, person, false))
             }
         }.sortedBy { it.time }
-        val active = mutableSetOf<Int>()
+        val active = mutableMapOf<Int, Long>()
+        val sharedByPair = mutableMapOf<Pair<Int, Int>, Long>()
         val solo = mutableMapOf<Int, Long>()
         var previous = boundaries.firstOrNull()?.time ?: 0L
         var simultaneous = 0L
         for (boundary in boundaries) {
             val duration = boundary.time - previous
             if (active.size == 1) {
-                val person = active.first()
+                val person = active.keys.first()
                 solo[person] = solo.getOrDefault(person, 0L) + duration
             } else if (active.size > 1) simultaneous += duration
-            if (boundary.starting) active.add(boundary.person) else active.remove(boundary.person)
+            if (boundary.starting) {
+                active[boundary.person] = boundary.time
+            } else {
+                val start = active.remove(boundary.person)!!
+                for ((other, otherStart) in active) {
+                    val overlap = boundary.time - maxOf(start, otherStart)
+                    if (overlap <= 0) continue
+                    val pair = minOf(boundary.person, other) to maxOf(boundary.person, other)
+                    sharedByPair[pair] = sharedByPair.getOrDefault(pair, 0L) + overlap
+                }
+            }
             previous = boundary.time
         }
-        return Coverage(solo.values.sum(), simultaneous, solo)
+        return Coverage(solo.values.sum(), simultaneous, solo, sharedByPair)
     }
 
     fun buckets(period: Int, start: Long, end: Long, people: Set<Int>): List<Bucket> {
