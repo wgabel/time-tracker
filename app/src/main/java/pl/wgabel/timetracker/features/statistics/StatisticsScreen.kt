@@ -2,7 +2,7 @@ package pl.wgabel.timetracker.features.statistics
 
 import android.app.AlertDialog
 import android.icu.text.MeasureFormat
-import MeasureUnit
+import android.icu.util.MeasureUnit
 import android.icu.util.Measure
 import android.os.Bundle
 import java.time.Instant
