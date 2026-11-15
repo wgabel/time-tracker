@@ -193,5 +193,6 @@
 
     <string name="statistics_chart_hint">Tap a group for times. A dash means no entries.</string>
     <string name="statistics_days_with_entries">Days with entries: %1$d / %2$d</string>
+    <string name="widget_no_projects">No active projects</string>
 </resources>
 
