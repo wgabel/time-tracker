@@ -92,7 +92,7 @@ internal class SettingsScreen(
             gap(info, 10)
             info.addView(label(getString(R.string.locked_data), 14f, false, muted))
             addCard(info)
-            content.addView(styledAction(getString(R.string.export_csv), ButtonRole.SECONDARY) { exportCsv() })
+            addBackupActions(content)
             return
         }
         val project = card()
@@ -186,9 +186,7 @@ internal class SettingsScreen(
         val data = card()
         data.addView(label(getString(R.string.project_data), 19f, true))
         gap(data, 12)
-        data.addView(styledAction(getString(R.string.export_csv), ButtonRole.SECONDARY) {
-            exportCsv()
-        })
+        addBackupActions(data)
         gap(data, 8)
         data.addView(styledAction(getString(R.string.archive_project), ButtonRole.WARNING) { archiveProject() })
         addCard(data)
@@ -196,8 +194,14 @@ internal class SettingsScreen(
 
     }
 
-    private fun exportCsv() {
-        val name = projectName().replace(Regex("[^a-zA-Z0-9_-]"), "_")
-        navigator.exportProject(requireNotNull(projectId), "timetrkr_${name}.csv")
+    private fun addBackupActions(parent: LinearLayout) {
+        parent.addView(styledAction(getString(R.string.export_json), ButtonRole.SECONDARY) {
+            val name = projectName().replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            navigator.exportProject(requireNotNull(projectId), "timetrkr_${name}.json")
+        })
+        gap(parent, 8)
+        parent.addView(styledAction(getString(R.string.import_json), ButtonRole.SECONDARY) {
+            navigator.importProject(requireNotNull(projectId))
+        })
     }
 }
