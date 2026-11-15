@@ -36,6 +36,7 @@ internal class AppCoordinator(
     private var tab = 0
     private var showAppSettings = false
     private var pendingExportProject: Long? = null
+    private var pendingExportContents: String? = null
     private var pendingImportProject: Long? = null
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
@@ -166,6 +167,12 @@ internal class AppCoordinator(
     }
 
     override fun exportProject(projectId: Long, suggestedName: String) {
+        try {
+            pendingExportContents = jsonBackup.prepareExport(projectId)
+        } catch (error: Exception) {
+            Toast.makeText(this, getString(R.string.backup_failed, error.message ?: ""), Toast.LENGTH_LONG).show()
+            return
+        }
         pendingExportProject = projectId
         launchDocument(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -184,10 +191,12 @@ internal class AppCoordinator(
 
     fun completeExport(resultCode: Int, data: Intent?) {
         val project = pendingExportProject
+        val contents = pendingExportContents
         pendingExportProject = null
-        if (resultCode == Activity.RESULT_OK && project != null) data?.data?.let { uri ->
+        pendingExportContents = null
+        if (resultCode == Activity.RESULT_OK && project != null && contents != null) data?.data?.let { uri ->
             try {
-                jsonBackup.exportProject(project, uri)
+                jsonBackup.writeExport(contents, uri)
                 Toast.makeText(this, getString(R.string.backup_export_done), Toast.LENGTH_SHORT).show()
             } catch (error: Exception) {
                 Toast.makeText(this, getString(R.string.backup_failed, error.message ?: ""), Toast.LENGTH_LONG).show()
