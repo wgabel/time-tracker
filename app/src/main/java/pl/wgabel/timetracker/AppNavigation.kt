@@ -10,4 +10,5 @@ internal interface AppNavigation {
     fun refreshContent()
     fun refreshNavigation()
     fun exportProject(projectId: Long, suggestedName: String)
+    fun importProject(projectId: Long)
 }
