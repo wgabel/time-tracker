@@ -2,7 +2,6 @@ package pl.wgabel.timetracker.ui.sessions
 
 import android.app.Dialog
 import android.content.Context
-import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.view.Window
 import android.widget.ScrollView
@@ -44,10 +43,10 @@ internal class DateTimeEditor(private val context: Context, private val componen
             addView(content)
         }
         dialog.setContentView(scroll)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setBackgroundDrawable(ColorDrawable(components.color("transparent")))
         dialog.show()
         dialog.window?.setLayout(
-            minOf(context.resources.displayMetrics.widthPixels - components.densityPixels(32), components.densityPixels(440)),
+            minOf(context.resources.displayMetrics.widthPixels - components.dimensionPixels("timePickerDialogHorizontalMarginDp"), components.dimensionPixels("timePickerDialogMaxWidthDp")),
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT
         )
         return dialog

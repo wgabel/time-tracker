@@ -1,7 +1,6 @@
 package pl.wgabel.timetracker.design
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -22,6 +21,9 @@ internal class AppUi(
     fun densityPixels(value: Int): Int = (value * context.resources.displayMetrics.density + .5f).toInt()
     fun color(name: String): Int = tokens.color(name, isDark())
     fun dimension(name: String): Int = tokens.dimension(name)
+    fun dimensionPixels(name: String): Int = densityPixels(tokens.dimension(name))
+    fun proportion(name: String): Float = tokens.proportion(name)
+    fun dayTimeScaleStyle(): DesignTokens.DayTimeScaleStyle = tokens.dayTimeScale(isDark())
 
     fun shape(fill: Int, radiusDp: Int = dimension("shapeRadiusDp")): GradientDrawable =
         GradientDrawable().apply { setColor(fill); cornerRadius = densityPixels(radiusDp).toFloat() }
@@ -50,7 +52,7 @@ internal class AppUi(
         elevation = densityPixels(dimension("cardElevationDp")).toFloat()
     }
 
-    fun action(text: String, backgroundColor: Int, foreground: Int = Color.WHITE,
+    fun action(text: String, backgroundColor: Int, foreground: Int = color("actionText"),
                click: () -> Unit): Button = Button(context).apply {
         this.text = text
         textSize = dimension("buttonTextSp").toFloat()
@@ -66,7 +68,7 @@ internal class AppUi(
 
     fun styledAction(text: String, role: ButtonRole, click: () -> Unit): Button {
         val (fill, foreground) = when (role) {
-            ButtonRole.PRIMARY -> (if (isDark()) color("blue") else color("darkHeader")) to Color.WHITE
+            ButtonRole.PRIMARY -> (if (isDark()) color("blue") else color("darkHeader")) to color("actionText")
             ButtonRole.SECONDARY -> color("subtleNeutral") to color("ink")
             ButtonRole.DANGER -> color("dangerBackground") to color("dangerText")
             ButtonRole.WARNING -> color("subtleWarm") to color("warningText")

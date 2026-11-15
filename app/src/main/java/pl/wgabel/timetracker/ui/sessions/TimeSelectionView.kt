@@ -3,7 +3,6 @@ package pl.wgabel.timetracker.ui.sessions
 import android.app.DatePickerDialog
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.view.Gravity
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
@@ -49,16 +48,16 @@ internal class TimeSelectionView(
         R.string.time_second_increase, R.string.time_second_decrease) {
         selection.adjustSeconds(it); renderSelection()
     }.apply { visibility = View.GONE } else null
-    private val summary = components.label("", 13f, false, components.color("muted")).apply {
+    private val summary = components.label("", components.dimension("timePickerDetailTextSp").toFloat(), false, components.color("muted")).apply {
         id = R.id.time_picker_selected
         gravity = Gravity.CENTER
-        minHeight = components.densityPixels(48)
+        minHeight = components.dimensionPixels("buttonMinHeightDp")
         isFocusable = true
         contentDescription = context.getString(R.string.time_change_date)
         tooltipText = contentDescription
         setOnClickListener { selectDate() }
     }
-    private val error = components.label("", 13f, false, components.color("dangerText")).apply {
+    private val error = components.label("", components.dimension("timePickerDetailTextSp").toFloat(), false, components.color("dangerText")).apply {
         id = R.id.time_picker_error
         accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
@@ -86,58 +85,58 @@ internal class TimeSelectionView(
     init {
         addView(content, LayoutParams(-1, -2))
         val header = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(View(context), LinearLayout.LayoutParams(components.densityPixels(48), 1))
-        header.addView(components.label(config.title, 21f, true).apply { gravity = Gravity.CENTER },
+        header.addView(View(context), LinearLayout.LayoutParams(components.dimensionPixels("buttonMinHeightDp"), 1))
+        header.addView(components.label(config.title, components.dimension("timePickerTitleTextSp").toFloat(), true).apply { gravity = Gravity.CENTER },
             LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(ImageButton(context).apply {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
             imageTintList = ColorStateList.valueOf(components.color("muted"))
-            background = components.shape(Color.TRANSPARENT, 9)
+            background = components.shape(components.color("transparent"), components.dimension("buttonRadiusDp"))
             contentDescription = context.getString(R.string.cancel)
             setOnClickListener { dismiss() }
-        }, LinearLayout.LayoutParams(components.densityPixels(48), components.densityPixels(48)))
+        }, LinearLayout.LayoutParams(components.dimensionPixels("buttonMinHeightDp"), components.dimensionPixels("buttonMinHeightDp")))
         content.addView(header)
-        components.gap(content, 12)
+        components.gap(content)
         if (startChoice != null && endChoice != null) {
             val boundaries = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            boundaries.addView(startChoice, LinearLayout.LayoutParams(0, components.densityPixels(64), 1f))
-            boundaries.addView(View(context), LinearLayout.LayoutParams(components.densityPixels(10), 1))
-            boundaries.addView(endChoice, LinearLayout.LayoutParams(0, components.densityPixels(64), 1f))
+            boundaries.addView(startChoice, LinearLayout.LayoutParams(0, components.dimensionPixels("timePickerBoundaryHeightDp"), 1f))
+            boundaries.addView(View(context), LinearLayout.LayoutParams(components.dimensionPixels("timePickerActionGapDp"), 1))
+            boundaries.addView(endChoice, LinearLayout.LayoutParams(0, components.dimensionPixels("timePickerBoundaryHeightDp"), 1f))
             content.addView(boundaries)
-            components.gap(content, 8)
+            components.gap(content, components.dimension("timePickerSmallGapDp"))
         } else {
-            content.addView(components.label(context.getString(R.string.time_choose_daytime), 15f, false, components.color("muted")))
+            content.addView(components.label(context.getString(R.string.time_choose_daytime), components.dimension("timePickerHintTextSp").toFloat(), false, components.color("muted")))
         }
         content.addView(scale)
-        components.gap(content, 12)
+        components.gap(content)
         val fields = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         fields.addView(hourControl, LinearLayout.LayoutParams(0, -2, 1f))
-        fields.addView(View(context), LinearLayout.LayoutParams(components.densityPixels(12), 1))
+        fields.addView(View(context), LinearLayout.LayoutParams(components.dimensionPixels("defaultGapDp"), 1))
         fields.addView(minuteControl, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(fields)
-        components.gap(content, 18)
+        components.gap(content, components.dimension("timePickerAdjustmentGapDp"))
         val adjustments = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         adjustments.addView(createMinuteAdjustment("−", -1, R.string.time_minute_decrease),
-            LinearLayout.LayoutParams(components.densityPixels(52), components.densityPixels(48)))
+            LinearLayout.LayoutParams(components.dimensionPixels("timePickerAdjustmentWidthDp"), components.dimensionPixels("buttonMinHeightDp")))
         adjustments.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         adjustments.addView(createMinuteAdjustment("+", 1, R.string.time_minute_increase),
-            LinearLayout.LayoutParams(components.densityPixels(52), components.densityPixels(48)))
+            LinearLayout.LayoutParams(components.dimensionPixels("timePickerAdjustmentWidthDp"), components.dimensionPixels("buttonMinHeightDp")))
         content.addView(adjustments)
-        components.gap(content, 12)
+        components.gap(content)
         content.addView(View(context).apply { setBackgroundColor(components.color("cardStroke")) },
-            LinearLayout.LayoutParams(-1, components.densityPixels(1)))
+            LinearLayout.LayoutParams(-1, components.dimensionPixels("timePickerStrokeDp")))
         content.addView(summary)
         secondsToggle?.let { content.addView(it) }
         secondsControl?.let { content.addView(it) }
         content.addView(offsetToggle)
         if (config.quickOffsets) addQuickOffsets()
         content.addView(error)
-        components.gap(content, 10)
+        components.gap(content, components.dimension("timePickerActionGapDp"))
         val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         actions.addView(components.styledAction(context.getString(R.string.cancel), ButtonRole.SECONDARY, dismiss),
-            LinearLayout.LayoutParams(0, components.densityPixels(48), 1f))
-        actions.addView(View(context), LinearLayout.LayoutParams(components.densityPixels(10), 1))
-        actions.addView(save, LinearLayout.LayoutParams(0, components.densityPixels(48), 1f))
+            LinearLayout.LayoutParams(0, components.dimensionPixels("buttonMinHeightDp"), 1f))
+        actions.addView(View(context), LinearLayout.LayoutParams(components.dimensionPixels("timePickerActionGapDp"), 1))
+        actions.addView(save, LinearLayout.LayoutParams(0, components.dimensionPixels("buttonMinHeightDp"), 1f))
         content.addView(actions)
         renderSelection()
     }
@@ -148,9 +147,9 @@ internal class TimeSelectionView(
             renderSelection()
         }.apply {
             id = if (boundary == SessionTimeSelection.Boundary.START) R.id.time_session_start else R.id.time_session_end
-            textSize = 14f
+            textSize = components.dimension("timePickerBoundaryTextSp").toFloat()
             minWidth = 0; minimumWidth = 0
-            setPadding(components.densityPixels(4), 0, components.densityPixels(4), 0)
+            setPadding(components.dimensionPixels("timePickerBoundaryPaddingDp"), 0, components.dimensionPixels("timePickerBoundaryPaddingDp"), 0)
         }
 
     private fun renderBoundary(button: Button?, boundary: SessionTimeSelection.Boundary, title: Int) {
@@ -163,7 +162,7 @@ internal class TimeSelectionView(
         button.isSelected = session.selectedBoundary == boundary
         button.background = components.shape(components.color(if (button.isSelected) "subtle" else "subtleNeutral"),
             components.dimension("buttonRadiusDp")).apply {
-            setStroke(components.densityPixels(1), components.color(if (button.isSelected) "blue" else "cardStroke"))
+            setStroke(components.dimensionPixels("timePickerStrokeDp"), components.color(if (button.isSelected) "blue" else "cardStroke"))
         }
     }
 
@@ -178,15 +177,15 @@ internal class TimeSelectionView(
             renderSelection()
             minuteControl.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED)
         }.apply {
-            textSize = 24f
+            textSize = components.dimension("timePickerAdjustmentTextSp").toFloat()
             minWidth = 0; minimumWidth = 0
             setPadding(0, 0, 0, 0)
             contentDescription = context.getString(description)
         }
 
     private fun createDetailsButton(text: String, onClick: () -> Unit): TextView =
-        components.label(text, 13f, false, components.color("muted")).apply {
-            minHeight = components.densityPixels(48)
+        components.label(text, components.dimension("timePickerDetailTextSp").toFloat(), false, components.color("muted")).apply {
+            minHeight = components.dimensionPixels("buttonMinHeightDp")
             isFocusable = true
             gravity = Gravity.CENTER_VERTICAL
             setOnClickListener { onClick() }
@@ -206,9 +205,9 @@ internal class TimeSelectionView(
                 selection.selectTimestamp(System.currentTimeMillis() - minutes * 60_000L)
                 renderSelection()
             }.apply {
-                textSize = 12f; minWidth = 0; minimumWidth = 0; setPadding(0, 0, 0, 0)
-            }, LinearLayout.LayoutParams(0, components.densityPixels(48), 1f).apply {
-                setMargins(components.densityPixels(2), 0, components.densityPixels(2), 0)
+                textSize = components.dimension("timePickerShortcutTextSp").toFloat(); minWidth = 0; minimumWidth = 0; setPadding(0, 0, 0, 0)
+            }, LinearLayout.LayoutParams(0, components.dimensionPixels("buttonMinHeightDp"), 1f).apply {
+                setMargins(components.dimensionPixels("timePickerShortcutMarginDp"), 0, components.dimensionPixels("timePickerShortcutMarginDp"), 0)
             })
         }
         shortcuts.addView(buttons)
@@ -245,7 +244,7 @@ internal class TimeSelectionView(
         error.text = problem.orEmpty()
         error.visibility = if (problem == null) View.GONE else View.VISIBLE
         save.isEnabled = problem == null
-        save.alpha = if (save.isEnabled) 1f else .45f
+        save.alpha = if (save.isEnabled) 1f else components.proportion("timePickerDisabledOpacity")
     }
 
     private fun validationMessage(): String? {

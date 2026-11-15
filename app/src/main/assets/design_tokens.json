@@ -18,8 +18,18 @@
       "headerBackground": "#182F35",
       "cardStroke": "#E7EAF1",
       "eventIcon": "#237C62",
-      "timeScaleMiddle": "#8274DF",
-      "timeScaleEnd": "#BD62C7"
+      "transparent": "#00000000",
+      "timeNight": "#18243E",
+      "timeTwilight": "#64728D",
+      "timeDawn": "#E5A17A",
+      "timeMorning": "#F6D48B",
+      "timeDay": "#FFF0B3",
+      "timeAfternoon": "#F0CA7D",
+      "timeSunset": "#D98567",
+      "timeScaleTrackStroke": "#53617A",
+      "timeScaleThumbFill": "#FFFFFF",
+      "timeScaleThumbStroke": "#24324A",
+      "actionText": "#FFFFFF"
     },
     "dark": {
       "blue": "#71A9FF",
@@ -38,8 +48,18 @@
       "headerBackground": "#191F2B",
       "cardStroke": "#3F495B",
       "eventIcon": "#85E0B4",
-      "timeScaleMiddle": "#A381F4",
-      "timeScaleEnd": "#DA6BDC"
+      "transparent": "#00000000",
+      "timeNight": "#0F1930",
+      "timeTwilight": "#52617E",
+      "timeDawn": "#D99B7B",
+      "timeMorning": "#E7C47E",
+      "timeDay": "#F2DDA0",
+      "timeAfternoon": "#DFBA75",
+      "timeSunset": "#CC8165",
+      "timeScaleTrackStroke": "#6C7890",
+      "timeScaleThumbFill": "#FFFFFF",
+      "timeScaleThumbStroke": "#24324A",
+      "actionText": "#FFFFFF"
     }
   },
   "dimensions": {
@@ -52,6 +72,95 @@
     "buttonMinHeightDp": 48,
     "buttonTextSp": 15,
     "defaultTextSp": 16,
-    "defaultGapDp": 12
+    "defaultGapDp": 12,
+    "timePickerTitleTextSp": 21,
+    "timePickerHintTextSp": 15,
+    "timePickerDetailTextSp": 13,
+    "timePickerBoundaryTextSp": 14,
+    "timePickerBoundaryHeightDp": 64,
+    "timePickerSmallGapDp": 8,
+    "timePickerActionGapDp": 10,
+    "timePickerAdjustmentGapDp": 18,
+    "timePickerAdjustmentWidthDp": 52,
+    "timePickerAdjustmentTextSp": 24,
+    "timePickerShortcutTextSp": 12,
+    "timePickerShortcutMarginDp": 2,
+    "timePickerBoundaryPaddingDp": 4,
+    "timePickerDialogHorizontalMarginDp": 32,
+    "timePickerDialogMaxWidthDp": 440,
+    "timePickerStrokeDp": 1,
+    "timeFieldRadiusDp": 13,
+    "timeFieldTextSp": 36,
+    "timeFieldMinTextSp": 20,
+    "timeFieldTextStepSp": 1,
+    "timeFieldLabelTextSp": 14,
+    "timeFieldHeightDp": 96,
+    "timeFieldArrowPaddingDp": 14,
+    "timeFieldArrowIconDp": 20,
+    "timeFieldArrowStrokeDp": 2,
+    "timeFieldSwipeStepDp": 18,
+    "timeScaleTrackHeightDp": 18,
+    "timeScaleTrackRadiusDp": 5,
+    "timeScaleThumbDiameterDp": 26,
+    "timeScaleThumbStrokeDp": 2,
+    "timeScaleLabelTextSp": 11,
+    "timeScaleMajorTickHeightDp": 11,
+    "timeScaleMinorTickHeightDp": 6,
+    "timeScaleTickStrokeDp": 1,
+    "timeScaleLabelTopDp": 14,
+    "timeScaleLabelHeightPaddingDp": 18,
+    "timeScaleLabelHeightTextSp": 14
+  },
+  "proportions": {
+    "timePickerDisabledOpacity": 0.45,
+    "timeFieldArrowHalfWidth": 0.3,
+    "timeFieldArrowHalfHeight": 0.15,
+    "timeScaleMajorTickOpacity": 1.0,
+    "timeScaleMinorTickOpacity": 0.6274509803921569
+  },
+  "dayTimeScale": {
+    "labelIntervalHours": 6,
+    "gradientStops": [
+      {
+        "minute": 0,
+        "color": "timeNight"
+      },
+      {
+        "minute": 300,
+        "color": "timeNight"
+      },
+      {
+        "minute": 360,
+        "color": "timeDawn"
+      },
+      {
+        "minute": 420,
+        "color": "timeMorning"
+      },
+      {
+        "minute": 720,
+        "color": "timeDay"
+      },
+      {
+        "minute": 1020,
+        "color": "timeAfternoon"
+      },
+      {
+        "minute": 1080,
+        "color": "timeSunset"
+      },
+      {
+        "minute": 1140,
+        "color": "timeTwilight"
+      },
+      {
+        "minute": 1200,
+        "color": "timeNight"
+      },
+      {
+        "minute": 1440,
+        "color": "timeNight"
+      }
+    ]
   }
 }

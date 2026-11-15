@@ -26,6 +26,8 @@ The second command requires a running Android device/emulator. Building the test
 - Its focused time-picker checks use real swipes on hour/minute fields and the day rail, verify bidirectional values and hour carry, preserve seconds/milliseconds on save, reject an out-of-session second, and verify dismissing does not save. Light/dark screenshots are collected into the opt-in workflow's Android test reports.
 - Completed-session UI checks verify that End is available before saving, one Save persists both drafts, switching does not write, an end-only edit preserves the exact start timestamp, and Cancel discards a further edit. The selected End screenshot is included in the reports.
 
+For day-rail styling changes, reuse the existing screenshots to inspect both themes: the rail must be dark at 00:00/24:00, warm around 06:00 and 18:00, and bright around noon. Verify the thumb and ticks stay visible across those colors. Its palette, gradient positions and graphical dimensions come from the main design-token JSON; rendering changes do not require a new emulator test case.
+
 The existing GitHub Actions workflow can be dispatched on the PR branch with `run_emulator_tests=true`. It runs SQLite/UI tests on Android 13. This remains opt-in, rather than enabling emulator runs for every PR. Inspect the run's exact head SHA, job conclusions and `android-integration-test-reports` artifact. After fixes, rerun against the new commit.
 
 Before merging, require the latest PR `verify` job and the requested Android integration run to pass. After merging, verify the separate `main` signed release run and APK artifact. A PR build does not validate the merged release, and emulator results do not claim a physical-device test.

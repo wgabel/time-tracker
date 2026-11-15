@@ -2,7 +2,6 @@ package pl.wgabel.timetracker.ui.sessions
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
@@ -34,35 +33,36 @@ internal class SwipeTimePartControl(
 ) : LinearLayout(context) {
     private var value = 0
     private val locale: Locale get() = resources.configuration.locales[0]
-    private val frameBackground = components.shape(components.color("surface"), 13).apply {
-        setStroke(components.densityPixels(1), components.color("cardStroke"))
+    private val frameBackground = components.shape(components.color("surface"), components.dimension("timeFieldRadiusDp")).apply {
+        setStroke(components.dimensionPixels("timePickerStrokeDp"), components.color("cardStroke"))
     }
-    private val valueLabel = components.label("00", 36f, true).apply {
+    private val valueLabel = components.label("00", components.dimension("timeFieldTextSp").toFloat(), true).apply {
         id = valueId
         gravity = Gravity.CENTER
         isFocusable = true
         isClickable = true
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         setPadding(0, 0, 0, 0)
-        setAutoSizeTextTypeUniformWithConfiguration(20, 36, 1, TypedValue.COMPLEX_UNIT_SP)
+        setAutoSizeTextTypeUniformWithConfiguration(components.dimension("timeFieldMinTextSp"),
+            components.dimension("timeFieldTextSp"), components.dimension("timeFieldTextStepSp"), TypedValue.COMPLEX_UNIT_SP)
         setOnClickListener { requestFocus() }
     }
 
     init {
         orientation = VERTICAL
-        addView(components.label(title, 14f, false, components.color("muted")))
-        components.gap(this, 8)
+        addView(components.label(title, components.dimension("timeFieldLabelTextSp").toFloat(), false, components.color("muted")))
+        components.gap(this, components.dimension("timePickerSmallGapDp"))
         val frame = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = frameBackground
         }
-        frame.addView(valueLabel, LayoutParams(0, components.densityPixels(96), 1f))
+        frame.addView(valueLabel, LayoutParams(0, components.dimensionPixels("timeFieldHeightDp"), 1f))
         val arrows = LinearLayout(context).apply { orientation = VERTICAL }
         arrows.addView(createArrowButton(true, increaseDescription) { adjustValue(1) },
-            LayoutParams(components.densityPixels(48), components.densityPixels(48)))
+            LayoutParams(components.dimensionPixels("buttonMinHeightDp"), components.dimensionPixels("buttonMinHeightDp")))
         arrows.addView(createArrowButton(false, decreaseDescription) { adjustValue(-1) },
-            LayoutParams(components.densityPixels(48), components.densityPixels(48)))
+            LayoutParams(components.dimensionPixels("buttonMinHeightDp"), components.dimensionPixels("buttonMinHeightDp")))
         frame.addView(arrows)
         addView(frame, LayoutParams(-1, -2))
         valueLabel.setOnFocusChangeListener { _, focused -> updateOutline(focused) }
@@ -94,7 +94,7 @@ internal class SwipeTimePartControl(
         var initialY = 0f
         var previousSteps = 0
         var moved = false
-        val pixelsPerStep = components.densityPixels(18).toFloat()
+        val pixelsPerStep = components.dimensionPixels("timeFieldSwipeStepDp").toFloat()
         valueLabel.setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -149,26 +149,26 @@ internal class SwipeTimePartControl(
     }
 
     private fun updateOutline(focused: Boolean) {
-        frameBackground.setStroke(components.densityPixels(1), components.color(if (focused) "blue" else "cardStroke"))
+        frameBackground.setStroke(components.dimensionPixels("timePickerStrokeDp"), components.color(if (focused) "blue" else "cardStroke"))
     }
 
     private fun createArrowButton(up: Boolean, description: String, onClick: () -> Unit): ImageButton =
         ImageButton(context).apply {
             contentDescription = description
             tooltipText = description
-            background = components.shape(Color.TRANSPARENT, 9)
-            setPadding(components.densityPixels(14), components.densityPixels(14), components.densityPixels(14), components.densityPixels(14))
+            background = components.shape(components.color("transparent"), components.dimension("buttonRadiusDp"))
+            setPadding(components.dimensionPixels("timeFieldArrowPaddingDp"), components.dimensionPixels("timeFieldArrowPaddingDp"), components.dimensionPixels("timeFieldArrowPaddingDp"), components.dimensionPixels("timeFieldArrowPaddingDp"))
             setImageDrawable(object : Drawable() {
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = components.color("muted")
-                    strokeWidth = components.densityPixels(2).toFloat()
+                    strokeWidth = components.dimensionPixels("timeFieldArrowStrokeDp").toFloat()
                     strokeCap = Paint.Cap.ROUND
                 }
                 override fun draw(canvas: Canvas) {
                     val centerX = bounds.exactCenterX()
                     val centerY = bounds.exactCenterY()
-                    val halfWidth = bounds.width() * .3f
-                    val halfHeight = bounds.height() * .15f
+                    val halfWidth = bounds.width() * components.proportion("timeFieldArrowHalfWidth")
+                    val halfHeight = bounds.height() * components.proportion("timeFieldArrowHalfHeight")
                     val direction = if (up) -1 else 1
                     canvas.drawLine(centerX - halfWidth, centerY - direction * halfHeight,
                         centerX, centerY + direction * halfHeight, paint)
@@ -178,8 +178,8 @@ internal class SwipeTimePartControl(
                 override fun setAlpha(alpha: Int) { paint.alpha = alpha }
                 override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
                 @Deprecated("Deprecated in Java") override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
-                override fun getIntrinsicWidth(): Int = components.densityPixels(20)
-                override fun getIntrinsicHeight(): Int = components.densityPixels(20)
+                override fun getIntrinsicWidth(): Int = components.dimensionPixels("timeFieldArrowIconDp")
+                override fun getIntrinsicHeight(): Int = components.dimensionPixels("timeFieldArrowIconDp")
             })
             setOnClickListener { onClick() }
         }
