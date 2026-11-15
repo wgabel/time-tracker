@@ -63,7 +63,8 @@ internal class DaySessionStrip(
     private val end: Long,
     private val segments: List<Pair<Long, Long>>,
     private val participantColor: Int,
-    private val trackColor: Int
+    private val trackColor: Int,
+    private val minimumActiveWidthPx: Float
 ) : View(context) {
     private fun densityPixels(value: Int): Int = (value * resources.displayMetrics.density + .5f).toInt()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -75,10 +76,20 @@ internal class DaySessionStrip(
         paint.color = trackColor
         canvas.drawRoundRect(0f, 0f, widthF, height.toFloat(), densityPixels(4).toFloat(), densityPixels(4).toFloat(), paint)
         paint.color = participantColor
-        segments.forEach { (from, to) ->
-            val x1 = (from - start) / dayLength * widthF
-            val x2 = ((if (to == -1L) minOf(end, System.currentTimeMillis()) else to) - start) / dayLength * widthF
-            canvas.drawRoundRect(x1, 0f, x2, height.toFloat(), densityPixels(3).toFloat(), densityPixels(3).toFloat(), paint)
+        val now = System.currentTimeMillis()
+        val trackHeight = height.toFloat()
+        val minimumWidth = minimumActiveWidthPx.coerceAtMost(widthF)
+        for ((from, to) in segments) {
+            val active = to == -1L
+            val until = if (active) minOf(now, end) else to
+            if (from >= end || until < from) continue
+            val startX = (from - start) / dayLength * widthF
+            val endX = (until - start) / dayLength * widthF
+            // Keep the start cap fully visible even just before midnight.
+            val left = if (active) minOf(startX, widthF - minimumWidth) else startX
+            val right = if (active) maxOf(endX, left + minimumWidth) else endX
+            val radius = if (active) trackHeight / 2f else densityPixels(3).toFloat()
+            canvas.drawRoundRect(left, 0f, right, trackHeight, radius, radius, paint)
         }
     }
 }
