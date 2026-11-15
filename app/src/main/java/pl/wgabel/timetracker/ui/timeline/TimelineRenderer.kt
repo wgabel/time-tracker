@@ -379,7 +379,14 @@ internal class TimelineRenderer(
             override fun onDraw(canvas: Canvas) {
                 paint.color = muted
                 paint.textSize = 11f * resources.displayMetrics.scaledDensity
-                for (hour in listOf(0, 6, 12, 18, 24)) {
+                val trackWidth = width - 2f * trackInset
+                val labelSeparation = paint.measureText("00:00") * 1.5f + densityPixels(8)
+                val hours = when {
+                    trackWidth / 4 >= labelSeparation -> listOf(0, 6, 12, 18, 24)
+                    trackWidth / 2 >= labelSeparation -> listOf(0, 12, 24)
+                    else -> listOf(0, 24)
+                }
+                for (hour in hours) {
                     val moment = if (hour == 24) end else Calendar.getInstance().apply {
                         timeInMillis = day
                         set(Calendar.HOUR_OF_DAY, hour)
