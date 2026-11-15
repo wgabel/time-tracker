@@ -124,6 +124,12 @@ internal class AppCoordinator(
     }
 
     override fun openAppSettings() { showAppSettings = true; renderNavigation() }
+    override fun openCounterHistory(person: Int, dayOffset: Int) {
+        history.state.participantFilter = person
+        history.state.dayOffset = dayOffset
+        openHistory()
+    }
+
     override fun openHistory() { tab = 2; renderNavigation() }
     override fun refreshContent() { renderTopHeader(); renderCurrentScreen() }
     override fun refreshNavigation() = renderNavigation()

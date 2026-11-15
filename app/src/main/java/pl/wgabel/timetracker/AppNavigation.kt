@@ -6,9 +6,11 @@ internal interface AppNavigation {
     fun openProject(projectId: Long)
     fun openProjects(archived: Boolean = false)
     fun openAppSettings()
+    fun openCounterHistory(person: Int, dayOffset: Int)
     fun openHistory()
     fun refreshContent()
     fun refreshNavigation()
     fun exportProject(projectId: Long, suggestedName: String)
     fun importProject(projectId: Long)
 }
+

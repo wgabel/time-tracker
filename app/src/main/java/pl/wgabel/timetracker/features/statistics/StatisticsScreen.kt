@@ -2,6 +2,8 @@ package pl.wgabel.timetracker.features.statistics
 
 import android.app.AlertDialog
 import android.os.Bundle
+import java.time.Instant
+import java.time.ZoneId
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
@@ -214,7 +216,14 @@ internal class StatisticsScreen(
             }
         }
         AlertDialog.Builder(this).setTitle(counter.name).setMessage(dialogText.trimEnd())
-            .setPositiveButton(android.R.string.ok, null).show()
+            .setNeutralButton(R.string.history) { _, _ ->
+                val latest = finished.firstOrNull()?.startedAt
+                val offset = latest?.let {
+                    val date = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                    ChronoUnit.DAYS.between(LocalDate.now(), date).toInt()
+                } ?: state.dayOffset
+                navigator.openCounterHistory(counter.id, offset)
+            }.setPositiveButton(android.R.string.ok, null).show()
     }
 
     private fun renderChart(recorded: RecordedTime, counters: List<Counter>, from: Long, to: Long) {
@@ -234,6 +243,10 @@ internal class StatisticsScreen(
         if (selected.isNotEmpty()) {
             val people = selected.map { it.id }
             val buckets = recorded.buckets(state.period, from, to, people.toSet())
+            if (state.period == 1 || state.period == 2) {
+                chartCard.addView(label(getString(R.string.statistics_days_with_entries,
+                    buckets.count { it.durations.isNotEmpty() }, buckets.size), 13f, false, muted))
+            }
             val maximum = buckets.maxOfOrNull { it.durations.values.maxOrNull() ?: 0L } ?: 0L
             val unit = if (maximum <= 3_600_000L) 60_000L else 3_600_000L
             val axisMaximum = ((maximum + unit - 1) / unit).coerceAtLeast(1L) * unit
