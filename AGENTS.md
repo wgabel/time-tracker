@@ -23,7 +23,7 @@ Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetr
 - Projects: create, rename, archive, and choose a generated project icon. A project has multiple participants (not limited to two). Archived projects are viewable with restrictions on edits.
 - Participants: add, rename and remove subject to code's safeguards; each has a stable numeric database ID.
 - Timers tab: independent START/STOP for each participant; multiple people may be active simultaneously. Displays selected day's total, live running duration, and recent sessions. Navigation across calendar days.
-- Statistics tab: period navigation and visualizations including bar chart, participant comparison/pie, and timeline. Consult code for exact periods and aggregation.
+- Statistics tab: pinned day navigator, period summary, participant comparisons and grouped bar chart. The History tab owns the daily session timeline.
 - History tab: day navigation, participant filtering, timeline, session list, manual session creation, session editing/deletion (when permitted).
 - Settings: theme (light/dark), language, CSV export, project/participant controls. Inspect `features/settings/SettingsScreen.renderSettings` and `renderAppSettings` for exact behavior.
 - Active cards use an animated green-tinted gradient and floating squares. Drawable implements `Animatable`; animation must not restart every second.
