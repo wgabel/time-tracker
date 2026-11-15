@@ -70,9 +70,9 @@ class TimerWidgetProvider : AppWidgetProvider() {
                                 SystemClock.elapsedRealtime() - (System.currentTimeMillis() - startedAt),
                                 "%s", true)
                         }
-                        row.setFloat(R.id.widget_start_action, "setAlpha", if (running) 0.3f else 1f)
-                        row.setFloat(R.id.widget_stop_action, "setAlpha", if (running) 1f else 0.3f)
-                        row.setFloat(R.id.widget_event_action, "setAlpha", if (running) 1f else 0.3f)
+                        row.setInt(R.id.widget_start_action, "setImageAlpha", if (running) 80 else 255)
+                        row.setInt(R.id.widget_stop_action, "setImageAlpha", if (running) 255 else 80)
+                        row.setInt(R.id.widget_event_action, "setImageAlpha", if (running) 255 else 80)
                         if (!running) row.setOnClickPendingIntent(R.id.widget_start_action,
                             launchIntent(context, widgetId, projectId, participantId, ACTION_START))
                         if (running) {
