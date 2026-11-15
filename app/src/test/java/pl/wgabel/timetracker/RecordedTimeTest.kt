@@ -11,6 +11,7 @@ class RecordedTimeTest {
         val data = RecordedTime(listOf(Triple(1, 0L, 10L), Triple(1, 5L, 15L),
             Triple(2, 5L, 15L), Triple(3, 5L, 15L)))
         val all = data.coverage(setOf(1, 2, 3))
+        assertEquals(mapOf((1 to 2) to 10L, (1 to 3) to 10L, (2 to 3) to 10L), all.sharedByPair)
         assertEquals(15L, all.elapsed)
         assertEquals(10L, all.simultaneous)
         assertEquals(5L, all.soloByPerson[1])
@@ -21,6 +22,7 @@ class RecordedTimeTest {
 
     @Test fun touchingCountersHaveNoOverlap() {
         val result = RecordedTime(listOf(Triple(1, 0L, 5L), Triple(2, 5L, 10L))).coverage(setOf(1, 2))
+        assertEquals(emptyMap<Pair<Int, Int>, Long>(), result.sharedByPair)
         assertEquals(0L, result.simultaneous)
         assertEquals(10L, result.single)
     }

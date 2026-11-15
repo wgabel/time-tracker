@@ -75,6 +75,7 @@
     }
   },
   "dimensions": {
+    "statisticsPieHeightDp": 148,
     "timerStripMinimumActiveWidthDp": 9,
     "historyContinuationWidthDp": 16,
     "historyContinuationStripeSpacingDp": 7,
