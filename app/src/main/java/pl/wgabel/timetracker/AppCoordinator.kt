@@ -22,6 +22,8 @@ import pl.wgabel.timetracker.settings.JsonBackupService
 import pl.wgabel.timetracker.settings.LanguageService
 import pl.wgabel.timetracker.settings.ThemeService
 import pl.wgabel.timetracker.ui.ScreenUi
+import pl.wgabel.timetracker.widgets.TimerWidgetProvider
+import pl.wgabel.timetracker.ui.events.EventsScreen
 import pl.wgabel.timetracker.ui.calendar.DayNavigator
 
 /** App navigation and persistent chrome. Features own their views, state, dialogs and actions. */
@@ -104,6 +106,26 @@ internal class AppCoordinator(
         outer.addView(navigation)
         return outer
 
+    }
+
+    fun handleWidgetAction(projectId: Long, participantId: Int, action: String) {
+        if (container.projects.isArchived(projectId) ||
+            !container.participants.belongsToProject(projectId, participantId)) return
+        openProject(projectId)
+        refreshContent()
+        when (action) {
+            TimerWidgetProvider.ACTION_TIMER -> {
+                container.sessionService.toggleTimer(projectId, participantId, System.currentTimeMillis())
+                refreshContent()
+                TimerWidgetProvider.refreshAllWidgets(this)
+            }
+            TimerWidgetProvider.ACTION_EVENT -> {
+                if (container.sessions.findActiveSession(projectId, participantId) != null) {
+                    // The existing event screen captures the timestamp and opens its normal editor.
+                    EventsScreen(this, container, this).addEvent(participantId)
+                }
+            }
+        }
     }
 
     override fun openProject(projectId: Long) {
