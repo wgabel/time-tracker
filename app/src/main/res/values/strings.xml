@@ -179,8 +179,9 @@
     <string name="statistics_summary">Period summary</string>
     <string name="statistics_recorded">Recorded time</string>
 
-    <string name="statistics_single">One participant · %1$s</string>
-    <string name="statistics_multiple">Several participants simultaneously · %1$s</string>
+    <string name="statistics_duration_share">%1$s · %2$s</string>
+    <string name="statistics_single">One running timer</string>
+    <string name="statistics_multiple">Two or more running timers</string>
     <string name="statistics_by_counter">Time by participant</string>
     <string name="statistics_collapse">Collapse list</string>
     <string name="statistics_expand">Show all participants (%1$d)  ›</string>

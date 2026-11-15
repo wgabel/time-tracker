@@ -181,8 +181,9 @@
     <string name="statistics_summary">Podsumowanie okresu</string>
     <string name="statistics_recorded">Czas z pomiarem</string>
 
-    <string name="statistics_single">Jeden uczestnik · %1$s</string>
-    <string name="statistics_multiple">Kilku uczestników jednocześnie · %1$s</string>
+    <string name="statistics_duration_share">%1$s · %2$s</string>
+    <string name="statistics_single">Jeden aktywny licznik</string>
+    <string name="statistics_multiple">Co najmniej dwa aktywne liczniki</string>
     <string name="statistics_by_counter">Czas według uczestnika</string>
     <string name="statistics_collapse">Zwiń listę</string>
     <string name="statistics_expand">Pokaż wszystkich uczestników (%1$d)  ›</string>

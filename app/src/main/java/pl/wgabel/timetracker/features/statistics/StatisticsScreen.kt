@@ -12,6 +12,7 @@ import android.content.Context
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import pl.wgabel.timetracker.AppContainer
@@ -129,15 +130,13 @@ internal class StatisticsScreen(
         summary.addView(label(getString(R.string.statistics_recorded), 17f, true))
         summary.addView(label(formatDuration(coverage.elapsed), 29f, true))
         summary.addView(statisticsParticipantButtons(counters, summarySelection) { summarySelection = it })
-        if (coverage.elapsed > 0) {
-            val band = LinearLayout(this)
-            addSegment(band, themeColor("eventIcon"), coverage.single.toFloat())
-            addSegment(band, themeColor("timeScaleRuler"), coverage.simultaneous.toFloat())
+        if (coverage.elapsed == 0L) {
             gap(summary, 8)
-            summary.addView(band)
+            summary.addView(label(getString(R.string.no_measurements), 14f, false, muted))
+        } else {
+            addCoverageRow(summary, R.string.statistics_single, coverage.single, coverage.elapsed, themeColor("coverageSingle"))
+            addCoverageRow(summary, R.string.statistics_multiple, coverage.simultaneous, coverage.elapsed, themeColor("coverageMultiple"))
         }
-        summary.addView(label(getString(R.string.statistics_single, formatDuration(coverage.single)), 14f))
-        summary.addView(label(getString(R.string.statistics_multiple, formatDuration(coverage.simultaneous)), 14f))
         addCard(summary)
 
         val list = card()
@@ -166,6 +165,18 @@ internal class StatisticsScreen(
         }
         addCard(list)
         renderChart(recorded, counters, from, to)
+    }
+
+    private fun addCoverageRow(parent: LinearLayout, title: Int, duration: Long, total: Long, color: Int) {
+        gap(parent, 12)
+        parent.addView(label(getString(title), 14f, true))
+        val share = NumberFormat.getPercentInstance(DatePresentation.locale(resources)).format(duration.toDouble() / total)
+        parent.addView(label(getString(R.string.statistics_duration_share, formatDuration(duration), share), 14f))
+        gap(parent, 4)
+        val track = LinearLayout(this)
+        addSegment(track, color, duration.toFloat())
+        addSegment(track, subtleNeutral, (total - duration).toFloat())
+        parent.addView(track)
     }
 
     private fun addSegment(row: LinearLayout, color: Int, weight: Float) {
