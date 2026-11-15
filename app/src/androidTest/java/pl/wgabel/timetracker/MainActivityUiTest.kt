@@ -161,7 +161,55 @@ class MainActivityUiTest {
                 put("ended_at", now - 20 * 60_000L)
             })
         }
-        // Reload project so the history screen reads the inserted session.
+        openCompletedSessionEditor()
+        tapDescription("Shortcuts")
+        tapText("30 min")
+        tapSessionBoundary("time_session_end")
+        tapText("15 min")
+        tapSessionBoundary("time_session_start")
+        // Returning to Start must retain its draft; neither boundary is persisted by a tab change.
+        assertPersistedSessionTimes(now - 40 * 60_000L, now - 20 * 60_000L)
+        tapSessionBoundary("time_session_end")
+        tapSave()
+        database().use { db ->
+            db.rawQuery("SELECT started_at,ended_at FROM sessions", null).use {
+                assertTrue(it.moveToFirst())
+                val start = it.getLong(0)
+                val end = it.getLong(1)
+                assertTrue("Start must have changed", start > now - 35 * 60_000L)
+                assertTrue("End must have changed", end > now - 18 * 60_000L)
+                assertTrue(end > start)
+            }
+        }
+    }
+
+    @Test fun editOnlyCompletedSessionEndAndCancelFurtherChanges() {
+        val now = System.currentTimeMillis()
+        val started = now - 40 * 60_000L
+        val ended = now - 20 * 60_000L
+        database().use { db ->
+            db.insertOrThrow("sessions", null, ContentValues().apply {
+                put("project_id", 1); put("person", 1)
+                put("started_at", started); put("ended_at", ended)
+            })
+        }
+        openCompletedSessionEditor()
+        tapSessionBoundary("time_session_end")
+        tapDescription("Increase minute")
+        takePickerScreenshot("session-end-selected.png")
+        assertPersistedSessionTimes(started, ended)
+        tapSave()
+        assertPersistedSessionTimes(started, ended + 60_000L)
+
+        openCompletedSessionEditor()
+        tapSessionBoundary("time_session_end")
+        tapDescription("Increase minute")
+        tapText("Cancel")
+        assertPersistedSessionTimes(started, ended + 60_000L)
+    }
+
+    private fun openCompletedSessionEditor() {
+        // Reload project so history reads the inserted or updated session.
         tapDescription("History")
         var row = device.findObject(By.descContains("Dotknij"))
         repeat(5) {
@@ -174,20 +222,22 @@ class MainActivityUiTest {
         requireNotNull(row) { "History session row was not found" }.click()
         val edit = device.wait(Until.findObject(By.desc("Edit entry")), 8000)
         requireNotNull(edit) { "Edit action was not exposed after expanding session" }.click()
-        tapDescription("Shortcuts")
-        tapText("30 min")
-        tapSave()
-        tapDescription("Shortcuts")
-        tapText("15 min")
-        tapSave()
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun tapSessionBoundary(resource: String) {
+        val boundary = device.wait(Until.findObject(By.res(context.packageName, resource)), 8000)
+        requireNotNull(boundary) { "Session boundary must be available before saving: $resource" }.click()
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun assertPersistedSessionTimes(started: Long, ended: Long) {
         database().use { db ->
             db.rawQuery("SELECT started_at,ended_at FROM sessions", null).use {
                 assertTrue(it.moveToFirst())
-                val start = it.getLong(0)
-                val end = it.getLong(1)
-                assertTrue("Start must have changed", start > now - 35 * 60_000L)
-                assertTrue("End must have changed", end > now - 18 * 60_000L)
-                assertTrue(end > start)
+                assertEquals(started, it.getLong(0))
+                assertEquals(ended, it.getLong(1))
+                assertFalse(it.moveToNext())
             }
         }
     }

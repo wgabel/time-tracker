@@ -19,6 +19,7 @@ import pl.wgabel.timetracker.design.AppUi
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
 import pl.wgabel.timetracker.time.DatePresentation
 import pl.wgabel.timetracker.time.DateTimeSelection
+import pl.wgabel.timetracker.time.SessionTimeSelection
 
 /** Native picker composition; all controls render the same local date/time selection. */
 internal class TimeSelectionView(
@@ -26,9 +27,11 @@ internal class TimeSelectionView(
     private val components: AppUi,
     private val config: DateTimeEditor.Config,
     private val onSave: (Long) -> Boolean,
-    private val dismiss: () -> Unit
+    private val dismiss: () -> Unit,
+    private val sessionSelection: SessionTimeSelection? = null
 ) : FrameLayout(context) {
-    private val selection = DateTimeSelection(config.initial)
+    private val singleSelection = if (sessionSelection == null) DateTimeSelection(config.initial) else null
+    private val selection: DateTimeSelection get() = sessionSelection?.selection ?: requireNotNull(singleSelection)
     private val content = components.card()
     private val scale = DayTimeScale(context, components) {
         selection.selectMinuteFromScale(it)
@@ -70,13 +73,15 @@ internal class TimeSelectionView(
         }
     }
     private val save = components.styledAction(context.getString(R.string.save), ButtonRole.PRIMARY) {
-        if (selection.validationError(config.min, config.max) == null) {
+        if (validationMessage() == null) {
             selection.timestamp?.let { timestamp ->
                 if (onSave(timestamp)) dismiss()
                 else { error.text = context.getString(R.string.time_save_failed); error.visibility = View.VISIBLE }
             }
         } else renderSelection()
     }.apply { id = R.id.time_picker_save }
+    private val startChoice = sessionSelection?.let { createBoundaryButton(SessionTimeSelection.Boundary.START) }
+    private val endChoice = sessionSelection?.let { createBoundaryButton(SessionTimeSelection.Boundary.END) }
 
     init {
         addView(content, LayoutParams(-1, -2))
@@ -93,7 +98,16 @@ internal class TimeSelectionView(
         }, LinearLayout.LayoutParams(components.densityPixels(48), components.densityPixels(48)))
         content.addView(header)
         components.gap(content, 12)
-        content.addView(components.label(context.getString(R.string.time_choose_daytime), 15f, false, components.color("muted")))
+        if (startChoice != null && endChoice != null) {
+            val boundaries = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            boundaries.addView(startChoice, LinearLayout.LayoutParams(0, components.densityPixels(64), 1f))
+            boundaries.addView(View(context), LinearLayout.LayoutParams(components.densityPixels(10), 1))
+            boundaries.addView(endChoice, LinearLayout.LayoutParams(0, components.densityPixels(64), 1f))
+            content.addView(boundaries)
+            components.gap(content, 8)
+        } else {
+            content.addView(components.label(context.getString(R.string.time_choose_daytime), 15f, false, components.color("muted")))
+        }
         content.addView(scale)
         components.gap(content, 12)
         val fields = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
@@ -126,6 +140,31 @@ internal class TimeSelectionView(
         actions.addView(save, LinearLayout.LayoutParams(0, components.densityPixels(48), 1f))
         content.addView(actions)
         renderSelection()
+    }
+
+    private fun createBoundaryButton(boundary: SessionTimeSelection.Boundary): Button =
+        components.styledAction("", ButtonRole.SECONDARY) {
+            sessionSelection?.selectBoundary(boundary)
+            renderSelection()
+        }.apply {
+            id = if (boundary == SessionTimeSelection.Boundary.START) R.id.time_session_start else R.id.time_session_end
+            textSize = 14f
+            minWidth = 0; minimumWidth = 0
+            setPadding(components.densityPixels(4), 0, components.densityPixels(4), 0)
+        }
+
+    private fun renderBoundary(button: Button?, boundary: SessionTimeSelection.Boundary, title: Int) {
+        val session = sessionSelection ?: return
+        button ?: return
+        val draft = if (boundary == SessionTimeSelection.Boundary.START) session.start else session.end
+        val time = DatePresentation.timeOfDay(resources, draft.dateTime.toLocalTime(), false)
+        button.text = "${context.getString(title)}\n$time"
+        button.contentDescription = "${context.getString(title)}: ${DatePresentation.calendarDate(resources, draft.dateTime.toLocalDate())}, $time"
+        button.isSelected = session.selectedBoundary == boundary
+        button.background = components.shape(components.color(if (button.isSelected) "subtle" else "subtleNeutral"),
+            components.dimension("buttonRadiusDp")).apply {
+            setStroke(components.densityPixels(1), components.color(if (button.isSelected) "blue" else "cardStroke"))
+        }
     }
 
     private fun createControl(title: Int, valueId: Int, maximum: Int, increase: Int, decrease: Int,
@@ -189,6 +228,8 @@ internal class TimeSelectionView(
     }
 
     private fun renderSelection() {
+        renderBoundary(startChoice, SessionTimeSelection.Boundary.START, R.string.session_time_start)
+        renderBoundary(endChoice, SessionTimeSelection.Boundary.END, R.string.session_time_end)
         val selected = selection.dateTime
         val time = DatePresentation.timeOfDay(resources, selected.toLocalTime(), config.seconds)
         hourControl.setValue(selected.hour)
@@ -200,17 +241,41 @@ internal class TimeSelectionView(
         secondsToggle?.text = context.getString(R.string.time_seconds_value, selected.second)
         offsetToggle.visibility = if (selection.availableOffsets.size == 2) View.VISIBLE else View.GONE
         offsetToggle.text = context.getString(R.string.time_repeated_hour, selection.selectedOffset?.id.orEmpty())
-        val problem = selection.validationError(config.min, config.max)
-        error.text = when (problem) {
-            DateTimeSelection.ValidationError.MISSING_LOCAL_TIME -> context.getString(R.string.time_missing_local_time)
-            DateTimeSelection.ValidationError.BEFORE_MINIMUM -> context.getString(R.string.time_before_minimum,
-                DatePresentation.dateTime(resources).format(Date(requireNotNull(config.min))))
-            DateTimeSelection.ValidationError.AFTER_MAXIMUM -> context.getString(R.string.time_after_maximum,
-                DatePresentation.dateTime(resources).format(Date(requireNotNull(config.max))))
-            null -> ""
-        }
+        val problem = validationMessage()
+        error.text = problem.orEmpty()
         error.visibility = if (problem == null) View.GONE else View.VISIBLE
         save.isEnabled = problem == null
         save.alpha = if (save.isEnabled) 1f else .45f
     }
+
+    private fun validationMessage(): String? {
+        sessionSelection?.let { session ->
+            return when (session.validationError(config.max)) {
+                SessionTimeSelection.ValidationError.START_MISSING_LOCAL_TIME -> boundaryError(R.string.session_time_start,
+                    context.getString(R.string.time_missing_local_time))
+                SessionTimeSelection.ValidationError.END_MISSING_LOCAL_TIME -> boundaryError(R.string.session_time_end,
+                    context.getString(R.string.time_missing_local_time))
+                SessionTimeSelection.ValidationError.START_AFTER_MAXIMUM -> boundaryError(R.string.session_time_start,
+                    context.getString(R.string.time_after_maximum, maximumDescription()))
+                SessionTimeSelection.ValidationError.END_AFTER_MAXIMUM -> boundaryError(R.string.session_time_end,
+                    context.getString(R.string.time_after_maximum, maximumDescription()))
+                SessionTimeSelection.ValidationError.END_NOT_AFTER_START -> context.getString(R.string.session_time_order)
+                null -> null
+            }
+        }
+        return when (selection.validationError(config.min, config.max)) {
+            DateTimeSelection.ValidationError.MISSING_LOCAL_TIME -> context.getString(R.string.time_missing_local_time)
+            DateTimeSelection.ValidationError.BEFORE_MINIMUM -> context.getString(R.string.time_before_minimum,
+                DatePresentation.dateTime(resources).format(Date(requireNotNull(config.min))))
+            DateTimeSelection.ValidationError.AFTER_MAXIMUM -> context.getString(R.string.time_after_maximum,
+                maximumDescription())
+            null -> null
+        }
+    }
+
+    private fun boundaryError(title: Int, message: String): String =
+        context.getString(R.string.session_time_error, context.getString(title), message)
+
+    private fun maximumDescription(): String =
+        DatePresentation.dateTime(resources).format(Date(requireNotNull(config.max)))
 }

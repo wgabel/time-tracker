@@ -56,7 +56,7 @@ internal class SessionDialogs(
         if (isArchived()) return
         if (ended == null) { showStartTimePicker(person, id); return }
         val pl = resources.configuration.locales[0].language == "pl"
-        SessionEditor(this, appUi).editCompleted(started, ended) { newStart, newEnd ->
+        DateTimeEditor(this, appUi).editCompletedSession(started, ended) { newStart, newEnd ->
             val updated = container.sessionService.updateSession(projectId!!, person, id, newStart, newEnd)
             if (updated) {
                 navigator.refreshContent()

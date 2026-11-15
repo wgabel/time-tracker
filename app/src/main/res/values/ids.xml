@@ -7,4 +7,6 @@
     <item name="time_picker_error" type="id" />
     <item name="time_picker_selected" type="id" />
     <item name="time_picker_shortcuts" type="id" />
+    <item name="time_session_start" type="id" />
+    <item name="time_session_end" type="id" />
 </resources>

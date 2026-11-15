@@ -135,6 +135,11 @@
     <string name="theme_dark">Ciemny motyw</string>
     <string name="event_time_range">Wybierz godzinę wydarzenia (od %1$s do %2$s)</string>
     <string name="event_time_label">Godzina: %1$s</string>
+    <string name="session_time_edit">Edytuj sesję</string>
+    <string name="session_time_start">Początek</string>
+    <string name="session_time_end">Koniec</string>
+    <string name="session_time_order">Koniec sesji musi być późniejszy niż początek.</string>
+    <string name="session_time_error">%1$s: %2$s</string>
     <string name="time_choose_daytime">Wybierz porę dnia</string>
     <string name="time_day_scale">Pora dnia, od 00:00 do 23:59</string>
     <string name="time_scale_value">Pora dnia: %1$s</string>
