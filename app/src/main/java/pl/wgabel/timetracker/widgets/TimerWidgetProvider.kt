@@ -6,26 +6,25 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.view.View
 import android.widget.RemoteViews
 import pl.wgabel.timetracker.MainActivity
 import pl.wgabel.timetracker.R
 import pl.wgabel.timetracker.TimeTrackerApplication
 
-/** A launcher-only widget: all commands are executed by the existing application screens. */
+/** Launcher shortcuts: changes happen in the app through its existing services. */
 class TimerWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, widgetIds: IntArray) {
         refreshAllWidgets(context)
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH) refreshAllWidgets(context)
+    override fun onDeleted(context: Context, widgetIds: IntArray) {
+        val preferences = WidgetProjectPreferences(context)
+        widgetIds.forEach(preferences::remove)
     }
 
     companion object {
-        const val ACTION_REFRESH = "pl.wgabel.timetracker.widgets.REFRESH"
-        const val ACTION_TIMER = "pl.wgabel.timetracker.widgets.TIMER"
+        const val ACTION_START = "pl.wgabel.timetracker.widgets.START"
+        const val ACTION_STOP = "pl.wgabel.timetracker.widgets.STOP"
         const val ACTION_EVENT = "pl.wgabel.timetracker.widgets.EVENT"
         const val EXTRA_PROJECT_ID = "widgetProjectId"
         const val EXTRA_PARTICIPANT_ID = "widgetParticipantId"
@@ -36,24 +35,36 @@ class TimerWidgetProvider : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val container = (context.applicationContext as TimeTrackerApplication).container
             val projects = container.projects.list(archived = false)
-            val project = projects.firstOrNull { container.projects.activeTimerCount(it.first) > 0 } ?: projects.firstOrNull()
-            for (widgetId in ids) {
+            val preferences = WidgetProjectPreferences(context)
+            ids.forEach { widgetId ->
                 val views = RemoteViews(context.packageName, R.layout.widget_timers)
                 views.removeAllViews(R.id.widget_participants)
-                if (project == null) {
-                    views.setTextViewText(R.id.widget_title, context.getString(R.string.widget_no_projects))
-                } else {
-                    views.setTextViewText(R.id.widget_title, project.second)
-                    container.participants.participantIds(project.first).forEach { person ->
-                        val snapshot = container.participants.timerCardSnapshot(project.first, person, "")
+                val project = projects.firstOrNull { it.first == preferences.projectId(widgetId) }
+                views.setTextViewText(R.id.widget_title, project?.second ?: context.getString(R.string.widget_select_project))
+                val chooserIntent = Intent(context, WidgetProjectSelectionActivity::class.java).apply {
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                views.setOnClickPendingIntent(R.id.widget_project_selector, PendingIntent.getActivity(
+                    context, widgetId, chooserIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                ))
+                project?.let { (projectId, _) ->
+                    container.participants.participantIds(projectId).forEach { participantId ->
+                        val snapshot = container.participants.timerCardSnapshot(projectId, participantId, "")
+                        val running = snapshot.activeStartedAt != null
                         val row = RemoteViews(context.packageName, R.layout.widget_timer_participant)
                         row.setTextViewText(R.id.widget_participant_name, snapshot.participantName)
-                        row.setTextViewText(R.id.widget_timer_action, if (snapshot.activeStartedAt == null) "▶ START" else "■ STOP")
-                        row.setViewVisibility(R.id.widget_event_action, if (snapshot.activeStartedAt == null) View.GONE else View.VISIBLE)
-                        row.setOnClickPendingIntent(R.id.widget_timer_action,
-                            createLaunchIntent(context, project.first, person, ACTION_TIMER))
-                        row.setOnClickPendingIntent(R.id.widget_event_action,
-                            createLaunchIntent(context, project.first, person, ACTION_EVENT))
+                        row.setFloat(R.id.widget_start_action, "setAlpha", if (running) 0.3f else 1f)
+                        row.setFloat(R.id.widget_stop_action, "setAlpha", if (running) 1f else 0.3f)
+                        row.setFloat(R.id.widget_event_action, "setAlpha", if (running) 1f else 0.3f)
+                        if (!running) row.setOnClickPendingIntent(R.id.widget_start_action,
+                            launchIntent(context, widgetId, projectId, participantId, ACTION_START))
+                        if (running) {
+                            row.setOnClickPendingIntent(R.id.widget_stop_action,
+                                launchIntent(context, widgetId, projectId, participantId, ACTION_STOP))
+                            row.setOnClickPendingIntent(R.id.widget_event_action,
+                                launchIntent(context, widgetId, projectId, participantId, ACTION_EVENT))
+                        }
                         views.addView(R.id.widget_participants, row)
                     }
                 }
@@ -61,15 +72,17 @@ class TimerWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun createLaunchIntent(context: Context, projectId: Long, participantId: Int, action: String): PendingIntent {
-            val requestCode = (projectId * 100000 + participantId * 2 + if (action == ACTION_EVENT) 1 else 0).toInt()
+        private fun launchIntent(context: Context, widgetId: Int, projectId: Long, participantId: Int, action: String): PendingIntent {
+            val actionIndex = when (action) { ACTION_START -> 0; ACTION_STOP -> 1; else -> 2 }
             val intent = Intent(context, MainActivity::class.java).apply {
                 this.action = action
                 putExtra(EXTRA_PROJECT_ID, projectId)
                 putExtra(EXTRA_PARTICIPANT_ID, participantId)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                // Unique identity across widgets and projects; extras are not part of PendingIntent identity.
+                data = android.net.Uri.parse("timetrkr://widget/$widgetId/$projectId/$participantId/$actionIndex")
             }
-            return PendingIntent.getActivity(context, requestCode, intent,
+            return PendingIntent.getActivity(context, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
     }
