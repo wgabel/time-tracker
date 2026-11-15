@@ -1,5 +1,6 @@
 package pl.wgabel.timetracker.features.timers
 
+import pl.wgabel.timetracker.time.DatePresentation
 import android.content.Context
 import android.graphics.Typeface
 import android.view.Gravity
@@ -10,7 +11,8 @@ import pl.wgabel.timetracker.R
 import pl.wgabel.timetracker.design.AppUi.ButtonRole
 import pl.wgabel.timetracker.domain.StatisticsCalculator
 import pl.wgabel.timetracker.features.projects.ParticipantDialogs
-import pl.wgabel.timetracker.time.DatePresentation
+import pl.wgabel.timetracker.model.TimeInterval
+import pl.wgabel.timetracker.ui.timeline.TimelineRenderer
 import pl.wgabel.timetracker.ui.ActiveTimerStyle
 import pl.wgabel.timetracker.ui.ScreenUi
 import pl.wgabel.timetracker.ui.events.EventsScreen
@@ -20,7 +22,8 @@ internal class TimersScreen(
     context: Context, container: AppContainer, navigation: AppNavigation
 ) : ScreenUi(context, container) {
     override val navigator = navigation
-    private val controller = TimersController(container.projects, container.participants, container.sessions, container.sessionService)
+    private val controller = TimersController(container.projects, container.participants, container.sessions, container.events, container.sessionService)
+    private val timeline = TimelineRenderer(context, container, navigation)
     private val dialogs = SessionDialogs(context, container, navigation)
     private val events = EventsScreen(context, container, navigation)
     private val participantsEditor = ParticipantDialogs(context, container, navigation)
@@ -62,7 +65,7 @@ internal class TimersScreen(
         val cardData = snapshot.participant
         val person = cardData.participantId
         val active = cardData.activeStartedAt
-        val intervals = snapshot.intervals
+        val intervals = snapshot.sessions.map { TimeInterval(it.startedAt, it.endedAt) }
         fun measuredDuration(tick: Long) = StatisticsCalculator.totalDuration(intervals, start, end, tick)
         if (active != null) activeStyle.markActive(c)
         val header = TimerCardHeader(
@@ -98,11 +101,7 @@ internal class TimersScreen(
             textColor = appUi.color("ink"),
             captionColor = appUi.color("muted")
         )
-        val strip = DaySessionStrip(
-            this, start, end, StatisticsCalculator.stripSegments(intervals, start, end),
-            cardData.participantColor, appUi.color("subtleNeutral"),
-            densityPixels(designTokens.dimension("timerStripMinimumActiveWidthDp")).toFloat()
-        )
+        val strip = timeline.createTimerTrack(start, end, person, snapshot.sessions, snapshot.events)
         val controls = if (statusLabel == null) null else {
             val button = if (active == null)
                 appUi.action("▶  START", cardData.participantColor) { toggleTimer(person) }
@@ -138,15 +137,12 @@ internal class TimersScreen(
         }
         val cardView = TimerCardView(
             this, header, clock, ring, strip,
-            listOf("00:00", "06:00", "12:00", "18:00", "24:00").map {
-                appUi.label(it, 10f, false, appUi.color("muted"))
-            },
             statusLabel, controls,
             spacing = { container, size -> appUi.gap(container, size) }
         )
         c.addView(cardView)
         if (active != null) updates.add { tick ->
-            cardView.updateClock(clock, ring, strip, tick)
+            cardView.updateClock(clock, ring, tick)
         }
         addCard(c)
     }

@@ -1,5 +1,6 @@
 package pl.wgabel.timetracker.features.timers
 
+import pl.wgabel.timetracker.data.EventRepository
 import pl.wgabel.timetracker.data.ParticipantRepository
 import pl.wgabel.timetracker.data.ProjectRepository
 import pl.wgabel.timetracker.data.SessionRepository
@@ -11,6 +12,7 @@ internal class TimersController(
     private val projects: ProjectRepository,
     private val participants: ParticipantRepository,
     private val sessions: SessionRepository,
+    private val events: EventRepository,
     private val sessionService: SessionService
 ) {
     var state: TimersViewState? = null
@@ -19,11 +21,13 @@ internal class TimersController(
     fun loadState(projectId: Long, fallbackName: String, now: Long): TimersViewState {
         val start = TimeMath.dayStart(0)
         val end = TimeMath.dayStart(1)
+        val dailySessions = sessions.sessionsInRange(projectId, start, end).sortedBy { it.id }.groupBy { it.participantId }
+        val dailyEvents = events.eventsForDay(projectId, start, end, withinSessionsOnly = true).groupBy { it.participantId }
         return TimersViewState(projectId, start, end, now,
             participants.participantIds(projectId).map { person ->
                 TimersViewState.Card(
                     participants.timerCardSnapshot(projectId, person, fallbackName + person),
-                    sessions.participantIntervals(projectId, person, start, end)
+                    dailySessions[person].orEmpty(), dailyEvents[person].orEmpty()
                 )
             }, projects.isArchived(projectId), sessions.recentActivity(projectId)
         ).also { state = it }
