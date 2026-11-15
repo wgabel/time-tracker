@@ -33,7 +33,7 @@ class MainActivity : Activity() {
         language.applyLanguage()
         theme.applyThemeToSystem()
         val container = (application as TimeTrackerApplication).container
-        coordinator = AppCoordinator(this, container, language, theme) { startActivityForResult(it, 301) }
+        coordinator = AppCoordinator(this, container, language, theme) { intent, requestCode -> startActivityForResult(intent, requestCode) }
         setContentView(coordinator.root)
         coordinator.restoreState(savedInstanceState)
         val components = AppUi(this, container.designTokens) { theme.isDark }
@@ -48,7 +48,10 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 301) coordinator.completeExport(resultCode, data)
+        when (requestCode) {
+            301 -> coordinator.completeExport(resultCode, data)
+            302 -> coordinator.completeImport(resultCode, data)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
