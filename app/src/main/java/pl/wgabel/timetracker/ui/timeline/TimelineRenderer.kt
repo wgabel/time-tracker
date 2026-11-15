@@ -256,7 +256,7 @@ internal class TimelineRenderer(
             } == true; it.invalidate() }
         }
         val axis = DayTimelineAxis(appUi, sessionRail = true)
-        val trackInset = densityPixels(24)
+        val trackInset = appUi.dimensionPixels(if (showHeadings) "historyTimelineHorizontalInsetDp" else "timerTimelineHorizontalInsetDp")
         people.forEach { person ->
             val personSessions = sessions[person].orEmpty()
             val participantEvents = events[person].orEmpty()
