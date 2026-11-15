@@ -30,6 +30,28 @@ internal class DesignTokens(context: Context) {
         require(it in 0f..1f) { "Design proportion must be between zero and one: $name" }
     }
 
+    data class NightStarStyle(val color: Int, val minimumSizeDp: Int, val maximumSizeDp: Int,
+        val spacingDp: Int, val minimumOpacity: Float, val maximumOpacity: Float,
+        val ranges: List<Pair<Float, Float>>)
+
+    fun nightStarStyle(dark: Boolean): NightStarStyle {
+        val ranges = root.getJSONObject("dayTimeScale").getJSONArray("nightStarRanges")
+        return NightStarStyle(
+            color("timeNightStars", dark),
+            dimension("timeNightStarMinimumSizeDp"), dimension("timeNightStarMaximumSizeDp"),
+            dimension("timeNightStarSpacingDp"),
+            proportion("timeNightStarMinimumOpacity"), proportion("timeNightStarMaximumOpacity"),
+            List(ranges.length()) { index ->
+                val range = ranges.getJSONObject(index)
+                range.getInt("startMinute") / 1440f to range.getInt("endMinute") / 1440f
+            }
+        ).also {
+            require(it.minimumSizeDp > 0 && it.maximumSizeDp >= it.minimumSizeDp && it.spacingDp > 0)
+            require(it.minimumOpacity <= it.maximumOpacity)
+            require(it.ranges.all { range -> range.first >= 0f && range.second <= 1f && range.first < range.second })
+        }
+    }
+
     fun dayTimeScale(dark: Boolean): DayTimeScaleStyle {
         val configuration = root.getJSONObject("dayTimeScale")
         val stops = configuration.getJSONArray("gradientStops")
