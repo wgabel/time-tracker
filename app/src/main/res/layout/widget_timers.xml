@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:orientation="vertical" android:padding="12dp"
-    android:background="#182F35">
+    android:orientation="vertical" android:paddingLeft="10dp"
+    android:paddingRight="10dp" android:paddingTop="8dp"
+    android:paddingBottom="8dp" android:background="#182F35">
     <TextView android:id="@+id/widget_title" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:textColor="#FFFFFF"
-        android:textSize="17sp" android:textStyle="bold" android:paddingBottom="8dp"/>
+        android:textSize="15sp" android:textStyle="bold" android:maxLines="1"
+        android:ellipsize="end" android:paddingBottom="4dp"/>
     <LinearLayout android:id="@+id/widget_participants" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:orientation="vertical"/>
 </LinearLayout>
