@@ -33,73 +33,10 @@ internal class ProjectBackupRepository(private val database: SQLiteDatabase) {
             .put("participants", rows("SELECT id,name,color FROM participants WHERE project_id=?", listOf("id","name","color")))
             .put("sessions", rows("SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=?", listOf("id","person","startedAt","endedAt")))
             .put("events", rows("SELECT id,session_id,person,happened_at,type,note FROM events WHERE project_id=?", listOf("id","sessionId","person","happenedAt","type","note")))
-        repairEventReferencesForExport(backup)
+        ProjectBackupRepair.repairEventReferencesForExport(backup)
         val serializedBackup = backup.toString(2)
         validate(serializedBackup)
         return serializedBackup
-    }
-
-    /**
-     * Repairs the exported snapshot, never the original database.
-     * Missing or inconsistent event references are linked to a matching existing
-     * session when possible. Otherwise a zero-duration recovery session is added
-     * at the event timestamp, avoiding invented elapsed childcare time.
-     */
-    private fun repairEventReferencesForExport(backup: JSONObject) {
-        val sessions = backup.getJSONArray("sessions")
-        val events = backup.getJSONArray("events")
-        val sessionById = mutableMapOf<Long, JSONObject>()
-        var nextSessionId = 1L
-        for (index in 0 until sessions.length()) {
-            val session = sessions.getJSONObject(index)
-            val identifier = session.getLong("id")
-            sessionById[identifier] = session
-            nextSessionId = maxOf(nextSessionId, identifier + 1)
-        }
-        val repairs = JSONArray()
-        for (index in 0 until events.length()) {
-            val event = events.getJSONObject(index)
-            val person = event.getLong("person")
-            val timestamp = event.getLong("happenedAt")
-            val originalSessionId = event.getLong("sessionId")
-            val originalSession = sessionById[originalSessionId]
-            val originalIsValid = originalSession != null &&
-                originalSession.getLong("person") == person &&
-                timestamp >= originalSession.getLong("startedAt") &&
-                (originalSession.isNull("endedAt") || timestamp <= originalSession.getLong("endedAt"))
-            if (originalIsValid) continue
-
-            val matchingSession = sessionById.values
-                .filter { session ->
-                    session.getLong("person") == person &&
-                        timestamp >= session.getLong("startedAt") &&
-                        (session.isNull("endedAt") || timestamp <= session.getLong("endedAt"))
-                }
-                .minByOrNull { it.getLong("id") }
-
-            val replacementSessionId = if (matchingSession != null) {
-                matchingSession.getLong("id")
-            } else {
-                val identifier = nextSessionId++
-                val recoverySession = JSONObject()
-                    .put("id", identifier)
-                    .put("person", person)
-                    .put("startedAt", timestamp)
-                    .put("endedAt", timestamp)
-                sessions.put(recoverySession)
-                sessionById[identifier] = recoverySession
-                identifier
-            }
-            event.put("sessionId", replacementSessionId)
-            repairs.put(JSONObject()
-                .put("eventId", event.getLong("id"))
-                .put("originalSessionId", originalSessionId)
-                .put("exportedSessionId", replacementSessionId)
-                .put("createdRecoverySession", matchingSession == null))
-        }
-        if (repairs.length() > 0) {
-            backup.put("exportRepairs", repairs)
-        }
     }
 
     data class Preview(val projectName: String, val participants: Int, val sessions: Int, val events: Int)
