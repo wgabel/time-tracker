@@ -67,6 +67,11 @@
     }
   },
   "dimensions": {
+    "statisticsMinimumBarWidthDp": 2,
+    "statisticsMaximumBarWidthDp": 22,
+    "statisticsBarGapDp": 1,
+    "statisticsGroupGapDp": 8,
+    "statisticsChartHeightDp": 164,
     "shapeRadiusDp": 18,
     "cardRadiusDp": 22,
     "cardPaddingDp": 18,
@@ -183,3 +188,4 @@
     ]
   }
 }
+

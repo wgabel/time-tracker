@@ -107,6 +107,7 @@ internal class AppCoordinator(
     }
 
     override fun openProject(projectId: Long) {
+        statistics.resetSelection()
         this.projectId = projectId
         tab = 0
         showAppSettings = false
@@ -123,6 +124,12 @@ internal class AppCoordinator(
     }
 
     override fun openAppSettings() { showAppSettings = true; renderNavigation() }
+    override fun openCounterHistory(person: Int, dayOffset: Int) {
+        history.state.participantFilter = person
+        history.state.dayOffset = dayOffset
+        openHistory()
+    }
+
     override fun openHistory() { tab = 2; renderNavigation() }
     override fun refreshContent() { renderTopHeader(); renderCurrentScreen() }
     override fun refreshNavigation() = renderNavigation()
@@ -243,7 +250,7 @@ internal class AppCoordinator(
             history.state.participantFilter = state.getInt("historyPerson")
             statistics.state.dayOffset = state.getInt("statisticsDay")
             statistics.state.period = state.getInt("statisticsPeriod", 1).coerceIn(0, 3)
-            statistics.state.periodOffset = state.getInt("statisticsOffset")
+            statistics.restoreSelection(state)
         }
         renderNavigation()
     }
@@ -259,7 +266,7 @@ internal class AppCoordinator(
         state.putInt("historyPerson", history.state.participantFilter)
         state.putInt("statisticsDay", statistics.state.dayOffset)
         state.putInt("statisticsPeriod", statistics.state.period)
-        state.putInt("statisticsOffset", statistics.state.periodOffset)
+        statistics.saveSelection(state)
     }
     private fun activeCountText(count: Int): String {
         val language = resources.configuration.locales[0].language
@@ -363,3 +370,4 @@ internal class AppCoordinator(
 
     fun dispose() { calendar.clearHeading(); updateActiveAnimations(root, false) }
 }
+

@@ -176,4 +176,22 @@
     <string name="backup_import_title">Restore project?</string>
     <string name="backup_import_confirm">Backup project: %1$s\nParticipants: %2$d\nSessions: %3$d\nEvents: %4$d\n\nThe current project data will be replaced. This cannot be undone.</string>
     <string name="backup_replace">Replace data</string>
+    <string name="statistics_summary">Period summary</string>
+    <string name="statistics_recorded">Recorded time</string>
+    <string name="statistics_selected">Selected counters: %1$d of %2$d  ›</string>
+    <string name="statistics_single">One counter · %1$s</string>
+    <string name="statistics_multiple">Several simultaneously · %1$s</string>
+    <string name="statistics_by_counter">Time by counter</string>
+    <string name="statistics_collapse">Collapse list</string>
+    <string name="statistics_expand">Show all counters (%1$d)  ›</string>
+    <string name="statistics_choose">Choose counters</string>
+    <string name="statistics_details">Total: %1$s\nOnly this counter: %2$s\nWith other selected counters: %3$s\nCompleted sessions: %4$d\nMedian length: %5$s</string>
+    <string name="statistics_recent">Recent completed sessions</string>
+    <string name="statistics_hourly">Time by hour</string>
+    <string name="statistics_daily">Time by day</string>
+    <string name="statistics_monthly">Time by month</string>
+    <string name="statistics_count">Counters: %1$d</string>
+    <string name="statistics_chart_hint">Tap a group for times. A dash means no entries.</string>
+    <string name="statistics_days_with_entries">Days with entries: %1$d / %2$d</string>
 </resources>
+
