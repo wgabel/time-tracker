@@ -34,7 +34,9 @@ internal class ProjectBackupRepository(private val database: SQLiteDatabase) {
             .put("sessions", rows("SELECT id,person,started_at,ended_at FROM sessions WHERE project_id=?", listOf("id","person","startedAt","endedAt")))
             .put("events", rows("SELECT id,session_id,person,happened_at,type,note FROM events WHERE project_id=?", listOf("id","sessionId","person","happenedAt","type","note")))
         val serializedBackup = backup.toString(2)
-        validate(serializedBackup)
+        // Preserve even legacy inconsistent records in the backup. Import validates separately.
+        // Rejecting export here would leave the document created by Android empty.
+        require(serializedBackup.isNotBlank()) { "Empty project backup" }
         return serializedBackup
     }
 
