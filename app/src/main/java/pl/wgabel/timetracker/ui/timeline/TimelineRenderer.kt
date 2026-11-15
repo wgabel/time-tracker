@@ -20,6 +20,7 @@ import pl.wgabel.timetracker.AppContainer
 import pl.wgabel.timetracker.AppNavigation
 import pl.wgabel.timetracker.R
 import pl.wgabel.timetracker.design.DayTimelineAxis
+import pl.wgabel.timetracker.model.Session
 import pl.wgabel.timetracker.model.SessionEvent
 import pl.wgabel.timetracker.ui.ScreenUi
 import pl.wgabel.timetracker.ui.sessions.SessionDialogs
@@ -71,15 +72,21 @@ internal class TimelineRenderer(
                 view.postDelayed(this, 33L)
             }
         }
-        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) { v.post(ticker) }
-            override fun onViewDetachedFromWindow(v: View) { v.removeCallbacks(ticker) }
-        })
-        // The view can stay attached when returning from background.
-        view.viewTreeObserver.addOnWindowFocusChangeListener { focused ->
+        val focusListener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { focused ->
             view.removeCallbacks(ticker)
             if (focused && view.isAttachedToWindow) view.post(ticker)
         }
+        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                v.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+                if (v.hasWindowFocus()) v.post(ticker)
+            }
+
+            override fun onViewDetachedFromWindow(v: View) {
+                v.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+                v.removeCallbacks(ticker)
+            }
+        })
     }
 
     fun renderTimeline(target: LinearLayout, selectedOffset: Int, participantFilter: Int? = null, inHistory: Boolean = false) {
@@ -207,6 +214,22 @@ internal class TimelineRenderer(
         val end = dayStart(selectedOffset + 1)
         val sessions = sessionRepository.sessionsInRange(requireNotNull(projectId), day, end).sortedBy { it.id }
         val events = eventRepository.eventsForDay(requireNotNull(projectId), day, end, withinSessionsOnly = true)
+        populateDayTracks(panel, day, end, people, sessions.groupBy { it.participantId },
+            events.groupBy { it.participantId }, showHeadings = true)
+        target.addView(panel, LinearLayout.LayoutParams(-1, -2))
+        gap(target, 8)
+    }
+
+    fun createTimerTrack(day: Long, end: Long, person: Int, sessions: List<Session>, events: List<SessionEvent>): View {
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        populateDayTracks(panel, day, end, listOf(person), mapOf(person to sessions),
+            mapOf(person to events), showHeadings = false)
+        return panel
+    }
+
+    private fun populateDayTracks(panel: LinearLayout, day: Long, end: Long, people: List<Int>,
+                                  sessions: Map<Int, List<Session>>, events: Map<Int, List<SessionEvent>>,
+                                  showHeadings: Boolean) {
         val details = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = shape(subtleNeutral, 12)
@@ -235,30 +258,35 @@ internal class TimelineRenderer(
         val axis = DayTimelineAxis(appUi)
         val trackInset = densityPixels(24)
         people.forEach { person ->
-            val personSessions = sessions.filter { it.participantId == person }
-            val participantEvents = events.filter { it.participantId == person }
-            val heading = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            heading.addView(View(this).apply { background = shape(personColor(person), 8) },
-                LinearLayout.LayoutParams(densityPixels(8), densityPixels(8)).apply { rightMargin = densityPixels(8) })
-            heading.addView(label(personName(person), 16f, true).apply { maxLines = 2 },
-                LinearLayout.LayoutParams(0, -2, 1f))
+            val personSessions = sessions[person].orEmpty()
+            val participantEvents = events[person].orEmpty()
+            val color = personColor(person)
+            val name = personName(person)
             val total = personSessions.sumOf { session ->
                 (minOf(end, session.endedAt ?: System.currentTimeMillis()) - maxOf(day, session.startedAt)).coerceAtLeast(0L)
             }
-            heading.addView(label(formatDuration(total), 13f, false, muted).apply {
-                setPadding(densityPixels(8), 0, 0, 0)
-            })
-            panel.addView(heading)
+            if (showHeadings) {
+                val heading = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+                heading.addView(View(this).apply { background = shape(color, 8) },
+                    LinearLayout.LayoutParams(densityPixels(8), densityPixels(8)).apply { rightMargin = densityPixels(8) })
+                heading.addView(label(name, 16f, true).apply { maxLines = 2 },
+                    LinearLayout.LayoutParams(0, -2, 1f))
+                heading.addView(label(formatDuration(total), 13f, false, muted).apply {
+                    setPadding(densityPixels(8), 0, 0, 0)
+                })
+                panel.addView(heading)
+            }
 
             val track = object : View(this) {
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
                 private val daylight = axis.createTrack()
+                private val activeMinimumWidth = appUi.dimensionPixels("timerStripMinimumActiveWidthDp").toFloat()
                 override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
                     daylight.setBounds(trackInset, 0, maxOf(trackInset + 1, w - trackInset), h)
                 }
                 private var touchedX = 0f
                 init {
-                    contentDescription = getString(R.string.timeline_participant_sessions, personName(person), formatDuration(total))
+                    contentDescription = getString(R.string.timeline_participant_sessions, name, formatDuration(total))
                     setOnClickListener {
                         val fraction = ((touchedX - trackInset) / (width - 2f * trackInset).coerceAtLeast(1f)).coerceIn(0f, 1f)
                         val moment = day + ((end - day) * fraction).toLong()
@@ -284,13 +312,17 @@ internal class TimelineRenderer(
                     personSessions.forEach { session ->
                         val start = maxOf(day, session.startedAt)
                         val finish = minOf(end, session.endedAt ?: System.currentTimeMillis())
-                        if (finish <= start) return@forEach
+                        val active = session.endedAt == null
+                        if (finish < start || (!active && finish == start) || start >= end) return@forEach
                         val first = left + (start - day).toDouble().div(end - day).toFloat() * (right - left)
                         val last = left + (finish - day).toDouble().div(end - day).toFloat() * (right - left)
-                        val area = RectF(first, middle - densityPixels(7), minOf(right, maxOf(first + densityPixels(2), last)), middle + densityPixels(7))
-                        paint.color = personColor(person)
-                        canvas.drawRoundRect(area, densityPixels(3).toFloat(), densityPixels(3).toFloat(), paint)
-                        if (session.endedAt == null) drawRunningBlocks(canvas, paint, area, personColor(person), false)
+                        val minimum = if (active) activeMinimumWidth else densityPixels(2).toFloat()
+                        val barLeft = if (active) minOf(first, right - minimum).coerceAtLeast(left) else first
+                        val area = RectF(barLeft, middle - densityPixels(7), minOf(right, maxOf(barLeft + minimum, last)), middle + densityPixels(7))
+                        paint.color = color
+                        val radius = if (active) area.height() / 2f else densityPixels(3).toFloat()
+                        canvas.drawRoundRect(area, radius, radius, paint)
+                        if (session.endedAt == null) drawRunningBlocks(canvas, paint, area, color, false)
                     }
                 }
             }
@@ -322,11 +354,10 @@ internal class TimelineRenderer(
                         .coerceAtMost(width / 2f - densityPixels(5)) else densityPixels(6).toFloat()
                     paint.color = surface
                     canvas.drawCircle(centerX, centerY, radius + densityPixels(2), paint)
-                    paint.color = personColor(person)
+                    paint.color = color
                     canvas.drawCircle(centerX, centerY, radius, paint)
                     if (group.size > 1) {
                         // Choose readable text even when a participant has a custom light color.
-                        val color = personColor(person)
                         paint.color = if (Color.luminance(color) > .179) Color.BLACK else Color.WHITE
                         paint.textAlign = Paint.Align.CENTER
                         if (paint.measureText(count) > radius * 1.7f) paint.textSize *= radius * 1.7f / paint.measureText(count)
@@ -382,11 +413,11 @@ internal class TimelineRenderer(
             animateRunningChart(track, personSessions.any { it.endedAt == null } && day <= System.currentTimeMillis() && end > System.currentTimeMillis())
             gap(panel, 6)
         }
-        panel.addView(label(getString(R.string.timeline_legend), 12f, false, muted))
-        gap(panel, 8)
+        if (showHeadings) {
+            panel.addView(label(getString(R.string.timeline_legend), 12f, false, muted))
+            gap(panel, 8)
+        }
         panel.addView(details, LinearLayout.LayoutParams(-1, -2))
-        target.addView(panel, LinearLayout.LayoutParams(-1, -2))
-        gap(target, 8)
     }
 
     // Fixed-height daily view: the time scale and event labels stay pinned horizontally.

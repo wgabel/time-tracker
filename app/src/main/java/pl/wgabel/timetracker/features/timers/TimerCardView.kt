@@ -16,7 +16,6 @@ internal class TimerCardView(
     clock: TimerCardClock,
     ring: View,
     strip: View,
-    timelineLabels: List<TextView>,
     statusLabel: TextView?,
     controls: TimerCardControls?,
     private val spacing: (LinearLayout, Int) -> Unit
@@ -35,18 +34,7 @@ internal class TimerCardView(
         timeRow.addView(ring, LayoutParams(densityPixels(80), densityPixels(80)))
         addView(timeRow)
         spacing(this, 10)
-        addView(strip, LayoutParams(-1, densityPixels(9)))
-        spacing(this, 5)
-        val ticks = LinearLayout(context).apply { orientation = HORIZONTAL }
-        timelineLabels.forEachIndexed { index, label ->
-            label.gravity = when (index) {
-                0 -> Gravity.START
-                timelineLabels.lastIndex -> Gravity.END
-                else -> Gravity.CENTER
-            }
-            ticks.addView(label, LayoutParams(0, -2, 1f))
-        }
-        addView(ticks)
+        addView(strip, LayoutParams(-1, -2))
         if (statusLabel != null && controls != null) {
             spacing(this, 14)
             addView(statusLabel)
@@ -55,9 +43,8 @@ internal class TimerCardView(
         }
     }
 
-    fun updateClock(clock: TimerCardClock, ring: View, strip: View, now: Long) {
+    fun updateClock(clock: TimerCardClock, ring: View, now: Long) {
         clock.update(now)
         ring.invalidate()
-        strip.invalidate()
     }
 }
