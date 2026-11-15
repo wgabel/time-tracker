@@ -1,5 +1,7 @@
 package pl.wgabel.timetracker.features.history
 
+import java.time.Instant
+import java.time.ZoneId
 import android.app.AlertDialog
 import android.content.Context
 import android.view.Gravity
@@ -26,21 +28,31 @@ internal class HistoryScreen(
     private val rows = SessionRows(context, container, navigation)
     private val participantsEditor = ParticipantDialogs(context, container, navigation)
     private fun pickDateTime(initial: Long, title: String, onChosen: (Long) -> Unit) {
-        DateTimeEditor(this).show(DateTimeEditor.Config(
-            title = title, initial = initial, max = System.currentTimeMillis()
+        DateTimeEditor(this, appUi).show(DateTimeEditor.Config(
+            title = title, initial = initial, max = System.currentTimeMillis(),
+            quickOffsets = initial >= dayStart(0)
         )) { chosen -> onChosen(chosen); true }
     }
 
     private fun addSession() {
+        val selectedDayStart = dayStart(state.dayOffset)
         val ids = participants()
         if (ids.isEmpty()) { participantsEditor.addParticipant(); return }
         val people = ids.map { personName(it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle(getString(R.string.select_person))
             .setItems(people) { _, which ->
                 val person = ids[which]
-                val now = System.currentTimeMillis()
-                pickDateTime(now - 3600000L, getString(R.string.start_measurement)) { start ->
-                    pickDateTime(now, getString(R.string.end_measurement)) { end ->
+                val zone = ZoneId.systemDefault()
+                val now = Instant.now().atZone(zone)
+                val selectedDate = Instant.ofEpochMilli(selectedDayStart).atZone(zone).toLocalDate()
+                val reference = now.with(selectedDate).toInstant().toEpochMilli()
+                val hour = 3_600_000L
+                val initialStart = (reference - hour).coerceAtLeast(selectedDayStart)
+                pickDateTime(initialStart, getString(R.string.start_measurement)) { start ->
+                    val startDate = Instant.ofEpochMilli(start).atZone(zone).toLocalDate()
+                    val nextMidnight = startDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                    val initialEnd = minOf(start + hour, nextMidnight - 1, System.currentTimeMillis())
+                    pickDateTime(initialEnd, getString(R.string.end_measurement)) { end ->
                         if (container.sessionService.createSession(projectId!!, person, start, end)) {
                             state.dayOffset = 0
                             while (dayStart(state.dayOffset) > start) state.dayOffset--

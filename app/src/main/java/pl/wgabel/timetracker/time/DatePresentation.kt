@@ -5,6 +5,10 @@ import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Formats user-facing timestamps using the application's effective locale.
@@ -52,4 +56,11 @@ internal object DatePresentation {
         SimpleDateFormat(if (locale(resources).language == "pl") "dd.MM HH:mm" else "MMM d, h:mm a", locale(resources))
 
     fun chartHour(resources: Resources): DateFormat = SimpleDateFormat("HH", locale(resources))
+
+    fun calendarDate(resources: Resources, date: LocalDate): String =
+        date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale(resources)))
+
+    fun timeOfDay(resources: Resources, time: LocalTime, includeSeconds: Boolean): String =
+        if (includeSeconds) String.format(locale(resources), "%02d:%02d:%02d", time.hour, time.minute, time.second)
+        else String.format(locale(resources), "%02d:%02d", time.hour, time.minute)
 }
