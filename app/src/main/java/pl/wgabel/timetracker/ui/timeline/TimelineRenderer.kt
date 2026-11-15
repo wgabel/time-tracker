@@ -63,6 +63,29 @@ internal class TimelineRenderer(
         canvas.restore()
     }
 
+    /** Hatch only the clipped ends of sessions that continue across a day boundary. */
+    private fun drawDayBoundaryContinuation(canvas: Canvas, area: RectF, atStart: Boolean) {
+        val markerWidth = minOf(appUi.dimensionPixels("historyContinuationWidthDp").toFloat(), area.width())
+        if (markerWidth <= 0f) return
+        val stripeSpacing = appUi.dimensionPixels("historyContinuationStripeSpacingDp").toFloat()
+        val stripePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            alpha = (255 * appUi.proportion("historyContinuationStripeOpacity")).toInt()
+            strokeWidth = appUi.dimensionPixels("historyContinuationStripeStrokeDp").toFloat()
+            strokeCap = Paint.Cap.ROUND
+        }
+        val clippedArea = if (atStart) RectF(area.left, area.top, area.left + markerWidth, area.bottom)
+            else RectF(area.right - markerWidth, area.top, area.right, area.bottom)
+        canvas.save()
+        canvas.clipRect(clippedArea)
+        var stripeX = clippedArea.left - area.height()
+        while (stripeX < clippedArea.right + area.height()) {
+            canvas.drawLine(stripeX, area.bottom, stripeX + area.height(), area.top, stripePaint)
+            stripeX += stripeSpacing
+        }
+        canvas.restore()
+    }
+
     private fun animateRunningChart(view: View, active: Boolean) {
         if (!active) return
         val ticker = object : Runnable {
@@ -323,6 +346,11 @@ internal class TimelineRenderer(
                         val radius = if (active) area.height() / 2f else densityPixels(3).toFloat()
                         canvas.drawRoundRect(area, radius, radius, paint)
                         if (session.endedAt == null) drawRunningBlocks(canvas, paint, area, color, false)
+                        if (showHeadings) {
+                            if (session.startedAt < day) drawDayBoundaryContinuation(canvas, area, atStart = true)
+                            if ((session.endedAt ?: System.currentTimeMillis()) > end)
+                                drawDayBoundaryContinuation(canvas, area, atStart = false)
+                        }
                     }
                 }
             }
