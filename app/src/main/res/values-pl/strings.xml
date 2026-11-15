@@ -18,7 +18,6 @@
     <string name="add_participant">+ Dodaj uczestnika</string>
     <string name="add_person">+ Dodaj osobę</string>
     <string name="project_data">Dane projektu</string>
-    <string name="export_csv">↓  Eksport pomiarów (CSV)</string>
     <string name="archive_project">Archiwizuj projekt</string>
     <string name="application">Aplikacja</string>
     <string name="archive_readonly">Archiwum · tylko do odczytu</string>
@@ -171,4 +170,12 @@
         <item quantity="many">%d zdarzeń</item>
         <item quantity="other">%d zdarzenia</item>
     </plurals>
+    <string name="export_json">↓  Eksportuj dane (JSON)</string>
+    <string name="import_json">↑  Importuj dane (JSON)</string>
+    <string name="backup_export_done">Kopia JSON została zapisana</string>
+    <string name="backup_import_done">Dane projektu zostały przywrócone</string>
+    <string name="backup_failed">Błąd kopii danych: %1$s</string>
+    <string name="backup_import_title">Przywrócić projekt?</string>
+    <string name="backup_import_confirm">Projekt z kopii: %1$s\nUczestnicy: %2$d\nSesje: %3$d\nWydarzenia: %4$d\n\nDane aktualnego projektu zostaną zastąpione. Nie można cofnąć tej operacji.</string>
+    <string name="backup_replace">Zastąp dane</string>
 </resources>
