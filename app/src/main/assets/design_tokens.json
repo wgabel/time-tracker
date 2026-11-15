@@ -72,6 +72,9 @@
   },
   "dimensions": {
     "timerStripMinimumActiveWidthDp": 9,
+    "historyContinuationWidthDp": 16,
+    "historyContinuationStripeSpacingDp": 7,
+    "historyContinuationStripeStrokeDp": 2,
     "participantFilterMinWidthDp": 78,
     "participantFilterHorizontalPaddingDp": 12,
     "participantFilterWidthAllowanceDp": 44,
@@ -134,6 +137,7 @@
     "timeNightStarSpacingDp": 29
   },
   "proportions": {
+    "historyContinuationStripeOpacity": 0.65,
     "timePickerDisabledOpacity": 0.45,
     "timeFieldArrowHalfWidth": 0.3,
     "timeFieldArrowHalfHeight": 0.15,
