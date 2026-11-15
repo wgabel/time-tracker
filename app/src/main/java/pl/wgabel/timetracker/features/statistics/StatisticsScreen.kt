@@ -22,7 +22,6 @@ import pl.wgabel.timetracker.domain.StatisticsCalculator
 import pl.wgabel.timetracker.time.DatePresentation
 import pl.wgabel.timetracker.ui.ScreenUi
 import pl.wgabel.timetracker.ui.calendar.DayNavigator
-import pl.wgabel.timetracker.ui.timeline.TimelineRenderer
 
 internal class StatisticsScreen(
     context: Context, container: AppContainer, navigation: AppNavigation
@@ -31,7 +30,6 @@ internal class StatisticsScreen(
     data class State(var dayOffset: Int = 0, var period: Int = 1)
     val state = State()
     lateinit var calendar: DayNavigator
-    private val timeline = TimelineRenderer(context, container, navigation)
     private var summarySelection: Set<Int>? = null
     private var chartSelection: Set<Int>? = null
     private var expanded = false
@@ -83,11 +81,6 @@ internal class StatisticsScreen(
 
     fun renderStatistics() {
         calendar.renderDayNavigator(state.dayOffset) { state.dayOffset = it; navigator.refreshContent() }
-        gap(content, 8)
-        timeline.renderTimeline(content, state.dayOffset)
-        gap(content, 18)
-        timeline.renderVerticalDailyTimeline(content, state.dayOffset)
-        gap(content, 22)
         content.addView(label(getString(R.string.statistics_summary), 22f, true, ink))
         gap(content, 12)
         val c = card()
