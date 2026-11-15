@@ -84,6 +84,8 @@ private class DaylightTrackDrawable(components: AppUi, private val colors: IntAr
     private val trackHeight = components.dimensionPixels("timeScaleTrackHeightDp")
     private val radius = components.dimensionPixels("timeScaleTrackRadiusDp").toFloat()
     private val rectangle = RectF()
+    private val stars = components.nightStarStyle()
+    private val density = components.densityPixels(100) / 100f
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -102,7 +104,45 @@ private class DaylightTrackDrawable(components: AppUi, private val colors: IntAr
 
     override fun draw(canvas: Canvas) {
         canvas.drawRoundRect(rectangle, radius, radius, fill)
+        drawNightStars(canvas)
         canvas.drawRoundRect(rectangle, radius, radius, outline)
+    }
+
+    private fun drawNightStars(canvas: Canvas) {
+        if (rectangle.width() <= 0f || rectangle.height() <= 0f) return
+        val spacing = stars.spacingDp * density
+        val minimumSize = stars.minimumSizeDp * density
+        val sizeVariation = (stars.maximumSizeDp - stars.minimumSizeDp) * density
+        val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = stars.color }
+        canvas.save()
+        canvas.clipRect(rectangle)
+        for ((start, end) in stars.ranges) {
+            val startX = rectangle.left + start * rectangle.width()
+            val endX = rectangle.left + end * rectangle.width()
+            var index = 0
+            var x = startX + spacing / 2f
+            while (x < endX) {
+                val variation = ((index * 37 + 11) % 7) / 6f
+                val diameter = minimumSize + sizeVariation * variation
+                val centerY = rectangle.centerY() + ((index * 13 % 5) - 2) * rectangle.height() / 10f
+                val half = diameter / 2f
+                val opacity = stars.minimumOpacity +
+                    (stars.maximumOpacity - stars.minimumOpacity) * ((index * 17 % 7) / 6f)
+                starPaint.alpha = (opacity * 255).toInt()
+                val shape = android.graphics.Path().apply {
+                    moveTo(x, centerY - half)
+                    quadTo(x + diameter * .12f, centerY - diameter * .12f, x + half, centerY)
+                    quadTo(x + diameter * .12f, centerY + diameter * .12f, x, centerY + half)
+                    quadTo(x - diameter * .12f, centerY + diameter * .12f, x - half, centerY)
+                    quadTo(x - diameter * .12f, centerY - diameter * .12f, x, centerY - half)
+                    close()
+                }
+                canvas.drawPath(shape, starPaint)
+                index++
+                x += spacing
+            }
+        }
+        canvas.restore()
     }
 
     override fun setAlpha(alpha: Int) { fill.alpha = alpha; outline.alpha = alpha; invalidateSelf() }
