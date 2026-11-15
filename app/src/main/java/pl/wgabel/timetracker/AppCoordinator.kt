@@ -1,6 +1,8 @@
 package pl.wgabel.timetracker
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.widget.Toast
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -16,7 +18,7 @@ import pl.wgabel.timetracker.features.projects.ProjectsScreen
 import pl.wgabel.timetracker.features.settings.SettingsScreen
 import pl.wgabel.timetracker.features.statistics.StatisticsScreen
 import pl.wgabel.timetracker.features.timers.TimersScreen
-import pl.wgabel.timetracker.settings.CsvExportService
+import pl.wgabel.timetracker.settings.JsonBackupService
 import pl.wgabel.timetracker.settings.LanguageService
 import pl.wgabel.timetracker.settings.ThemeService
 import pl.wgabel.timetracker.ui.ScreenUi
@@ -26,7 +28,7 @@ import pl.wgabel.timetracker.ui.calendar.DayNavigator
 internal class AppCoordinator(
     context: Context, container: AppContainer,
     language: LanguageService, theme: ThemeService,
-    private val createDocument: (Intent) -> Unit
+    private val launchDocument: (Intent, Int) -> Unit
 ) : ScreenUi(context, container), AppNavigation {
     override val navigator: AppNavigation get() = this
     override var projectId: Long? = null
@@ -34,6 +36,7 @@ internal class AppCoordinator(
     private var tab = 0
     private var showAppSettings = false
     private var pendingExportProject: Long? = null
+    private var pendingImportProject: Long? = null
     private lateinit var navigation: LinearLayout
     private lateinit var topHeader: LinearLayout
     private lateinit var stickyDateContainer: LinearLayout
@@ -43,7 +46,7 @@ internal class AppCoordinator(
     private val history = HistoryScreen(context, container, this).also { it.calendar = calendar }
     private val statistics = StatisticsScreen(context, container, this).also { it.calendar = calendar }
     private val settings = SettingsScreen(context, container, this, language, theme)
-    private val csvExport = CsvExportService(context, container.sessions)
+    private val jsonBackup = JsonBackupService(context, container.projectBackups)
     val root: View = createRootView()
 
     private fun createRootView(): View {
@@ -164,17 +167,60 @@ internal class AppCoordinator(
 
     override fun exportProject(projectId: Long, suggestedName: String) {
         pendingExportProject = projectId
-        createDocument(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+        launchDocument(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "text/csv"
+            type = "application/json"
             putExtra(Intent.EXTRA_TITLE, suggestedName)
-        })
+        }, 301)
+    }
+
+    override fun importProject(projectId: Long) {
+        pendingImportProject = projectId
+        launchDocument(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }, 302)
     }
 
     fun completeExport(resultCode: Int, data: Intent?) {
         val project = pendingExportProject
         pendingExportProject = null
-        if (resultCode == Activity.RESULT_OK && project != null) data?.data?.let { csvExport.exportCsv(it, project) }
+        if (resultCode == Activity.RESULT_OK && project != null) data?.data?.let { uri ->
+            try {
+                jsonBackup.exportProject(project, uri)
+                Toast.makeText(this, getString(R.string.backup_export_done), Toast.LENGTH_SHORT).show()
+            } catch (error: Exception) {
+                Toast.makeText(this, getString(R.string.backup_failed, error.message ?: ""), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    fun completeImport(resultCode: Int, data: Intent?) {
+        val project = pendingImportProject
+        pendingImportProject = null
+        if (resultCode != Activity.RESULT_OK || project == null) return
+        val uri = data?.data ?: return
+        try {
+            val contents = jsonBackup.readBackup(uri)
+            val preview = jsonBackup.validateBackup(contents)
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.backup_import_title))
+                .setMessage(getString(R.string.backup_import_confirm, preview.projectName, preview.participants, preview.sessions, preview.events))
+                .setNegativeButton(getString(R.string.cancel), null)
+                .setPositiveButton(getString(R.string.backup_replace)) { _, _ ->
+                    try {
+                        jsonBackup.restoreProject(project, contents)
+                        container.notifications.synchronizeTimerNotifications()
+                        refreshContent()
+                        Toast.makeText(this, getString(R.string.backup_import_done), Toast.LENGTH_SHORT).show()
+                    } catch (error: Exception) {
+                        Toast.makeText(this, getString(R.string.backup_failed, error.message ?: ""), Toast.LENGTH_LONG).show()
+                    }
+                }.show()
+        } catch (error: Exception) {
+            Toast.makeText(this, getString(R.string.backup_failed, error.message ?: ""), Toast.LENGTH_LONG).show()
+        }
     }
 
     fun restoreState(state: Bundle?) {
@@ -184,6 +230,7 @@ internal class AppCoordinator(
             projects.showArchived = state.getBoolean("showArchived")
             showAppSettings = state.getBoolean("showAppSettings")
             pendingExportProject = state.getLong("exportProject", -1).takeIf { it > 0 }
+            pendingImportProject = state.getLong("importProject", -1).takeIf { it > 0 }
             history.state.dayOffset = state.getInt("historyDay")
             history.state.participantFilter = state.getInt("historyPerson")
             statistics.state.dayOffset = state.getInt("statisticsDay")
@@ -199,6 +246,7 @@ internal class AppCoordinator(
         state.putBoolean("showArchived", projects.showArchived)
         state.putBoolean("showAppSettings", showAppSettings)
         state.putLong("exportProject", pendingExportProject ?: -1)
+        state.putLong("importProject", pendingImportProject ?: -1)
         state.putInt("historyDay", history.state.dayOffset)
         state.putInt("historyPerson", history.state.participantFilter)
         state.putInt("statisticsDay", statistics.state.dayOffset)
