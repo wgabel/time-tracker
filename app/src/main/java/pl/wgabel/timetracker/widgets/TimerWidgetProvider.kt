@@ -40,7 +40,6 @@ class TimerWidgetProvider : AppWidgetProvider() {
             val preferences = WidgetProjectPreferences(context)
             ids.forEach { widgetId ->
                 val views = RemoteViews(context.packageName, R.layout.widget_timers)
-                views.removeAllViews(R.id.widget_participants)
                 val project = projects.firstOrNull { it.first == preferences.projectId(widgetId) }
                 views.setTextViewText(R.id.widget_title, project?.second ?: context.getString(R.string.widget_select_project))
                 val runningCount = project?.let { container.projects.activeTimerCount(it.first) } ?: 0
