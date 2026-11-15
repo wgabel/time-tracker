@@ -72,6 +72,8 @@
   },
   "dimensions": {
     "timerStripMinimumActiveWidthDp": 9,
+    "timerTimelineHorizontalInsetDp": 8,
+    "historyTimelineHorizontalInsetDp": 24,
     "participantFilterMinWidthDp": 78,
     "participantFilterHorizontalPaddingDp": 12,
     "participantFilterWidthAllowanceDp": 44,
