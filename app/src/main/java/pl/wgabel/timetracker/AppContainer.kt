@@ -11,6 +11,7 @@ import pl.wgabel.timetracker.design.DesignTokens
 import pl.wgabel.timetracker.domain.EventService
 import pl.wgabel.timetracker.domain.SessionService
 import pl.wgabel.timetracker.notifications.TimerNotificationCoordinator
+import pl.wgabel.timetracker.widgets.TimerWidgetProvider
 
 /** One connection owner and one dependency graph per process, including foreground notifications. */
 internal class AppContainer(context: Context) : AutoCloseable {
@@ -24,6 +25,7 @@ internal class AppContainer(context: Context) : AutoCloseable {
     val notifications = TimerNotificationCoordinator(context.applicationContext, sessions)
     val sessionService = SessionService(sessions, projects, participants) {
         notifications.synchronizeTimerNotifications()
+        TimerWidgetProvider.refreshAllWidgets(context.applicationContext)
     }
     val eventService = EventService(events, projects)
 
