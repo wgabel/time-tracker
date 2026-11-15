@@ -18,6 +18,8 @@
             android:padding="9dp" android:src="@drawable/widget_chevron"
             android:contentDescription="@string/widget_select_project"/>
     </LinearLayout>
-    <LinearLayout android:id="@+id/widget_participants" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:orientation="vertical"/>
+    <ListView android:id="@+id/widget_participants" android:layout_width="match_parent"
+        android:layout_height="216dp" android:divider="@android:color/transparent"
+        android:dividerHeight="0dp" android:scrollbars="vertical"
+        android:fadeScrollbars="true"/>
 </LinearLayout>
