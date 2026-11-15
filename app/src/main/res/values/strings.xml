@@ -135,4 +135,11 @@
     <string name="theme_dark">Dark theme</string>
     <string name="event_time_range">Choose event time (from %1$s to %2$s)</string>
     <string name="event_time_label">Time: %1$s</string>
+    <string name="timeline_legend">Bar · care session    Dot · event    Number · grouped events</string>
+    <string name="timeline_participant_sessions">%1$s · sessions · %2$s</string>
+    <plurals name="timeline_event_count">
+        <item quantity="one">%d event</item>
+        <item quantity="other">%d events</item>
+    </plurals>
 </resources>
+
