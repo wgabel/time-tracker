@@ -174,6 +174,6 @@
     <string name="backup_import_done">Project data restored</string>
     <string name="backup_failed">Backup error: %1$s</string>
     <string name="backup_import_title">Restore project?</string>
-    <string name="backup_import_confirm">Backup project: %1$s\nParticipants: %2$d\nSessions: %3$d\nEvents: %4$d\n\nThe current project's data will be replaced. This cannot be undone.</string>
+    <string name="backup_import_confirm">Backup project: %1$s\nParticipants: %2$d\nSessions: %3$d\nEvents: %4$d\n\nThe current project data will be replaced. This cannot be undone.</string>
     <string name="backup_replace">Replace data</string>
 </resources>
