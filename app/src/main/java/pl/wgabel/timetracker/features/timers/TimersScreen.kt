@@ -100,7 +100,8 @@ internal class TimersScreen(
         )
         val strip = DaySessionStrip(
             this, start, end, StatisticsCalculator.stripSegments(intervals, start, end),
-            cardData.participantColor, appUi.color("subtleNeutral")
+            cardData.participantColor, appUi.color("subtleNeutral"),
+            densityPixels(designTokens.dimension("timerStripMinimumActiveWidthDp")).toFloat()
         )
         val controls = if (statusLabel == null) null else {
             val button = if (active == null)

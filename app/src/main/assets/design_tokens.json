@@ -67,6 +67,7 @@
     }
   },
   "dimensions": {
+    "timerStripMinimumActiveWidthDp": 9,
     "participantFilterMinWidthDp": 78,
     "participantFilterHorizontalPaddingDp": 12,
     "participantFilterWidthAllowanceDp": 44,
