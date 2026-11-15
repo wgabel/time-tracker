@@ -67,6 +67,11 @@
     }
   },
   "dimensions": {
+    "participantFilterMinWidthDp": 78,
+    "participantFilterHorizontalPaddingDp": 12,
+    "participantFilterWidthAllowanceDp": 44,
+    "participantFilterHeightDp": 50,
+    "participantFilterGapDp": 6,
     "statisticsMinimumBarWidthDp": 2,
     "statisticsMaximumBarWidthDp": 22,
     "statisticsBarGapDp": 1,

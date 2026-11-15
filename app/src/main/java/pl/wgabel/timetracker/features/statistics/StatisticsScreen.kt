@@ -135,9 +135,7 @@ internal class StatisticsScreen(
         val summary = card()
         summary.addView(label(getString(R.string.statistics_recorded), 17f, true))
         summary.addView(label(formatDuration(coverage.elapsed), 29f, true))
-        summary.addView(styledAction(getString(R.string.statistics_selected, selected.size, counters.size), ButtonRole.SECONDARY) {
-            chooseCounters(counters, summarySelection) { summarySelection = it }
-        })
+        summary.addView(statisticsParticipantButtons(counters, summarySelection) { summarySelection = it })
         if (coverage.elapsed > 0) {
             val band = LinearLayout(this)
             addSegment(band, themeColor("eventIcon"), coverage.single.toFloat())
@@ -182,15 +180,18 @@ internal class StatisticsScreen(
             LinearLayout.LayoutParams(0, densityPixels(6), weight))
     }
 
-    private fun chooseCounters(counters: List<Counter>, selection: Set<Int>?, apply: (Set<Int>?) -> Unit) {
-        val checked = BooleanArray(counters.size) { selection?.contains(counters[it].id) != false }
-        AlertDialog.Builder(this).setTitle(R.string.statistics_choose)
-            .setMultiChoiceItems(counters.map { it.name }.toTypedArray(), checked) { _, index, value -> checked[index] = value }
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                apply(if (checked.all { it }) null else counters.filterIndexed { index, _ -> checked[index] }.map { it.id }.toSet())
-                navigator.refreshContent()
-            }.show()
+    private fun statisticsParticipantButtons(counters: List<Counter>, selection: Set<Int>?,
+                                             update: (Set<Int>?) -> Unit): View {
+        val people = counters.map { it.id }
+        val current = selection?.intersect(people.toSet())
+        return participantFilterButtons(people, current) { person ->
+            val next = person?.let { id ->
+                val selected = current.orEmpty()
+                if (id in selected) selected - id else selected + id
+            }
+            update(next)
+            navigator.refreshContent()
+        }
     }
 
     private fun showDetails(counter: Counter, recorded: RecordedTime, from: Long, to: Long, counters: List<Counter>) {
@@ -235,11 +236,7 @@ internal class StatisticsScreen(
             else -> R.string.statistics_daily
         }
         chartCard.addView(label(getString(title), 18f, true))
-        val selector = if (selected.size in 1..2) selected.joinToString(" · ") { it.name }
-            else getString(R.string.statistics_count, selected.size)
-        chartCard.addView(styledAction("$selector  ⌄", ButtonRole.SECONDARY) {
-            chooseCounters(counters, chartSelection) { chartSelection = it }
-        })
+        chartCard.addView(statisticsParticipantButtons(counters, chartSelection) { chartSelection = it })
         if (selected.isNotEmpty()) {
             val people = selected.map { it.id }
             val buckets = recorded.buckets(state.period, from, to, people.toSet())

@@ -101,6 +101,29 @@ internal abstract class ScreenUi(
         return action(text, fill, if (selected) Color.WHITE else ink, click)
     }
 
+    /** A null selection highlights the shared "everyone" button. Screens own selection behavior. */
+    protected fun participantFilterButtons(people: List<Int>, selection: Set<Int>?, onClick: (Int?) -> Unit): View {
+        val group = ParticipantFilterLayout(this, designTokens)
+        fun addOption(person: Int?, name: String, color: Int, selected: Boolean) {
+            val button = participantAction(name, color, selected) { onClick(person) }.apply {
+                textSize = 13f
+                isSingleLine = true
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                isSelected = selected
+                val padding = densityPixels(designTokens.dimension("participantFilterHorizontalPaddingDp"))
+                setPadding(padding, 0, padding, 0)
+            }
+            val width = (button.paint.measureText(name) +
+                densityPixels(designTokens.dimension("participantFilterWidthAllowanceDp"))).toInt()
+            group.addOption(outlinedSelection(button, color, selected), width)
+        }
+        addOption(null, getString(R.string.all_people), darkHeader, selection == null)
+        for (person in people) {
+            addOption(person, personName(person), personColor(person), selection?.contains(person) == true)
+        }
+        return group
+    }
+
     protected fun participants(): List<Int> =
         participantRepository.participantIds(requireNotNull(projectId))
 
