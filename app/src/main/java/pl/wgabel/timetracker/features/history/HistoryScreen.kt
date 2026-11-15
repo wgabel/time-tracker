@@ -70,42 +70,11 @@ internal class HistoryScreen(
         calendar.renderDayNavigator(state.dayOffset) { state.dayOffset = it; navigator.refreshContent() }
         gap(content, 8)
 
-        // Wrap filters into as many rows as needed, with no horizontal scrolling.
-        val availableWidth = resources.displayMetrics.widthPixels - densityPixels(32)
-        val filterRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        var filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        var usedWidth = 0
-        (listOf(0) + participants()).forEach { person ->
-            val name = if (person == 0) getString(R.string.all_people) else personName(person)
-            val selected = state.participantFilter == person
-            val participantColor = if (person == 0) darkHeader else personColor(person)
-            val button = participantAction(name, participantColor, selected) {
-                state.participantFilter = person
-                navigator.refreshContent()
-            }.apply {
-                textSize = 13f
-                minHeight = densityPixels(38)
-                minimumHeight = densityPixels(38)
-                setPadding(densityPixels(12), 0, densityPixels(12), 0)
-                isSingleLine = true
-                setAllCaps(false)
-            }
-            val measuredWidth = (button.paint.measureText(name) + densityPixels(44)).toInt()
-                .coerceAtLeast(densityPixels(78)).coerceAtMost(availableWidth)
-            val widthWithMargins = measuredWidth + densityPixels(6)
-            if (usedWidth > 0 && usedWidth + widthWithMargins > availableWidth) {
-                filterRows.addView(filterRow)
-                filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                usedWidth = 0
-            }
-            filterRow.addView(outlinedSelection(button, participantColor, selected),
-                LinearLayout.LayoutParams(measuredWidth, densityPixels(50)).apply {
-                    setMargins(densityPixels(2), densityPixels(2), densityPixels(4), densityPixels(4))
-                })
-            usedWidth += widthWithMargins
-        }
-        if (filterRow.childCount > 0) filterRows.addView(filterRow)
-        content.addView(filterRows)
+        val selected = state.participantFilter.takeIf { it != 0 }
+        content.addView(participantFilterButtons(participants(), selected?.let { setOf(it) }) { person ->
+            state.participantFilter = person ?: 0
+            navigator.refreshContent()
+        })
         gap(content, 12)
         timeline.renderTimeline(content, state.dayOffset, state.participantFilter.takeIf { it != 0 }, inHistory = true)
         val measurementsHeading = LinearLayout(this).apply {

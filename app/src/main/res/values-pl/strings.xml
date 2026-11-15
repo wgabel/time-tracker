@@ -180,19 +180,19 @@
     <string name="backup_replace">Zastąp dane</string>
     <string name="statistics_summary">Podsumowanie okresu</string>
     <string name="statistics_recorded">Czas z pomiarem</string>
-    <string name="statistics_selected">Wybrane liczniki: %1$d z %2$d  ›</string>
-    <string name="statistics_single">Jeden licznik · %1$s</string>
-    <string name="statistics_multiple">Kilka jednocześnie · %1$s</string>
-    <string name="statistics_by_counter">Czas według licznika</string>
+
+    <string name="statistics_single">Jeden uczestnik · %1$s</string>
+    <string name="statistics_multiple">Kilku uczestników jednocześnie · %1$s</string>
+    <string name="statistics_by_counter">Czas według uczestnika</string>
     <string name="statistics_collapse">Zwiń listę</string>
-    <string name="statistics_expand">Pokaż wszystkie liczniki (%1$d)  ›</string>
-    <string name="statistics_choose">Wybierz liczniki</string>
-    <string name="statistics_details">Łącznie: %1$s\nTylko ten licznik: %2$s\nZ innymi wybranymi licznikami: %3$s\nZakończone sesje: %4$d\nMediana długości: %5$s</string>
+    <string name="statistics_expand">Pokaż wszystkich uczestników (%1$d)  ›</string>
+
+    <string name="statistics_details">Łącznie: %1$s\nTylko ten uczestnik: %2$s\nZ innymi wybranymi uczestnikami: %3$s\nZakończone sesje: %4$d\nMediana długości: %5$s</string>
     <string name="statistics_recent">Ostatnie zakończone sesje</string>
     <string name="statistics_hourly">Czas godzina po godzinie</string>
     <string name="statistics_daily">Czas dzień po dniu</string>
     <string name="statistics_monthly">Czas miesiąc po miesiącu</string>
-    <string name="statistics_count">Liczniki: %1$d</string>
+
     <string name="statistics_chart_hint">Dotknij grupy, aby zobaczyć czasy. Kreska oznacza brak wpisów.</string>
     <string name="statistics_days_with_entries">Dni z pomiarami: %1$d / %2$d</string>
 </resources>
