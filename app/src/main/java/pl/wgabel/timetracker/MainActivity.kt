@@ -37,10 +37,16 @@ class MainActivity : Activity() {
         coordinator = AppCoordinator(this, container, language, theme) { intent, requestCode -> startActivityForResult(intent, requestCode) }
         setContentView(coordinator.root)
         coordinator.restoreState(savedInstanceState)
-        handleWidgetLaunch(intent)
         val components = AppUi(this, container.designTokens) { theme.isDark }
         AnimatedSplashScreen(this, { theme.isDark }, { components.color("blue") },
             { components.color("muted") }, { components.color("ink") }).show(coordinator.root as android.widget.LinearLayout)
+        // Keep the event editor above the startup splash; timer actions still use the captured launch.
+        if (intent?.action == TimerWidgetProvider.ACTION_EVENT) {
+            val launchIntent = intent
+            coordinator.root.postDelayed({ handleWidgetLaunch(launchIntent) }, 2200L)
+        } else {
+            handleWidgetLaunch(intent)
+        }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
         }
