@@ -255,7 +255,7 @@ internal class TimelineRenderer(
                 event is SessionEvent && event.id in selectedEventIds
             } == true; it.invalidate() }
         }
-        val axis = DayTimelineAxis(appUi)
+        val axis = DayTimelineAxis(appUi, sessionRail = true)
         val trackInset = densityPixels(24)
         people.forEach { person ->
             val personSessions = sessions[person].orEmpty()

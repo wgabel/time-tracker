@@ -17,10 +17,10 @@ import java.time.ZoneId
 import kotlin.math.roundToInt
 
 /** Shared daylight rail and hour ruler. History uses real elapsed positions on DST transition days. */
-internal class DayTimelineAxis(private val components: AppUi) {
-    private val style = components.dayTimeScaleStyle()
+internal class DayTimelineAxis(private val components: AppUi, private val sessionRail: Boolean = false) {
+    private val style = components.dayTimeScaleStyle(sessionRail)
 
-    fun createTrack(): Drawable = DaylightTrackDrawable(components, style.colors, style.positions)
+    fun createTrack(): Drawable = DaylightTrackDrawable(components, style.colors, style.positions, sessionRail)
 
     fun createRuler(context: Context, inset: Int, dayRange: LongRange? = null): View {
         val ticks = if (dayRange == null) (0..24).map { it to it / 24f } else {
@@ -80,11 +80,11 @@ internal class DayTimelineAxis(private val components: AppUi) {
 
 /** LinearGradient supports positioned daylight stops on every supported Android version (API 26+). */
 private class DaylightTrackDrawable(components: AppUi, private val colors: IntArray,
-                                    private val positions: FloatArray) : Drawable() {
+                                    private val positions: FloatArray, private val sessionRail: Boolean) : Drawable() {
     private val trackHeight = components.dimensionPixels("timeScaleTrackHeightDp")
     private val radius = components.dimensionPixels("timeScaleTrackRadiusDp").toFloat()
     private val rectangle = RectF()
-    private val stars = components.nightStarStyle()
+    private val starStyle = if (sessionRail) null else components.nightStarStyle()
     private val density = components.densityPixels(100) / 100f
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -94,7 +94,7 @@ private class DaylightTrackDrawable(components: AppUi, private val colors: IntAr
     }
 
     override fun onBoundsChange(bounds: Rect) {
-        val inset = outline.strokeWidth / 2
+        val inset = if (sessionRail) 0f else outline.strokeWidth / 2
         val halfHeight = minOf(trackHeight, bounds.height()) / 2f
         rectangle.set(bounds.left + inset, bounds.exactCenterY() - halfHeight + inset,
             bounds.right - inset, bounds.exactCenterY() + halfHeight - inset)
@@ -104,12 +104,15 @@ private class DaylightTrackDrawable(components: AppUi, private val colors: IntAr
 
     override fun draw(canvas: Canvas) {
         canvas.drawRoundRect(rectangle, radius, radius, fill)
-        drawNightStars(canvas)
-        canvas.drawRoundRect(rectangle, radius, radius, outline)
+        if (!sessionRail) {
+            drawNightStars(canvas)
+            canvas.drawRoundRect(rectangle, radius, radius, outline)
+        }
     }
 
     private fun drawNightStars(canvas: Canvas) {
         if (rectangle.width() <= 0f || rectangle.height() <= 0f) return
+        val stars = starStyle ?: return
         val spacing = stars.spacingDp * density
         val minimumSize = stars.minimumSizeDp * density
         val sizeVariation = (stars.maximumSizeDp - stars.minimumSizeDp) * density

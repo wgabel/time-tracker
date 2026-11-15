@@ -19,6 +19,8 @@
       "cardStroke": "#E7EAF1",
       "eventIcon": "#237C62",
       "transparent": "#00000000",
+      "sessionRailNight": "#D5D9DF",
+      "sessionRailDay": "#EAE3D5",
       "timeNight": "#667080",
       "timeTwilight": "#89909C",
       "timeDawn": "#B4A79F",
@@ -51,6 +53,8 @@
       "cardStroke": "#3F495B",
       "eventIcon": "#85E0B4",
       "transparent": "#00000000",
+      "sessionRailNight": "#303843",
+      "sessionRailDay": "#413E39",
       "timeNight": "#3A4352",
       "timeTwilight": "#606A79",
       "timeDawn": "#96857D",
@@ -140,6 +144,14 @@
   },
   "dayTimeScale": {
     "labelIntervalHours": 6,
+    "sessionGradientStops": [
+      { "minute": 0, "color": "sessionRailNight" },
+      { "minute": 180, "color": "sessionRailNight" },
+      { "minute": 540, "color": "sessionRailDay" },
+      { "minute": 900, "color": "sessionRailDay" },
+      { "minute": 1260, "color": "sessionRailNight" },
+      { "minute": 1440, "color": "sessionRailNight" }
+    ],
     "gradientStops": [
       {
         "minute": 0,

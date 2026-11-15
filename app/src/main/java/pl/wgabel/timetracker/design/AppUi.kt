@@ -23,7 +23,7 @@ internal class AppUi(
     fun dimension(name: String): Int = tokens.dimension(name)
     fun dimensionPixels(name: String): Int = densityPixels(tokens.dimension(name))
     fun proportion(name: String): Float = tokens.proportion(name)
-    fun dayTimeScaleStyle(): DesignTokens.DayTimeScaleStyle = tokens.dayTimeScale(isDark())
+    fun dayTimeScaleStyle(sessionRail: Boolean = false): DesignTokens.DayTimeScaleStyle = tokens.dayTimeScale(isDark(), sessionRail)
     fun nightStarStyle(): DesignTokens.NightStarStyle = tokens.nightStarStyle(isDark())
 
     fun shape(fill: Int, radiusDp: Int = dimension("shapeRadiusDp")): GradientDrawable =

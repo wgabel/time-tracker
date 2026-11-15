@@ -52,9 +52,9 @@ internal class DesignTokens(context: Context) {
         }
     }
 
-    fun dayTimeScale(dark: Boolean): DayTimeScaleStyle {
+    fun dayTimeScale(dark: Boolean, sessionRail: Boolean): DayTimeScaleStyle {
         val configuration = root.getJSONObject("dayTimeScale")
-        val stops = configuration.getJSONArray("gradientStops")
+        val stops = configuration.getJSONArray(if (sessionRail) "sessionGradientStops" else "gradientStops")
         require(stops.length() >= 2) { "The day scale needs at least two gradient stops" }
         val minutes = List(stops.length()) { stops.getJSONObject(it).getInt("minute") }
         require(minutes.first() == 0 && minutes.last() == 1_440 &&
