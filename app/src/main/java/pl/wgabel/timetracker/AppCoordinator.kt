@@ -114,8 +114,12 @@ internal class AppCoordinator(
         openProject(projectId)
         refreshContent()
         when (action) {
-            TimerWidgetProvider.ACTION_TIMER -> {
-                container.sessionService.toggleTimer(projectId, participantId, System.currentTimeMillis())
+            TimerWidgetProvider.ACTION_START, TimerWidgetProvider.ACTION_STOP -> {
+                val running = container.sessions.findActiveSession(projectId, participantId) != null
+                val shouldStart = action == TimerWidgetProvider.ACTION_START
+                if (running != shouldStart) {
+                    container.sessionService.toggleTimer(projectId, participantId, System.currentTimeMillis())
+                }
                 refreshContent()
                 TimerWidgetProvider.refreshAllWidgets(this)
             }
