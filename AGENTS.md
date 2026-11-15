@@ -23,7 +23,7 @@ Repository: `wgabel/time-tracker`, default branch `main`. App branding: **timetr
 - Projects: create, rename, archive, and choose a generated project icon. A project has multiple participants (not limited to two). Archived projects are viewable with restrictions on edits.
 - Participants: add, rename and remove subject to code's safeguards; each has a stable numeric database ID.
 - Timers tab: independent START/STOP for each participant; multiple people may be active simultaneously. Displays selected day's total, live running duration, and recent sessions. Navigation across calendar days.
-- Statistics tab: pinned day navigator, period summary, participant comparisons and grouped bar chart. The History tab owns the daily session timeline.
+- Statistics tab: pinned day navigator, period summary, participant comparisons and grouped bar chart. The History tab owns the daily session timeline. In Statistics, the recorded-time band partitions elapsed time among selected participants into intervals with exactly one active timer and intervals with two or more. Each interval counts once.
 - History tab: day navigation, participant filtering, timeline, session list, manual session creation, session editing/deletion (when permitted).
 - Settings: theme (light/dark), language, CSV export, project/participant controls. Inspect `features/settings/SettingsScreen.renderSettings` and `renderAppSettings` for exact behavior.
 - Active cards use an animated green-tinted gradient and floating squares. Drawable implements `Animatable`; animation must not restart every second.
@@ -95,10 +95,16 @@ Database upgrades are incremental in `onUpgrade` (legacy versions 1–5 to v6); 
 - Medication logging is a record of **what was actually administered**, not a dosing calculator, clinical recommendation, or automatic confirmation that administration was safe. Avoid implying that any dose or interval is medically approved.
 - The current medication description is unstructured free text. Future structured medication fields, history checks, duplicate-dose warnings and multi-device synchronization require explicit design, schema migrations, and tests.
 - The app is currently local-only, single-device, without accounts or synchronization. Do not imply one caregiver's phone automatically receives another's entries.
-- Current limitations to consider when relevant: no standalone event creation; no event export verified; legacy orphan records are not automatically cleaned; event editor labels are hard-coded Polish. Treat these as limitations, not completed features.
+- Current limitations to consider when relevant: no standalone event creation; legacy orphan records are not automatically cleaned; event editor labels are hard-coded Polish. Treat these as limitations, not completed features.
 
-## CSV export and backup
+## Home screen widget
+- Each widget instance stores its selected project in `WidgetProjectPreferences`. `TimerWidgetProvider` binds the participant ListView to `WidgetParticipantListService`; active rows display elapsed time with a native Chronometer. Row actions open the app through MainActivity.
+- `WidgetListRenderingInstrumentedTest` checks the ListView and service registration. Verifying scrolling requires a launcher-hosted widget with more participants than visible rows and a swipe that reveals an initially off-screen participant.
+
+## CSV export and project JSON backup
 `exportCsv()` exists; inspect its SQL and output columns before changing it. **Do not assume EVENT entries are exported**: they were added after the export implementation. CSV export is not equivalent to a complete database backup. Be cautious with reinstall/uninstall and signing key changes: uninstalling may erase the local SQLite database. Never advise uninstalling as a casual fix.
+
+Project JSON backup (`timetrkr-project`, format version 1) includes project metadata, participants, sessions and events. `JsonBackupService` handles file I/O. `ProjectBackupRepository` prepares the export, applies `ProjectBackupRepair` to event references in the exported copy, and validates the result. Restore validates the backup and replaces the selected project's contents in one transaction, remapping IDs. The target project must have no running timers.
 
 ## Architecture and model conventions (current direction)
 - Keep persisted/shared models in `model/`, one meaningful reusable model per file. Tiny implementation-only types belong with their consumer. Do not create competing session/interval identities or speculative models.
