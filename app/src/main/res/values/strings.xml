@@ -163,4 +163,10 @@
     <string name="time_missing_local_time">This local time does not exist because the clocks move forward. Choose another time.</string>
     <string name="time_repeated_hour">Repeated hour: UTC%1$s · Change occurrence</string>
     <string name="time_save_failed">This time cannot be saved. Check the session and event boundaries.</string>
+    <string name="timeline_legend">Bar · care session    Dot · event    Number · grouped events</string>
+    <string name="timeline_participant_sessions">%1$s · sessions · %2$s</string>
+    <plurals name="timeline_event_count">
+        <item quantity="one">%d event</item>
+        <item quantity="other">%d events</item>
+    </plurals>
 </resources>

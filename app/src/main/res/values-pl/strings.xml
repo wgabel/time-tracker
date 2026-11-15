@@ -163,4 +163,12 @@
     <string name="time_missing_local_time">Ta godzina nie występuje z powodu zmiany czasu na letni. Wybierz inną godzinę.</string>
     <string name="time_repeated_hour">Powtórzona godzina: UTC%1$s · Zmień wystąpienie</string>
     <string name="time_save_failed">Nie można zapisać tego czasu. Sprawdź granice sesji i zdarzeń.</string>
+    <string name="timeline_legend">Pasek · sesja opiekuna    Kropka · zdarzenie    Liczba · grupa zdarzeń</string>
+    <string name="timeline_participant_sessions">%1$s · sesje · %2$s</string>
+    <plurals name="timeline_event_count">
+        <item quantity="one">%d zdarzenie</item>
+        <item quantity="few">%d zdarzenia</item>
+        <item quantity="many">%d zdarzeń</item>
+        <item quantity="other">%d zdarzenia</item>
+    </plurals>
 </resources>
