@@ -7,6 +7,7 @@ internal interface AppNavigation {
     fun openProjects(archived: Boolean = false)
     fun openAppSettings()
     fun openCounterHistory(person: Int, dayOffset: Int)
+    fun openActiveSessionInHistory(person: Int, sessionId: Long)
     fun openHistory()
     fun refreshContent()
     fun refreshNavigation()

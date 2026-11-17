@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.TextView
 
 /**
  * Composes a participant's timer card from the existing styled subviews.
@@ -16,7 +15,7 @@ internal class TimerCardView(
     clock: TimerCardClock,
     ring: View,
     strip: View,
-    statusLabel: TextView?,
+    sessionRow: TimerSessionHistoryRow?,
     controls: TimerCardControls?,
     private val spacing: (LinearLayout, Int) -> Unit
 ) : LinearLayout(context) {
@@ -35,9 +34,11 @@ internal class TimerCardView(
         addView(timeRow)
         spacing(this, 10)
         addView(strip, LayoutParams(-1, -2))
-        if (statusLabel != null && controls != null) {
+        if (sessionRow != null) {
             spacing(this, 14)
-            addView(statusLabel)
+            addView(sessionRow)
+        }
+        if (controls != null) {
             spacing(this, 12)
             addView(controls)
         }

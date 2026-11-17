@@ -25,7 +25,11 @@
     <string name="locked_data">Dane są zablokowane przed edycją.</string>
     <string name="archive_banner">▣  ARCHIWALNE · TYLKO DO ODCZYTU</string>
     <string name="add_measurement">+ Dodaj pomiar</string>
-    <string name="selected_day_total">Suma wybranego dnia</string>
+    <string name="today_total">dzisiaj w sumie:</string>
+    <string name="current_timer_session">Bieżąca sesja</string>
+    <string name="timer_session_details">Od %1$s · %2$s</string>
+    <string name="edit_in_history">Edytuj w historii</string>
+    <string name="timer_add_event">Dodaj wydarzenie</string>
     <string name="measurements_heading">Pomiary</string>
     <string name="selected_day_sessions">Sesje z wybranego dnia</string>
     <string name="full_history">Zobacz pełną historię</string>

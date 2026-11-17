@@ -13,23 +13,18 @@ internal class SessionDialogs(
     context: Context, container: AppContainer, navigation: AppNavigation
 ) : ScreenUi(context, container) {
     override val navigator = navigation
-    fun showStartTimePicker(person: Int, sessionId: Long? = null) {
+    fun showStartTimePicker(person: Int, sessionId: Long) {
         if (isArchived()) return
         val id = requireNotNull(projectId)
-        val original = sessionId?.let { sessionRepository.findSession(id, it, person) }
-            ?.takeIf { it.endedAt == null }?.startedAt
-        if (sessionId != null && original == null) return
+        val original = sessionRepository.findSession(id, sessionId, person)
+            ?.takeIf { it.endedAt == null }?.startedAt ?: return
         val polish = resources.configuration.locales[0].language == "pl"
         DateTimeEditor(this, appUi).show(DateTimeEditor.Config(
             title = if (polish) "Początek sesji" else "Session start",
-            initial = original ?: System.currentTimeMillis() - 15 * 60_000L,
+            initial = original,
             max = System.currentTimeMillis()
         )) { selected ->
-            val changed = if (sessionId == null) {
-                container.sessionService.createSession(id, person, selected, null)
-            } else {
-                container.sessionService.updateSession(id, person, sessionId, selected, null)
-            }
+            val changed = container.sessionService.updateSession(id, person, sessionId, selected, null)
             if (changed) { navigator.refreshContent() }
             else Toast.makeText(this, if (polish) "Czas koliduje z sesją lub wydarzeniami."
                 else "Time conflicts with a session or events.", Toast.LENGTH_LONG).show()

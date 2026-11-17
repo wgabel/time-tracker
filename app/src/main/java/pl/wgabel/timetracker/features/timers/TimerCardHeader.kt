@@ -36,18 +36,15 @@ internal class TimerCardClock(
     context: Context,
     val totalLabel: TextView,
     totalCaption: TextView,
-    val statusLabel: TextView?,
-    private val formatTotal: (Long) -> String,
-    private val formatStatus: ((Long) -> String)?
+    private val formatTotal: (Long) -> String
 ) {
     val totalColumn = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        addView(totalLabel)
         addView(totalCaption)
+        addView(totalLabel)
     }
 
     fun update(now: Long) {
         totalLabel.text = formatTotal(now)
-        if (formatStatus != null) statusLabel?.text = formatStatus.invoke(now)
     }
 }

@@ -65,6 +65,8 @@ internal class HistoryScreen(
             }.setNegativeButton(getString(R.string.cancel), null).show()
     }
 
+    fun editActiveSession(person: Int, sessionId: Long) = rows.editActiveSession(person, sessionId)
+
     fun renderHistory() {
         // Day selection is the first control, followed by actions and participant filters.
         calendar.renderDayNavigator(state.dayOffset) { state.dayOffset = it; navigator.refreshContent() }

@@ -20,6 +20,8 @@ internal class SessionRows(
     private val activeStyle = ActiveTimerStyle(context, appUi)
     private val events = EventsScreen(context, container, navigation)
     private val dialogs = SessionDialogs(context, container, navigation)
+    fun editActiveSession(person: Int, sessionId: Long) = dialogs.showStartTimePicker(person, sessionId)
+
     fun renderSessions(start: Long, end: Long, participantFilter: Int?, target: LinearLayout, limit: Int = 500) {
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val sessions = sessionRepository.sessionsInRange(requireNotNull(projectId), start, end, limit, participantFilter)
@@ -64,7 +66,7 @@ internal class SessionRows(
                     contentDescription = "Dodaj wydarzenie"
                 }
                 val editAction = editIconButton {
-                    if (originalEnd == null) dialogs.showStartTimePicker(person, id)
+                    if (originalEnd == null) editActiveSession(person, id)
                     else dialogs.editSession(id, person, originalStart, originalEnd)
                 }.apply { background = shape(subtle, 10) }
                 val deleteAction = if (originalEnd == null) null else deleteIconButton {

@@ -156,6 +156,11 @@ internal class AppCoordinator(
         openHistory()
     }
 
+    override fun openActiveSessionInHistory(person: Int, sessionId: Long) {
+        openCounterHistory(person, dayOffset = 0)
+        history.editActiveSession(person, sessionId)
+    }
+
     override fun openHistory() { tab = 2; renderNavigation() }
     override fun refreshContent() { renderTopHeader(); renderCurrentScreen() }
     override fun refreshNavigation() = renderNavigation()
