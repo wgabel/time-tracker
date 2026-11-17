@@ -16,7 +16,7 @@ import pl.wgabel.timetracker.ui.timeline.TimelineRenderer
 import pl.wgabel.timetracker.ui.ActiveTimerStyle
 import pl.wgabel.timetracker.ui.ScreenUi
 import pl.wgabel.timetracker.ui.events.EventsScreen
-import pl.wgabel.timetracker.ui.sessions.SessionDialogs
+import java.util.Date
 
 internal class TimersScreen(
     context: Context, container: AppContainer, navigation: AppNavigation
@@ -24,7 +24,6 @@ internal class TimersScreen(
     override val navigator = navigation
     private val controller = TimersController(container.projects, container.participants, container.sessions, container.events, container.sessionService)
     private val timeline = TimelineRenderer(context, container, navigation)
-    private val dialogs = SessionDialogs(context, container, navigation)
     private val events = EventsScreen(context, container, navigation)
     private val participantsEditor = ParticipantDialogs(context, container, navigation)
     private val activeStyle = ActiveTimerStyle(context, appUi)
@@ -34,7 +33,11 @@ internal class TimersScreen(
         { DatePresentation.shortDateTime(resources) }, navigator::openHistory
     )
 
-    fun updateTimers(now: Long) { updates.forEach { it(now) } }
+    fun updateTimers(now: Long) {
+        val state = controller.state ?: return
+        if (now < state.dayStart || now >= state.dayEnd) navigator.refreshContent()
+        else updates.forEach { it(now) }
+    }
 
     fun renderTimers() {
         updates.clear()
@@ -57,10 +60,13 @@ internal class TimersScreen(
         if (state.cards.isEmpty()) {
             content.addView(label(getString(R.string.first_person))); gap(content, 12)
         }
-        state.cards.forEach { renderTimerCard(it, state.dayStart, state.dayEnd, state.now) }
+        state.cards.forEach { renderTimerCard(it, state) }
         recentActivity.render(state.recentActivity)
     }
-    private fun renderTimerCard(snapshot: TimersViewState.Card, start: Long, end: Long, now: Long) {
+    private fun renderTimerCard(snapshot: TimersViewState.Card, state: TimersViewState) {
+        val start = state.dayStart
+        val end = state.dayEnd
+        val now = state.now
         val c = appUi.card()
         val cardData = snapshot.participant
         val person = cardData.participantId
@@ -81,17 +87,18 @@ internal class TimersScreen(
             letterSpacing = -0.035f
             setFontFeatureSettings("tnum")
         }
-        val statusLabel = if (!isArchived()) appUi.label(
-            if (active == null) getString(R.string.timer_stopped) else getString(R.string.running_prefix) + formatDuration(now - active),
-            16f, false, appUi.color("muted")
-        ) else null
+        val runningSession = snapshot.sessions.firstOrNull { it.endedAt == null }
+        val sessionRow = runningSession?.takeUnless { state.archived }?.let { session ->
+            val formatter = if (session.startedAt < start) DatePresentation.shortDateTime(resources)
+                else DatePresentation.shortTime(resources)
+            TimerSessionHistoryRow(this, appUi, formatter.format(Date(session.startedAt))) {
+                navigator.openActiveSessionInHistory(person, session.id)
+            }.apply { showDuration(formatDuration(now - session.startedAt)) }
+        }
         val clock = TimerCardClock(
-            this,
-            totalLabel,
-            appUi.label(getString(R.string.selected_day_total), 13f, false, appUi.color("muted")),
-            statusLabel,
-            formatTotal = { tick -> formatDuration(measuredDuration(tick)) },
-            formatStatus = if (active != null) ({ tick: Long -> getString(R.string.running_prefix) + formatDuration(tick - active) }) else null
+            this, totalLabel,
+            appUi.label(getString(R.string.today_total), 13f, false, appUi.color("muted")),
+            formatTotal = { tick -> formatDuration(measuredDuration(tick)) }
         )
         val ring = DayOccupancyRing(
             this, start, end,
@@ -102,47 +109,26 @@ internal class TimersScreen(
             captionColor = appUi.color("muted")
         )
         val strip = timeline.createTimerTrack(start, end, person, snapshot.sessions, snapshot.events)
-        val controls = if (statusLabel == null) null else {
+        val controls = if (state.archived) null else {
             val button = if (active == null)
                 appUi.action("▶  START", cardData.participantColor) { toggleTimer(person) }
             else appUi.styledAction("■  STOP", ButtonRole.DANGER) { toggleTimer(person) }
-            if (active != null) {
-                TimerCardControls(
-                    context = this,
-                    running = true,
-                    primaryButton = button,
-                    secondaryIcon = iconButton(
-                        "bookmark-add",
-                        appUi.color("eventIcon")
-                    ) { events.addEvent(person) },
-                    eventLabel = appUi.label("EVENT", 13f, true, appUi.color("ink")),
-                    secondaryBackground = appUi.shape(appUi.color("subtleNeutral"), 12),
-                    onEventClick = { events.addEvent(person) }
-                )
-            } else {
-                val backdate = iconButton("clock", appUi.color("ink")) { dialogs.showStartTimePicker(person) }.apply {
-                    contentDescription = if (resources.configuration.locales[0].language == "pl")
-                        "Rozpocznij sesję wcześniej" else "Start session in the past"
+            TimerCardControls(this, appUi, button).apply {
+                if (active != null) {
+                    val eventIcon = iconButton("bookmark-add", appUi.color("eventIcon")) { events.addEvent(person) }
+                    addEventButton(eventIcon) { events.addEvent(person) }
                 }
-                TimerCardControls(
-                    context = this,
-                    running = false,
-                    primaryButton = button,
-                    secondaryIcon = backdate,
-                    eventLabel = null,
-                    secondaryBackground = appUi.shape(appUi.color("subtleNeutral"), 12),
-                    onEventClick = null
-                )
             }
         }
         val cardView = TimerCardView(
             this, header, clock, ring, strip,
-            statusLabel, controls,
+            sessionRow, controls,
             spacing = { container, size -> appUi.gap(container, size) }
         )
         c.addView(cardView)
         if (active != null) updates.add { tick ->
             cardView.updateClock(clock, ring, tick)
+            sessionRow?.showDuration(formatDuration(tick - active))
         }
         addCard(c)
     }

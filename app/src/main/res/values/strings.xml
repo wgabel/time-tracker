@@ -25,7 +25,11 @@
     <string name="locked_data">Data cannot be edited.</string>
     <string name="archive_banner">▣  ARCHIVED · READ-ONLY</string>
     <string name="add_measurement">+ Add measurement</string>
-    <string name="selected_day_total">Selected day\'s total</string>
+    <string name="today_total">today’s total:</string>
+    <string name="current_timer_session">Current session</string>
+    <string name="timer_session_details">From %1$s · %2$s</string>
+    <string name="edit_in_history">Edit in history</string>
+    <string name="timer_add_event">Add event</string>
     <string name="measurements_heading">Measurements</string>
     <string name="selected_day_sessions">Sessions for selected day</string>
     <string name="full_history">View full history</string>
